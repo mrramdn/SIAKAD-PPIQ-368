@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum RiasecCode {
+  R
+  I
+  A
+  S
+  E
+  C
+}
+
+model User {
+  id           String             @id @default(uuid())
+  name         String
+  email        String             @unique
+  passwordHash String?
+  role         UserRole           @default(USER)
+  profile      UserProfile?
+  assessments  AssessmentResult[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model UserProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gender          String?
+  institutionName String?
+  grade           String?
+  initialInterest String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model RiasecQuestion {
+  id          String             @id @default(uuid())
+  code        RiasecCode
+  question    String
+  description String?
+  isActive    Boolean            @default(true)
+  order       Int                @default(0)
+  answers     AssessmentAnswer[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([code])
+  @@index([isActive, order])
+  @@unique([code, question])
+}
+
+model AssessmentResult {
+  id                 String             @id @default(uuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  realisticScore     Int                @default(0)
+  investigativeScore Int                @default(0)
+  artisticScore      Int                @default(0)
+  socialScore        Int                @default(0)
+  enterprisingScore  Int                @default(0)
+  conventionalScore  Int                @default(0)
+  dominantCode       String
+  summary            String?
+  answers            AssessmentAnswer[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([dominantCode])
+}
+
+model AssessmentAnswer {
+  id                 String           @id @default(uuid())
+  assessmentResultId String
+  assessmentResult   AssessmentResult @relation(fields: [assessmentResultId], references: [id], onDelete: Cascade)
+  questionId          String
+  question            RiasecQuestion  @relation(fields: [questionId], references: [id])
+  score               Int
+  createdAt           DateTime        @default(now())
+
+  @@unique([assessmentResultId, questionId])
+}
+
+model Career {
+  id              String               @id @default(uuid())
+  name            String               @unique
+  description     String?
+  isActive        Boolean              @default(true)
+  deletedAt       DateTime?
+  recommendations RecommendationRule[]
+  majors          MajorCareer[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+}
+
+model Campus {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  city      String?
+  province  String?
+  website   String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+  faculties Faculty[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Faculty {
+  id        String    @id @default(uuid())
+  campusId  String
+  campus    Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  name      String
+  majors    Major[]
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([campusId, name])
+}
+
+model Major {
+  id          String        @id @default(uuid())
+  facultyId   String
+  faculty     Faculty       @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  isActive    Boolean       @default(true)
+  deletedAt   DateTime?
+  careers     MajorCareer[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([facultyId, name])
+}
+
+model MajorCareer {
+  id       String @id @default(uuid())
+  majorId  String
+  major    Major  @relation(fields: [majorId], references: [id], onDelete: Cascade)
+  careerId String
+  career   Career @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@unique([majorId, careerId])
+}
+
+model RecommendationRule {
+  id         String   @id @default(uuid())
+  riasecCode String
+  careerId   String
+  career     Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  priority   Int      @default(0)
+  note       String?
+  isActive   Boolean  @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([riasecCode, isActive, priority])
+  @@unique([riasecCode, careerId])
+}

@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Career Path RIASEC App
 
-## Getting Started
+Aplikasi web monolit berbasis Next.js untuk asesmen minat RIASEC dan rekomendasi karir, jurusan, fakultas, serta kampus.
 
-First, run the development server:
+## Stack
+
+- Next.js App Router
+- React
+- TypeScript
+- Tailwind CSS
+- Prisma ORM
+- PostgreSQL
+- Zod
+- Auth.js / NextAuth-style auth
+- pnpm
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+pnpm db:generate
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Jalankan migration dan seed setelah `DATABASE_URL` tersedia di `.env`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm db:migrate
+pnpm db:seed
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Commands
 
-## Learn More
+```bash
+pnpm dev
+pnpm build
+pnpm lint
+pnpm db:generate
+pnpm db:migrate
+pnpm db:deploy
+pnpm db:seed
+pnpm db:studio
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Environment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Salin `.env.example` ke `.env`, lalu isi koneksi database dan secret auth.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
+AUTH_SECRET="change-this-secret"
+AUTH_URL="http://localhost:3000"
+NEXT_PUBLIC_APP_NAME="Career Path RIASEC App"
+```
 
-## Deploy on Vercel
+## Development Order
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Schema database dan migration.
+2. Seed admin dan data placeholder.
+3. Service, validation, route handler, atau server action.
+4. UI fitur.
+5. Manual test.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Default Seed
+
+Seeder awal menyiapkan:
+
+- Admin: `admin@example.com` dengan password `password123`.
+- 30 pertanyaan RIASEC.
+- Data karir placeholder.
+- Kampus, fakultas, jurusan, dan mapping karir placeholder.
+- Rule rekomendasi RIASEC awal.
