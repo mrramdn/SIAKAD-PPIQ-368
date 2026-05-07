@@ -1,13 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f0e7;
-  --foreground: #211a13;
+  --background: oklch(0.96 0.018 92);
+  --foreground: oklch(0.24 0.035 135);
+  --brand: oklch(0.44 0.15 147);
+  --brand-strong: oklch(0.34 0.13 147);
+  --brand-soft: oklch(0.91 0.05 147);
+  --accent: oklch(0.82 0.15 84);
+  --danger: oklch(0.55 0.18 29);
+  --paper: oklch(0.98 0.012 92);
+  --paper-deep: oklch(0.91 0.028 92);
+  --muted: oklch(0.48 0.035 135);
+  --line: oklch(0.82 0.035 100);
+  --shadow: 0 24px 70px oklch(0.24 0.035 135 / 0.12), 0 2px 12px oklch(0.24 0.035 135 / 0.08);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -15,9 +34,47 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: #211a13;
-  color: #f6f0e7;
+  background: var(--brand-strong);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p,
+li,
+label,
+input,
+button,
+a {
+  text-wrap: pretty;
+}
+
+button,
+a,
+input {
+  touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

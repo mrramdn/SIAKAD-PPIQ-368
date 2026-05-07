@@ -231,6 +231,16 @@ For errors:
 - Preserve accessibility basics: semantic elements, labels, focus states, and sufficient contrast.
 - Admin screens should favor tables, filters, forms, and summary cards.
 - Assessment UI should be straightforward, preferably step-based or a clear question list.
+- Use `PRODUCT.md` and `DESIGN.md` before frontend edits.
+- Use `public/logo.png` as the brand anchor on auth and shell surfaces.
+- Match the logo's pesantren green as the primary UI color.
+- Use OKLCH semantic tokens for new UI colors.
+- Do not use gradient text, emoji icons, side-stripe accents, decorative glassmorphism, or identical icon-card grids.
+- Keep touch targets at least 44px tall where possible.
+- Use visible labels, inline errors, and loading states for forms.
+- Use `active:scale-[0.96]` and specific transition properties for buttons.
+- Use tabular numbers for scores, counts, percentages, and dashboard metrics.
+- Use `text-wrap: balance` on headings and `text-wrap: pretty` on body copy.
 
 ## Prose Rules: Stop Slop
 
