@@ -1,35 +1,28 @@
-import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/admin";
-import { successResponse } from "@/lib/api-response";
+import { ZodError } from "zod";
 
-export async function GET() {
+import { listAssessmentMonitoring } from "@/features/admin/monitoring.service";
+import { monitoringQuerySchema } from "@/features/admin/monitoring.validation";
+import { requireAdmin } from "@/lib/admin";
+import { errorResponse, successResponse } from "@/lib/api-response";
+
+export async function GET(request: Request) {
   const { response } = await requireAdmin();
 
   if (response) {
     return response;
   }
 
-  const assessments = await prisma.assessmentResult.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      dominantCode: true,
-      realisticScore: true,
-      investigativeScore: true,
-      artisticScore: true,
-      socialScore: true,
-      enterprisingScore: true,
-      conventionalScore: true,
-      createdAt: true,
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-    },
-  });
+  try {
+    const searchParams = new URL(request.url).searchParams;
+    const input = monitoringQuerySchema.parse(Object.fromEntries(searchParams));
+    const result = await listAssessmentMonitoring(input);
 
-  return successResponse("Data assessment berhasil diambil", assessments);
+    return successResponse("Data monitoring assessment berhasil diambil", result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return errorResponse("Filter monitoring tidak valid", error.issues, 422);
+    }
+
+    return errorResponse("Data monitoring assessment gagal diambil", [], 500);
+  }
 }
