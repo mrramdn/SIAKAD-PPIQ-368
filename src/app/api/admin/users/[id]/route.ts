@@ -1,8 +1,6 @@
-import { UserRole } from "@prisma/client";
-
 import { getAdminUserDetail } from "@/features/users/user.service";
+import { requireAdmin } from "@/lib/admin";
 import { errorResponse, successResponse } from "@/lib/api-response";
-import { getCurrentUser } from "@/lib/auth";
 
 type RouteContext = {
   params: Promise<{
@@ -11,10 +9,10 @@ type RouteContext = {
 };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const currentUser = await getCurrentUser();
+  const { response } = await requireAdmin();
 
-  if (!currentUser || currentUser.role !== UserRole.ADMIN) {
-    return errorResponse("Akses admin diperlukan", [], 403);
+  if (response) {
+    return response;
   }
 
   const { id } = await context.params;
