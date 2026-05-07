@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 
 import { registerUser } from "@/features/auth/auth.service";
@@ -18,6 +19,10 @@ export async function POST(request: Request) {
 
     if (error instanceof Error && error.message === "Email sudah terdaftar") {
       return errorResponse(error.message, [], 409);
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return errorResponse("Email sudah terdaftar", [], 409);
     }
 
     return errorResponse("Registrasi gagal", [], 500);
