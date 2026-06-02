@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -11,163 +12,100 @@ enum UserRole {
   ADMIN
 }
 
-enum RiasecCode {
-  R
-  I
-  A
-  S
-  E
-  C
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LessonType {
+  TEXT
+  VIDEO
+  QUIZ
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
 }
 
 model User {
-  id           String             @id @default(uuid())
+  id           String       @id @default(uuid())
   name         String
-  email        String             @unique
-  passwordHash String?
-  role         UserRole           @default(USER)
-  profile      UserProfile?
-  assessments  AssessmentResult[]
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  email        String       @unique
+  passwordHash String
+  role         UserRole     @default(USER)
+  sessions     Session[]
+  courses      Course[]     @relation("CourseCreator")
+  enrollments  Enrollment[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([role])
 }
 
-model UserProfile {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gender          String?
-  institutionName String?
-  grade           String?
-  initialInterest String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
-model RiasecQuestion {
-  id          String             @id @default(uuid())
-  code        RiasecCode
-  question    String
-  description String?
-  isActive    Boolean            @default(true)
-  order       Int                @default(0)
-  answers     AssessmentAnswer[]
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-
-  @@index([code])
-  @@index([isActive, order])
-  @@unique([code, question])
-}
-
-model AssessmentResult {
-  id                 String             @id @default(uuid())
-  userId             String
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  realisticScore     Int                @default(0)
-  investigativeScore Int                @default(0)
-  artisticScore      Int                @default(0)
-  socialScore        Int                @default(0)
-  enterprisingScore  Int                @default(0)
-  conventionalScore  Int                @default(0)
-  dominantCode       String
-  summary            String?
-  answers            AssessmentAnswer[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  @@index([userId, createdAt])
-  @@index([dominantCode])
-}
-
-model AssessmentAnswer {
-  id                 String           @id @default(uuid())
-  assessmentResultId String
-  assessmentResult   AssessmentResult @relation(fields: [assessmentResultId], references: [id], onDelete: Cascade)
-  questionId          String
-  question            RiasecQuestion  @relation(fields: [questionId], references: [id])
-  score               Int
-  createdAt           DateTime        @default(now())
-
-  @@unique([assessmentResultId, questionId])
-}
-
-model Career {
-  id              String               @id @default(uuid())
-  name            String               @unique
-  description     String?
-  isActive        Boolean              @default(true)
-  deletedAt       DateTime?
-  recommendations RecommendationRule[]
-  majors          MajorCareer[]
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-}
-
-model Campus {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  city      String?
-  province  String?
-  website   String?
-  isActive  Boolean   @default(true)
-  deletedAt DateTime?
-  faculties Faculty[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-model Faculty {
-  id        String    @id @default(uuid())
-  campusId  String
-  campus    Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
-  name      String
-  majors    Major[]
-  isActive  Boolean   @default(true)
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  @@unique([campusId, name])
-}
-
-model Major {
-  id          String        @id @default(uuid())
-  facultyId   String
-  faculty     Faculty       @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  isActive    Boolean       @default(true)
+model Course {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique
+  description String
+  status      CourseStatus @default(PUBLISHED)
+  createdById String?
+  createdBy   User?        @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  lessons     Lesson[]
+  enrollments Enrollment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
-  careers     MajorCareer[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
 
-  @@unique([facultyId, name])
+  @@index([status])
+  @@index([createdById])
 }
 
-model MajorCareer {
-  id       String @id @default(uuid())
-  majorId  String
-  major    Major  @relation(fields: [majorId], references: [id], onDelete: Cascade)
-  careerId String
-  career   Career @relation(fields: [careerId], references: [id], onDelete: Cascade)
+model Lesson {
+  id          String     @id @default(uuid())
+  courseId    String
+  course      Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  content     String?
+  type        LessonType @default(TEXT)
+  order       Int        @default(0)
+  isPreview   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
 
-  @@unique([majorId, careerId])
+  @@unique([courseId, order])
+  @@index([courseId])
 }
 
-model RecommendationRule {
-  id         String   @id @default(uuid())
-  riasecCode String
-  careerId   String
-  career     Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
-  priority   Int      @default(0)
-  note       String?
-  isActive   Boolean  @default(true)
-  deletedAt  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+model Enrollment {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  status      EnrollmentStatus @default(ACTIVE)
+  progress    Int              @default(0)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime         @updatedAt
 
-  @@index([riasecCode, isActive, priority])
-  @@unique([riasecCode, careerId])
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@index([status])
 }

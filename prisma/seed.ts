@@ -1,202 +1,170 @@
-import { PrismaClient, RiasecCode, UserRole } from "@prisma/client";
+import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
-import { existsSync, readFileSync } from "node:fs";
-
-function loadLocalEnv() {
-  if (!existsSync(".env")) {
-    return;
-  }
-
-  const envFile = readFileSync(".env", "utf8");
-
-  for (const line of envFile.split(/\r?\n/)) {
-    const trimmedLine = line.trim();
-
-    if (!trimmedLine || trimmedLine.startsWith("#")) {
-      continue;
-    }
-
-    const separatorIndex = trimmedLine.indexOf("=");
-
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const key = trimmedLine.slice(0, separatorIndex).trim();
-    const value = trimmedLine.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, "");
-
-    process.env[key] ??= value;
-  }
-}
-
-loadLocalEnv();
+import { CourseStatus, EnrollmentStatus, LessonType, PrismaClient, UserRole } from "../generated/prisma/client";
 
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error("DATABASE_URL is required");
+  throw new Error("DATABASE_URL is required to seed the database");
 }
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
 
-const questions: Array<{ code: RiasecCode; question: string }> = [
-  { code: "R", question: "Saya menyukai aktivitas praktik langsung atau pekerjaan teknis." },
-  { code: "R", question: "Saya tertarik bekerja dengan alat, mesin, atau perlengkapan lapangan." },
-  { code: "R", question: "Saya nyaman menyelesaikan tugas yang membutuhkan keterampilan fisik." },
-  { code: "R", question: "Saya senang melihat hasil kerja yang konkret dan dapat digunakan." },
-  { code: "R", question: "Saya tertarik pada kegiatan pertanian, teknik, otomotif, atau konstruksi." },
-  { code: "I", question: "Saya senang menganalisis masalah dan mencari penyebabnya." },
-  { code: "I", question: "Saya tertarik membaca data, melakukan riset, atau menguji hipotesis." },
-  { code: "I", question: "Saya menikmati pelajaran sains, matematika, atau teknologi." },
-  { code: "I", question: "Saya suka memecahkan soal yang membutuhkan logika." },
-  { code: "I", question: "Saya tertarik mencari jawaban sebelum mengambil kesimpulan." },
-  { code: "A", question: "Saya menyukai kegiatan kreatif seperti menulis, desain, atau seni." },
-  { code: "A", question: "Saya nyaman mengekspresikan ide melalui karya." },
-  { code: "A", question: "Saya tertarik pada bahasa, musik, visual, atau media kreatif." },
-  { code: "A", question: "Saya senang mencari cara baru untuk menyampaikan gagasan." },
-  { code: "A", question: "Saya menikmati tugas yang memberi ruang imajinasi." },
-  { code: "S", question: "Saya senang membantu, mengajar, atau membimbing orang lain." },
-  { code: "S", question: "Saya nyaman bekerja dalam kegiatan sosial atau pelayanan." },
-  { code: "S", question: "Saya tertarik mendengar cerita orang dan memberi dukungan." },
-  { code: "S", question: "Saya senang menjelaskan materi kepada teman." },
-  { code: "S", question: "Saya tertarik pada bidang pendidikan, konseling, dakwah, atau kesehatan." },
-  { code: "E", question: "Saya tertarik memimpin, berorganisasi, atau berwirausaha." },
-  { code: "E", question: "Saya nyaman berbicara di depan orang untuk meyakinkan mereka." },
-  { code: "E", question: "Saya suka mengambil keputusan dalam kelompok." },
-  { code: "E", question: "Saya tertarik pada bisnis, manajemen, atau pemasaran." },
-  { code: "E", question: "Saya menikmati kegiatan yang membutuhkan negosiasi atau strategi." },
-  { code: "C", question: "Saya menyukai pekerjaan yang rapi, terstruktur, dan berbasis data." },
-  { code: "C", question: "Saya nyaman mengelola dokumen, angka, jadwal, atau arsip." },
-  { code: "C", question: "Saya senang mengikuti prosedur yang jelas." },
-  { code: "C", question: "Saya teliti saat memeriksa detail pekerjaan." },
-  { code: "C", question: "Saya tertarik pada administrasi, akuntansi, atau sistem informasi." },
-];
-
-const careers = [
-  { name: "Konselor Pendidikan", description: "Membantu siswa memahami potensi dan pilihan pendidikan." },
-  { name: "Guru", description: "Mendidik dan membimbing peserta didik di sekolah atau lembaga." },
-  { name: "Data Analyst", description: "Mengolah data untuk mendukung keputusan organisasi." },
-  { name: "Software Developer", description: "Membangun aplikasi dan sistem berbasis teknologi." },
-  { name: "Desainer Komunikasi Visual", description: "Membuat solusi visual untuk komunikasi dan media." },
-  { name: "Wirausaha", description: "Membangun dan mengelola usaha berbasis peluang pasar." },
-  { name: "Akuntan", description: "Mengelola pencatatan, laporan, dan analisis keuangan." },
-  { name: "Teknisi Lapangan", description: "Menangani pekerjaan teknis dan operasional di lapangan." },
-];
-
-const recommendationRules = [
-  { riasecCode: "S", careerName: "Konselor Pendidikan", priority: 1 },
-  { riasecCode: "S", careerName: "Guru", priority: 2 },
-  { riasecCode: "I", careerName: "Data Analyst", priority: 1 },
-  { riasecCode: "I", careerName: "Software Developer", priority: 2 },
-  { riasecCode: "A", careerName: "Desainer Komunikasi Visual", priority: 1 },
-  { riasecCode: "E", careerName: "Wirausaha", priority: 1 },
-  { riasecCode: "C", careerName: "Akuntan", priority: 1 },
-  { riasecCode: "R", careerName: "Teknisi Lapangan", priority: 1 },
-];
+const courses = [
+  {
+    title: "Dasar Penggunaan LMS",
+    slug: "dasar-penggunaan-lms",
+    description: "Panduan awal untuk memahami alur belajar, materi, dan progres di platform LMS.",
+    lessons: [
+      {
+        title: "Mengenal Dashboard Belajar",
+        description: "Pelajari menu utama dan informasi penting di dashboard.",
+        content: "Dashboard menampilkan kursus yang sedang diikuti, progres belajar, dan rekomendasi materi berikutnya.",
+        type: LessonType.TEXT,
+        isPreview: true,
+      },
+      {
+        title: "Mengikuti Materi dan Menandai Progres",
+        description: "Cara membaca materi dan menyelesaikan pelajaran.",
+        content: "Buka materi secara berurutan, baca instruksi, lalu lanjutkan ke pelajaran berikutnya saat sudah memahami topik.",
+        type: LessonType.TEXT,
+        isPreview: false,
+      },
+    ],
+  },
+  {
+    title: "Komunikasi Profesional",
+    slug: "komunikasi-profesional",
+    description: "Materi ringkas untuk meningkatkan komunikasi tertulis dan lisan di lingkungan kerja atau kelas.",
+    lessons: [
+      {
+        title: "Prinsip Komunikasi Jelas",
+        description: "Susun pesan yang singkat, sopan, dan mudah dipahami.",
+        content: "Komunikasi yang baik dimulai dari tujuan pesan yang jelas, konteks yang cukup, dan tindak lanjut yang spesifik.",
+        type: LessonType.TEXT,
+        isPreview: true,
+      },
+      {
+        title: "Memberi dan Menerima Umpan Balik",
+        description: "Gunakan feedback untuk memperbaiki hasil belajar dan kerja.",
+        content: "Feedback efektif fokus pada perilaku atau hasil kerja, bukan menyerang pribadi.",
+        type: LessonType.TEXT,
+        isPreview: false,
+      },
+    ],
+  },
+  {
+    title: "Manajemen Waktu Belajar",
+    slug: "manajemen-waktu-belajar",
+    description: "Strategi sederhana untuk membuat jadwal belajar yang realistis dan konsisten.",
+    lessons: [
+      {
+        title: "Membuat Prioritas Materi",
+        description: "Tentukan materi yang perlu diselesaikan lebih dulu.",
+        content: "Urutkan materi berdasarkan deadline, tingkat kesulitan, dan dampaknya terhadap tujuan belajar.",
+        type: LessonType.TEXT,
+        isPreview: true,
+      },
+      {
+        title: "Rutinitas Belajar Mingguan",
+        description: "Bangun kebiasaan belajar dengan waktu yang tetap.",
+        content: "Jadwal yang konsisten membantu mengurangi penundaan dan membuat progres lebih mudah dilacak.",
+        type: LessonType.TEXT,
+        isPreview: false,
+      },
+    ],
+  },
+] as const;
 
 async function main() {
-  const passwordHash = await bcrypt.hash("password123", 10);
+  const passwordHash = await bcrypt.hash("password123", 12);
 
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: "admin@example.com" },
-    update: { name: "Admin", passwordHash, role: UserRole.ADMIN },
+    update: { name: "Admin LMS", passwordHash, role: UserRole.ADMIN },
     create: {
-      name: "Admin",
+      name: "Admin LMS",
       email: "admin@example.com",
       passwordHash,
       role: UserRole.ADMIN,
     },
+    select: { id: true },
   });
 
-  await Promise.all(
-    questions.map((item, index) =>
-      prisma.riasecQuestion.upsert({
-        where: { code_question: { code: item.code, question: item.question } },
-        update: { order: index + 1, isActive: true },
-        create: { ...item, order: index + 1 },
-      }),
-    ),
-  );
-
-  await Promise.all(
-    careers.map((career) =>
-      prisma.career.upsert({
-        where: { name: career.name },
-        update: { description: career.description, isActive: true },
-        create: career,
-      }),
-    ),
-  );
-
-  const campus = await prisma.campus.upsert({
-    where: { name: "Universitas Contoh Nusantara" },
-    update: { city: "Bandung", province: "Jawa Barat", isActive: true },
+  const user = await prisma.user.upsert({
+    where: { email: "user@example.com" },
+    update: { name: "User Demo", passwordHash, role: UserRole.USER },
     create: {
-      name: "Universitas Contoh Nusantara",
-      city: "Bandung",
-      province: "Jawa Barat",
-      website: "https://example.edu",
+      name: "User Demo",
+      email: "user@example.com",
+      passwordHash,
+      role: UserRole.USER,
     },
+    select: { id: true },
   });
 
-  const faculty = await prisma.faculty.upsert({
-    where: { campusId_name: { campusId: campus.id, name: "Fakultas Ilmu Pendidikan dan Teknologi" } },
-    update: { isActive: true },
-    create: { campusId: campus.id, name: "Fakultas Ilmu Pendidikan dan Teknologi" },
-  });
-
-  const majors = [
-    { name: "Bimbingan dan Konseling", careerName: "Konselor Pendidikan" },
-    { name: "Pendidikan Agama Islam", careerName: "Guru" },
-    { name: "Sistem Informasi", careerName: "Data Analyst" },
-    { name: "Informatika", careerName: "Software Developer" },
-    { name: "Desain Komunikasi Visual", careerName: "Desainer Komunikasi Visual" },
-    { name: "Manajemen Bisnis", careerName: "Wirausaha" },
-    { name: "Akuntansi", careerName: "Akuntan" },
-    { name: "Teknik Industri", careerName: "Teknisi Lapangan" },
-  ];
-
-  for (const majorItem of majors) {
-    const [major, career] = await Promise.all([
-      prisma.major.upsert({
-        where: { facultyId_name: { facultyId: faculty.id, name: majorItem.name } },
-        update: { isActive: true },
-        create: { facultyId: faculty.id, name: majorItem.name },
-      }),
-      prisma.career.findUniqueOrThrow({ where: { name: majorItem.careerName } }),
-    ]);
-
-    await prisma.majorCareer.upsert({
-      where: { majorId_careerId: { majorId: major.id, careerId: career.id } },
-      update: {},
-      create: { majorId: major.id, careerId: career.id },
-    });
-  }
-
-  for (const rule of recommendationRules) {
-    const career = await prisma.career.findUniqueOrThrow({ where: { name: rule.careerName } });
-
-    await prisma.recommendationRule.upsert({
-      where: { riasecCode_careerId: { riasecCode: rule.riasecCode, careerId: career.id } },
-      update: { priority: rule.priority, isActive: true },
-      create: {
-        riasecCode: rule.riasecCode,
-        careerId: career.id,
-        priority: rule.priority,
-        note: "Rule placeholder untuk rekomendasi awal.",
+  for (const courseData of courses) {
+    const course = await prisma.course.upsert({
+      where: { slug: courseData.slug },
+      update: {
+        title: courseData.title,
+        description: courseData.description,
+        status: CourseStatus.PUBLISHED,
+        createdById: admin.id,
       },
+      create: {
+        title: courseData.title,
+        slug: courseData.slug,
+        description: courseData.description,
+        status: CourseStatus.PUBLISHED,
+        createdById: admin.id,
+      },
+      select: { id: true, slug: true },
     });
+
+    await Promise.all(
+      courseData.lessons.map((lesson, index) =>
+        prisma.lesson.upsert({
+          where: { courseId_order: { courseId: course.id, order: index + 1 } },
+          update: {
+            title: lesson.title,
+            description: lesson.description,
+            content: lesson.content,
+            type: lesson.type,
+            isPreview: lesson.isPreview,
+          },
+          create: {
+            courseId: course.id,
+            title: lesson.title,
+            description: lesson.description,
+            content: lesson.content,
+            type: lesson.type,
+            order: index + 1,
+            isPreview: lesson.isPreview,
+          },
+        }),
+      ),
+    );
+
+    if (course.slug === "dasar-penggunaan-lms") {
+      await prisma.enrollment.upsert({
+        where: { userId_courseId: { userId: user.id, courseId: course.id } },
+        update: { progress: 40, status: EnrollmentStatus.ACTIVE },
+        create: { userId: user.id, courseId: course.id, progress: 40, status: EnrollmentStatus.ACTIVE },
+      });
+    }
   }
 }
 
 main()
+  .then(async () => {
+    await prisma.$disconnect();
+  })
   .catch(async (error) => {
     console.error(error);
-    process.exit(1);
-  })
-  .finally(async () => {
     await prisma.$disconnect();
+    process.exit(1);
   });
