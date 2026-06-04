@@ -2,7 +2,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
-import { UserRole } from "@/generated/prisma/client";
+import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const SESSION_COOKIE = "general_lms_session";
@@ -14,6 +14,7 @@ export type AuthUser = {
   name: string;
   email: string;
   role: UserRole;
+  status: UserStatus;
 };
 
 function hashSessionToken(token: string) {
@@ -50,7 +51,7 @@ export async function createUserSession(userId: string) {
 export async function signInWithPassword(email: string, password: string) {
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase().trim() },
-    select: { id: true, passwordHash: true, role: true },
+    select: { id: true, passwordHash: true, role: true, status: true },
   });
 
   if (!user) {
@@ -65,7 +66,7 @@ export async function signInWithPassword(email: string, password: string) {
 
   await createUserSession(user.id);
 
-  return { id: user.id, role: user.role };
+  return { id: user.id, role: user.role, status: user.status };
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
@@ -82,7 +83,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       id: true,
       expiresAt: true,
       user: {
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, role: true, status: true },
       },
     },
   });
@@ -112,7 +113,27 @@ export async function requireUser() {
 export async function requireAdmin() {
   const user = await requireUser();
 
-  if (user.role !== UserRole.ADMIN) {
+  if (user.role !== UserRole.ADMIN || user.status !== UserStatus.VERIFIED) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
+export async function requireVerifiedUser() {
+  const user = await requireUser();
+
+  if (user.status !== UserStatus.VERIFIED) {
+    redirect("/pending");
+  }
+
+  return user;
+}
+
+export async function requireTeacherOrAdmin() {
+  const user = await requireVerifiedUser();
+
+  if (user.role !== UserRole.ADMIN && user.role !== UserRole.TEACHER) {
     redirect("/dashboard");
   }
 

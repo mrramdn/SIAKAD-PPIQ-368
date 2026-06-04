@@ -8,8 +8,16 @@ datasource db {
 }
 
 enum UserRole {
-  USER
+  STUDENT
+  TEACHER
   ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  SUSPENDED
 }
 
 enum CourseStatus {
@@ -30,19 +38,47 @@ enum EnrollmentStatus {
   CANCELLED
 }
 
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
 model User {
   id           String       @id @default(uuid())
   name         String
   email        String       @unique
   passwordHash String
-  role         UserRole     @default(USER)
+  role         UserRole     @default(STUDENT)
+  status       UserStatus   @default(PENDING)
+  verifiedAt   DateTime?
+  verifiedById String?
+  profile      StudentProfile?
   sessions     Session[]
   courses      Course[]     @relation("CourseCreator")
   enrollments  Enrollment[]
+  attendanceRecords AttendanceRecord[]
+  gradeRecords GradeRecord[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   @@index([role])
+  @@index([status])
+}
+
+model StudentProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentNumber String   @unique
+  className     String
+  phone         String?
+  address       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([className])
 }
 
 model Session {
@@ -67,6 +103,8 @@ model Course {
   createdBy   User?        @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
   lessons     Lesson[]
   enrollments Enrollment[]
+  attendanceSessions AttendanceSession[]
+  gradeItems GradeItem[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
@@ -108,4 +146,65 @@ model Enrollment {
   @@unique([userId, courseId])
   @@index([courseId])
   @@index([status])
+}
+
+model AttendanceSession {
+  id        String             @id @default(uuid())
+  courseId  String
+  course    Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title     String
+  heldAt    DateTime
+  records   AttendanceRecord[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([courseId, heldAt])
+  @@unique([courseId, title])
+}
+
+model AttendanceRecord {
+  id                  String           @id @default(uuid())
+  attendanceSessionId String
+  attendanceSession   AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
+  userId              String
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status              AttendanceStatus @default(PRESENT)
+  note                String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([attendanceSessionId, userId])
+  @@index([userId])
+  @@index([status])
+}
+
+model GradeItem {
+  id          String        @id @default(uuid())
+  courseId    String
+  course      Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  maxScore    Int           @default(100)
+  dueAt       DateTime?
+  records     GradeRecord[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([courseId])
+  @@unique([courseId, title])
+}
+
+model GradeRecord {
+  id          String    @id @default(uuid())
+  gradeItemId String
+  gradeItem   GradeItem @relation(fields: [gradeItemId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score       Int
+  feedback    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([gradeItemId, userId])
+  @@index([userId])
 }

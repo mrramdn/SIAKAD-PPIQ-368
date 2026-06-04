@@ -16,6 +16,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const [params, user] = await Promise.all([searchParams, getCurrentUser()]);
 
   if (user) {
+    if (user.status !== "VERIFIED") {
+      redirect("/pending");
+    }
+
     redirect(user.role === "ADMIN" ? "/admin" : "/dashboard");
   }
 
@@ -34,12 +38,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Masuk sebagai admin atau user.
             </h1>
             <p className="mt-4 text-slate-300">
-              Gunakan akun demo dari seed database untuk mengakses dashboard LMS.
+              Gunakan akun demo dari seed database atau daftar sebagai siswa baru.
             </p>
           </div>
           <div className="mt-12 rounded-2xl bg-white/10 p-4 text-sm text-slate-200">
             <p>Admin: admin@example.com / password123</p>
-            <p className="mt-1">User: user@example.com / password123</p>
+            <p className="mt-1">Siswa: user@example.com / password123</p>
+            <p className="mt-1">Pending: pending@example.com / password123</p>
           </div>
         </div>
 
@@ -83,6 +88,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               Login
             </button>
           </form>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Belum punya akun?{" "}
+            <Link href="/register" className="font-semibold text-slate-950 underline underline-offset-4">
+              Daftar siswa
+            </Link>
+          </p>
         </div>
       </section>
     </main>

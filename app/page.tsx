@@ -3,8 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 
 const features = [
   "Manajemen kursus dan materi belajar",
-  "Login terpisah untuk admin dan user",
-  "Dashboard progres belajar sederhana",
+  "Registrasi siswa dengan verifikasi admin",
+  "Absensi dan nilai per course",
 ] as const;
 
 export default async function Home() {
@@ -46,7 +46,7 @@ export default async function Home() {
               Platform belajar general untuk kursus, materi, dan progres peserta.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-              LMS ini dibuat sebagai fondasi awal yang fleksibel: cukup untuk login admin dan user, mengelola data kursus, serta menampilkan pengalaman belajar dasar.
+              LMS ini dibuat sebagai fondasi awal yang fleksibel: siswa bisa registrasi, admin memverifikasi akun, lalu course, absen, dan nilai dikelola dari panel admin.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -55,6 +55,14 @@ export default async function Home() {
               >
                 Mulai Sekarang
               </Link>
+              {!user ? (
+                <Link
+                  href="/register"
+                  className="rounded-full bg-white px-6 py-3 text-center font-semibold text-slate-950 transition hover:bg-slate-200"
+                >
+                  Registrasi Siswa
+                </Link>
+              ) : null}
               <a
                 href="#fitur"
                 className="rounded-full border border-white/15 px-6 py-3 text-center font-semibold text-white transition hover:bg-white/10"
@@ -78,7 +86,8 @@ export default async function Home() {
               <div className="mt-6 rounded-2xl bg-cyan-300 p-4 text-slate-950">
                 <p className="text-sm font-semibold">Demo akun</p>
                 <p className="mt-2 text-sm">Admin: admin@example.com / password123</p>
-                <p className="text-sm">User: user@example.com / password123</p>
+                <p className="text-sm">Siswa: user@example.com / password123</p>
+                <p className="text-sm">Pending: pending@example.com / password123</p>
               </div>
             </div>
           </div>
