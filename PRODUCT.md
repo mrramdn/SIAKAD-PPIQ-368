@@ -2,17 +2,18 @@
 
 ## Product
 
-General LMS membantu admin menyediakan course dan lesson sederhana, lalu membantu user melihat kursus yang diikuti, progres belajar, dan materi yang tersedia.
+General LMS membantu admin menyediakan course dan lesson sederhana, memverifikasi siswa, mencatat absensi, mengisi nilai, lalu membantu siswa melihat kursus, progres, absensi, dan nilai.
 
 ## Users
 
-- User yang membutuhkan akses materi belajar terstruktur.
+- Siswa yang membutuhkan akses materi belajar terstruktur.
 - Admin yang mengelola data course, lesson, dan enrollment.
+- Guru atau operator yang mencatat absensi dan nilai.
 - Stakeholder yang masih mengevaluasi konsep final produk.
 
 ## Product Purpose
 
-User harus bisa login, masuk dashboard, melihat kursus yang diikuti, dan memahami progres. Admin harus bisa login ke panel admin dan melihat ringkasan data LMS tanpa akses database langsung.
+Siswa harus bisa registrasi, menunggu verifikasi admin, login setelah verified, melihat kursus, absensi, dan nilai. Admin harus bisa memverifikasi akun, memasukkan course, enroll siswa, mencatat absen, dan mengisi nilai tanpa akses database langsung.
 
 ## Brand Tone
 
@@ -20,11 +21,11 @@ Jelas, tenang, dan fungsional. UI harus terasa seperti fondasi produk belajar ya
 
 ## Strategic Principles
 
-1. Login first: admin dan user harus bisa masuk dengan akun seed.
+1. Verified access first: siswa baru harus disetujui admin sebelum memakai LMS.
 2. LMS stays general: hindari domain spesifik sampai konsep final disetujui.
-3. Backend remains simple: schema fokus pada user, session, course, lesson, dan enrollment.
-4. Admin sees data fast: admin panel menampilkan metrik dan daftar course.
-5. User sees progress: dashboard user menampilkan kursus aktif dan kursus tersedia.
+3. Backend remains simple: schema fokus pada user, siswa, session, course, lesson, enrollment, absensi, dan nilai.
+4. Admin sees data fast: admin panel menampilkan metrik, verifikasi, course, siswa, absen, dan nilai.
+5. Student sees progress: dashboard siswa menampilkan kursus aktif, absen terbaru, dan nilai terbaru.
 
 ## Content Rules
 

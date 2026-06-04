@@ -2,7 +2,7 @@
 
 ## Project Context
 
-This project is a general Learning Management System built as a Next.js monolith. The current scope is intentionally simple: admin and user login, user dashboard, admin dashboard, course data, lesson data, and enrollment data.
+This project is a general Learning Management System built as a Next.js monolith. The current scope covers student registration, admin verification, student dashboard, admin dashboard, course data, lesson data, enrollment data, attendance, and grades.
 
 Primary stack:
 
@@ -29,6 +29,7 @@ This project uses a newer Next.js version with breaking changes. APIs, conventio
 - Keep the app as a Next.js monolith.
 - Use Prisma as the official database access layer.
 - Protect admin functionality on the server side.
+- New student accounts must stay `PENDING` until an admin verifies them.
 - Store passwords only as hashes.
 - Do not commit `.env`, `.env.local`, `.env.production`, or `.env.staging`.
 - Keep the LMS general until the final product concept is approved.
@@ -41,6 +42,8 @@ app/
   dashboard/
   login/
   logout/
+  register/
+  pending/
 lib/
   auth.ts
   lms.ts

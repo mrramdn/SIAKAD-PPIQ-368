@@ -2,7 +2,7 @@
 
 ## Design Direction
 
-Scene: user membuka LMS dari laptop atau HP untuk melihat kursus, progres, dan materi berikutnya. Admin membuka panel untuk memantau jumlah user, course, lesson, dan enrollment.
+Scene: siswa membuka LMS dari laptop atau HP untuk melihat kursus, progres, absensi, dan nilai. Admin membuka panel untuk memverifikasi siswa, memasukkan course, mengatur lesson, enroll siswa, mencatat absen, dan mengisi nilai.
 
 Theme: calm learning dashboard.
 
@@ -32,8 +32,8 @@ Primary use:
 - Minimum interactive height: 44px.
 - Use clear sections for landing, login, dashboard, and admin panel.
 - Avoid unnecessary nested cards.
-- Admin pages use summary cards and readable course lists.
-- User pages prioritize enrolled courses and available courses.
+- Admin pages use summary cards, readable course lists, compact forms, and per-course management sections.
+- Student pages prioritize enrolled courses, attendance history, and recent grades.
 
 ## Forms
 

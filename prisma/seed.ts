@@ -1,7 +1,15 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
-import { CourseStatus, EnrollmentStatus, LessonType, PrismaClient, UserRole } from "../generated/prisma/client";
+import {
+  AttendanceStatus,
+  CourseStatus,
+  EnrollmentStatus,
+  LessonType,
+  PrismaClient,
+  UserRole,
+  UserStatus,
+} from "../generated/prisma/client";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -84,26 +92,77 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@example.com" },
-    update: { name: "Admin LMS", passwordHash, role: UserRole.ADMIN },
+    update: { name: "Admin LMS", passwordHash, role: UserRole.ADMIN, status: UserStatus.VERIFIED, verifiedAt: new Date() },
     create: {
       name: "Admin LMS",
       email: "admin@example.com",
       passwordHash,
       role: UserRole.ADMIN,
+      status: UserStatus.VERIFIED,
+      verifiedAt: new Date(),
     },
     select: { id: true },
   });
 
+  await prisma.user.upsert({
+    where: { email: "teacher@example.com" },
+    update: { name: "Guru Demo", passwordHash, role: UserRole.TEACHER, status: UserStatus.VERIFIED, verifiedAt: new Date() },
+    create: {
+      name: "Guru Demo",
+      email: "teacher@example.com",
+      passwordHash,
+      role: UserRole.TEACHER,
+      status: UserStatus.VERIFIED,
+      verifiedAt: new Date(),
+    },
+  });
+
   const user = await prisma.user.upsert({
     where: { email: "user@example.com" },
-    update: { name: "User Demo", passwordHash, role: UserRole.USER },
+    update: { name: "User Demo", passwordHash, role: UserRole.STUDENT, status: UserStatus.VERIFIED, verifiedAt: new Date() },
     create: {
       name: "User Demo",
       email: "user@example.com",
       passwordHash,
-      role: UserRole.USER,
+      role: UserRole.STUDENT,
+      status: UserStatus.VERIFIED,
+      verifiedAt: new Date(),
+      profile: {
+        create: {
+          studentNumber: "SIS-001",
+          className: "XI-A",
+          phone: "081234567890",
+          address: "Asrama A",
+        },
+      },
     },
     select: { id: true },
+  });
+
+  await prisma.studentProfile.upsert({
+    where: { userId: user.id },
+    update: { studentNumber: "SIS-001", className: "XI-A", phone: "081234567890", address: "Asrama A" },
+    create: { userId: user.id, studentNumber: "SIS-001", className: "XI-A", phone: "081234567890", address: "Asrama A" },
+  });
+
+  await prisma.user.upsert({
+    where: { email: "pending@example.com" },
+    update: { name: "Siswa Pending", passwordHash, role: UserRole.STUDENT, status: UserStatus.PENDING },
+    create: {
+      name: "Siswa Pending",
+      email: "pending@example.com",
+      passwordHash,
+      role: UserRole.STUDENT,
+      status: UserStatus.PENDING,
+      profile: {
+        create: {
+          studentNumber: "SIS-002",
+          className: "XI-B",
+          phone: "081234567891",
+          address: "Asrama B",
+        },
+      },
+    },
   });
 
   for (const courseData of courses) {
@@ -154,6 +213,46 @@ async function main() {
         where: { userId_courseId: { userId: user.id, courseId: course.id } },
         update: { progress: 40, status: EnrollmentStatus.ACTIVE },
         create: { userId: user.id, courseId: course.id, progress: 40, status: EnrollmentStatus.ACTIVE },
+      });
+
+      const attendanceSession = await prisma.attendanceSession.upsert({
+        where: { courseId_title: { courseId: course.id, title: "Pertemuan 1" } },
+        update: { heldAt: new Date("2026-06-01T08:00:00.000Z") },
+        create: {
+          courseId: course.id,
+          title: "Pertemuan 1",
+          heldAt: new Date("2026-06-01T08:00:00.000Z"),
+        },
+        select: { id: true },
+      });
+
+      await prisma.attendanceRecord.upsert({
+        where: { attendanceSessionId_userId: { attendanceSessionId: attendanceSession.id, userId: user.id } },
+        update: { status: AttendanceStatus.PRESENT, note: "Hadir tepat waktu" },
+        create: {
+          attendanceSessionId: attendanceSession.id,
+          userId: user.id,
+          status: AttendanceStatus.PRESENT,
+          note: "Hadir tepat waktu",
+        },
+      });
+
+      const gradeItem = await prisma.gradeItem.upsert({
+        where: { courseId_title: { courseId: course.id, title: "Tugas Awal" } },
+        update: { description: "Pengenalan penggunaan LMS", maxScore: 100 },
+        create: {
+          courseId: course.id,
+          title: "Tugas Awal",
+          description: "Pengenalan penggunaan LMS",
+          maxScore: 100,
+        },
+        select: { id: true },
+      });
+
+      await prisma.gradeRecord.upsert({
+        where: { gradeItemId_userId: { gradeItemId: gradeItem.id, userId: user.id } },
+        update: { score: 85, feedback: "Pemahaman awal sudah baik." },
+        create: { gradeItemId: gradeItem.id, userId: user.id, score: 85, feedback: "Pemahaman awal sudah baik." },
       });
     }
   }

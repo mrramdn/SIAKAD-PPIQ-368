@@ -2,7 +2,7 @@
 
 General LMS adalah fondasi Learning Management System berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS.
 
-Project ini dibuat general agar bisa disesuaikan setelah konsep final disetujui. Fitur saat ini mencakup login admin dan user, dashboard user, admin panel, course, lesson, dan enrollment.
+Project ini dibuat general agar bisa disesuaikan setelah konsep final disetujui. Fitur saat ini mencakup registrasi siswa, verifikasi admin, dashboard siswa, admin panel, course, lesson, enrollment, absensi, dan nilai.
 
 ## Tech Stack
 
@@ -18,7 +18,9 @@ Project ini dibuat general agar bisa disesuaikan setelah konsep final disetujui.
 Seed database membuat akun berikut:
 
 - Admin: `admin@example.com` / `password123`
-- User: `user@example.com` / `password123`
+- Teacher: `teacher@example.com` / `password123`
+- Siswa verified: `user@example.com` / `password123`
+- Siswa pending: `pending@example.com` / `password123`
 
 ## Setup
 
@@ -49,12 +51,17 @@ Buka `http://localhost:3000` untuk melihat aplikasi.
 ## Struktur Utama
 
 - `app/page.tsx`: landing page LMS
+- `app/register`: registrasi siswa dengan status `PENDING`
 - `app/login`: halaman login dan server action
-- `app/dashboard`: dashboard user
+- `app/pending`: status menunggu verifikasi admin
+- `app/dashboard`: dashboard siswa berisi course, absensi, dan nilai
 - `app/admin`: dashboard admin
+- `app/admin/users`: verifikasi user
+- `app/admin/students`: data siswa
+- `app/admin/courses`: CRUD course
 - `app/logout/route.ts`: logout route handler
 - `lib/auth.ts`: session auth berbasis HTTP-only cookie
 - `lib/lms.ts`: data access untuk dashboard LMS
 - `lib/prisma.ts`: Prisma client singleton
 - `prisma/schema.prisma`: schema database LMS
-- `prisma/seed.ts`: seed admin, user, course, lesson, dan enrollment
+- `prisma/seed.ts`: seed admin, teacher, siswa, course, lesson, enrollment, absensi, dan nilai
