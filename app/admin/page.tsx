@@ -9,8 +9,8 @@ export default async function AdminPage() {
   const overview = await getAdminOverview();
   const stats = [
     { label: "User", value: overview.totalUsers },
+    { label: "Pending", value: overview.pendingUsers },
     { label: "Course", value: overview.totalCourses },
-    { label: "Lesson", value: overview.totalLessons },
     { label: "Enrollment", value: overview.totalEnrollments },
   ];
 
@@ -28,6 +28,12 @@ export default async function AdminPage() {
             <Link href="/dashboard" className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium hover:bg-white/10">
               User Dashboard
             </Link>
+            <Link href="/admin/users" className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium hover:bg-white/10">
+              Verifikasi
+            </Link>
+            <Link href="/admin/courses" className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium hover:bg-white/10">
+              Courses
+            </Link>
             <form action="/logout" method="post">
               <button className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-950 hover:bg-slate-200" type="submit">
                 Logout
@@ -40,7 +46,7 @@ export default async function AdminPage() {
           <p className="text-sm font-medium uppercase tracking-[0.25em] text-cyan-200">Admin LMS</p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">Halo, {user.name}</h1>
           <p className="mt-3 max-w-2xl text-slate-300">
-            Pantau data dasar LMS: user, kursus, lesson, dan enrollment.
+            Pantau data LMS: verifikasi siswa, kursus, lesson, enrollment, absensi, dan nilai.
           </p>
         </header>
 
