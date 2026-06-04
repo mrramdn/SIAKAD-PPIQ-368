@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
 import { getLearnerDashboard } from "@/lib/lms";
 
 export default async function DashboardPage() {
-  const user = await requireUser();
-  const { enrollments, availableCourses } = await getLearnerDashboard(user.id);
+  const user = await requireVerifiedUser();
+  const { enrollments, availableCourses, attendanceRecords, gradeRecords } = await getLearnerDashboard(user.id);
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-950">
@@ -87,6 +87,54 @@ export default async function DashboardPage() {
                 ))
               ) : (
                 <p className="rounded-3xl bg-slate-50 p-5 text-sm text-slate-500">Semua kursus sudah kamu ikuti.</p>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <section className="rounded-[2rem] bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold">Riwayat Absensi</h2>
+            <div className="mt-5 space-y-3">
+              {attendanceRecords.length > 0 ? (
+                attendanceRecords.map((record) => (
+                  <article key={record.id} className="rounded-3xl bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold">{record.attendanceSession.title}</h3>
+                        <p className="mt-1 text-sm text-slate-500">{record.attendanceSession.course.title}</p>
+                      </div>
+                      <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-900">{record.status}</span>
+                    </div>
+                    {record.note ? <p className="mt-2 text-sm text-slate-500">{record.note}</p> : null}
+                  </article>
+                ))
+              ) : (
+                <p className="rounded-3xl bg-slate-50 p-5 text-sm text-slate-500">Belum ada data absensi.</p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold">Nilai Terbaru</h2>
+            <div className="mt-5 space-y-3">
+              {gradeRecords.length > 0 ? (
+                gradeRecords.map((record) => (
+                  <article key={record.id} className="rounded-3xl bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold">{record.gradeItem.title}</h3>
+                        <p className="mt-1 text-sm text-slate-500">{record.gradeItem.course.title}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
+                        {record.score}/{record.gradeItem.maxScore}
+                      </span>
+                    </div>
+                    {record.feedback ? <p className="mt-2 text-sm text-slate-500">{record.feedback}</p> : null}
+                  </article>
+                ))
+              ) : (
+                <p className="rounded-3xl bg-slate-50 p-5 text-sm text-slate-500">Belum ada nilai.</p>
               )}
             </div>
           </section>
