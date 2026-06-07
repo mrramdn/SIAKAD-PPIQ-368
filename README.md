@@ -51,17 +51,19 @@ Buka `http://localhost:3000` untuk melihat aplikasi.
 ## Struktur Utama
 
 - `app/page.tsx`: landing page LMS
-- `app/register`: registrasi siswa dengan status `PENDING`
-- `app/login`: halaman login dan server action
-- `app/pending`: status menunggu verifikasi admin
-- `app/dashboard`: dashboard siswa berisi course, absensi, dan nilai
-- `app/admin`: dashboard admin
-- `app/admin/users`: verifikasi user
-- `app/admin/students`: data siswa
-- `app/admin/courses`: CRUD course
+- `app/register`, `app/login`, `app/pending`: alur auth dan verifikasi
+- `app/(app)`: app shell (sidebar + topbar) untuk pengguna terverifikasi
+  - `dashboard`: dasbor role-aware (siswa, guru, admin)
+  - `learning` & `learning/[id]`: daftar kelas dan detail kelas (materi, enrollment)
+  - `nilai`: gradebook (admin/guru edit, siswa read-only)
+  - `absen`: absensi grid (admin/guru edit, siswa read-only)
+  - `pengguna`: manajemen + verifikasi pengguna (admin)
+  - `pengaturan`: profil dan preferensi akun
+  - `actions.ts`: server actions LMS dengan guard per peran
 - `app/logout/route.ts`: logout route handler
+- `components/ui`: komponen UI bersama dan ikon
 - `lib/auth.ts`: session auth berbasis HTTP-only cookie
-- `lib/lms.ts`: data access untuk dashboard LMS
+- `lib/lms.ts`: data access untuk seluruh layar LMS
 - `lib/prisma.ts`: Prisma client singleton
 - `prisma/schema.prisma`: schema database LMS
-- `prisma/seed.ts`: seed admin, teacher, siswa, course, lesson, enrollment, absensi, dan nilai
+- `prisma/seed.ts`: seed admin, guru, satu kelas siswa, course, lesson, jadwal, enrollment, absensi, dan nilai
