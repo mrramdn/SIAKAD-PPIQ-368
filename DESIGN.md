@@ -10,18 +10,19 @@ Style: simple product UI with strong contrast, spacious cards, and clear action 
 
 ## Color System
 
-Current UI uses a slate and cyan palette. Keep it consistent until a final brand direction is approved.
+UI uses a green palette defined as oklch tokens in `app/globals.css` and exposed to Tailwind v4 through `@theme` (`bg-primary`, `text-ink`, `border-line`, accent colors, etc.). Lightly green-toned neutrals. Keep it consistent until a final brand direction is approved.
 
 Primary use:
 
-- Slate for shell, text, and structure.
+- Lightly toned neutrals (`--bg`, `--surface`, `--text`) for shell, text, and structure.
 - White for readable surfaces.
-- Cyan for primary actions, highlights, and progress.
-- Red only for errors or destructive states.
+- Green `--primary` for primary actions, highlights, and progress; teal `--violet` token as secondary accent (no purple).
+- Amber for warning states.
+- Red `--red` only for errors or destructive states.
 
 ## Typography
 
-- Use the current Next.js Geist font stack.
+- Body uses Plus Jakarta Sans; monospace uses JetBrains Mono (`.mono`), both loaded via `next/font` in `app/layout.tsx`.
 - Headings use strong weight and tight tracking.
 - Body text uses clear line-height and readable measure.
 - Numeric counts and percentages use tabular numbers where practical.

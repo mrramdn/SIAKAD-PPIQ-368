@@ -30,6 +30,7 @@ enum LessonType {
   TEXT
   VIDEO
   QUIZ
+  ASSIGNMENT
 }
 
 enum EnrollmentStatus {
@@ -105,6 +106,7 @@ model Course {
   enrollments Enrollment[]
   attendanceSessions AttendanceSession[]
   gradeItems GradeItem[]
+  scheduleSlots ScheduleSlot[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   deletedAt   DateTime?
@@ -121,6 +123,7 @@ model Lesson {
   description String?
   content     String?
   type        LessonType @default(TEXT)
+  duration    String?
   order       Int        @default(0)
   isPreview   Boolean    @default(false)
   createdAt   DateTime   @default(now())
@@ -129,6 +132,20 @@ model Lesson {
 
   @@unique([courseId, order])
   @@index([courseId])
+}
+
+model ScheduleSlot {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  dayOfWeek Int
+  startTime String
+  room      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([dayOfWeek])
 }
 
 model Enrollment {
