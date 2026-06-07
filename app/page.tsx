@@ -1,94 +1,84 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { Icons } from "@/components/ui";
 
 const features = [
-  "Manajemen kursus dan materi belajar",
+  "Manajemen kelas dan materi belajar",
   "Registrasi siswa dengan verifikasi admin",
-  "Absensi dan nilai per course",
+  "Absensi dan nilai per kelas",
 ] as const;
 
 export default async function Home() {
   const user = await getCurrentUser();
-  const dashboardPath = user?.role === "ADMIN" ? "/admin" : "/dashboard";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8">
+    <main className="min-h-screen bg-bg text-ink">
+      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-7">
         <nav className="flex items-center justify-between">
-          <Link href="/" className="text-lg font-semibold tracking-tight">
-            General LMS
+          <Link href="/" className="flex items-center gap-2.5">
+            <span
+              className="grid h-9 w-9 place-items-center rounded-xl"
+              style={{ background: "var(--primary)" }}
+            >
+              <Icons.cap size={20} style={{ color: "#fff" }} />
+            </span>
+            <span className="text-lg font-extrabold tracking-tight">General LMS</span>
           </Link>
-          <div className="flex items-center gap-3 text-sm">
-            {user ? (
-              <Link
-                href={dashboardPath}
-                className="rounded-full bg-white px-4 py-2 font-medium text-slate-950 transition hover:bg-slate-200"
-              >
-                Buka Dashboard
-              </Link>
-            ) : (
-              <Link
-                href="/login"
-                className="rounded-full bg-white px-4 py-2 font-medium text-slate-950 transition hover:bg-slate-200"
-              >
-                Login
-              </Link>
-            )}
-          </div>
+          <Link
+            href={user ? "/dashboard" : "/login"}
+            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-600"
+          >
+            {user ? "Buka Dashboard" : "Login"}
+          </Link>
         </nav>
 
         <div className="grid flex-1 items-center gap-12 py-16 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <p className="mb-4 inline-flex rounded-full border border-cyan-300/30 bg-cyan-300/10 px-4 py-2 text-sm font-medium text-cyan-100">
+            <p className="mb-4 inline-flex rounded-full bg-primary-soft px-4 py-2 text-sm font-semibold text-primary-700">
               Learning Management System
             </p>
-            <h1 className="max-w-3xl text-5xl font-semibold leading-tight tracking-tight sm:text-6xl">
-              Platform belajar general untuk kursus, materi, dan progres peserta.
+            <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">
+              Platform belajar untuk kelas, materi, kehadiran, dan nilai.
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-              LMS ini dibuat sebagai fondasi awal yang fleksibel: siswa bisa registrasi, admin memverifikasi akun, lalu course, absen, dan nilai dikelola dari panel admin.
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-2">
+              Fondasi LMS yang fleksibel: siswa registrasi, admin memverifikasi akun, lalu kelas, absensi, dan nilai dikelola dari satu panel.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
-                href={user ? dashboardPath : "/login"}
-                className="rounded-full bg-cyan-300 px-6 py-3 text-center font-semibold text-slate-950 transition hover:bg-cyan-200"
+                href={user ? "/dashboard" : "/login"}
+                className="rounded-xl bg-primary px-6 py-3 text-center font-semibold text-white transition hover:bg-primary-600"
               >
                 Mulai Sekarang
               </Link>
               {!user ? (
                 <Link
                   href="/register"
-                  className="rounded-full bg-white px-6 py-3 text-center font-semibold text-slate-950 transition hover:bg-slate-200"
+                  className="rounded-xl border border-line-strong px-6 py-3 text-center font-semibold text-ink-2 transition hover:bg-surface-2"
                 >
                   Registrasi Siswa
                 </Link>
               ) : null}
-              <a
-                href="#fitur"
-                className="rounded-full border border-white/15 px-6 py-3 text-center font-semibold text-white transition hover:bg-white/10"
-              >
-                Lihat Fitur
-              </a>
             </div>
           </div>
 
-          <div id="fitur" className="rounded-[2rem] border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-cyan-950/40 backdrop-blur">
-            <div className="rounded-3xl bg-slate-900 p-6">
-              <p className="text-sm font-medium uppercase tracking-[0.25em] text-cyan-200">Overview</p>
-              <h2 className="mt-3 text-2xl font-semibold">Fondasi LMS</h2>
-              <div className="mt-6 space-y-4">
-                {features.map((feature) => (
-                  <div key={feature} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <p className="font-medium text-slate-100">{feature}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6 rounded-2xl bg-cyan-300 p-4 text-slate-950">
-                <p className="text-sm font-semibold">Demo akun</p>
-                <p className="mt-2 text-sm">Admin: admin@example.com / password123</p>
-                <p className="text-sm">Siswa: user@example.com / password123</p>
-                <p className="text-sm">Pending: pending@example.com / password123</p>
-              </div>
+          <div className="rounded-[22px] border border-line bg-surface p-6 shadow-pop">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-700">Overview</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight">Fondasi LMS</h2>
+            <div className="mt-6 space-y-3">
+              {features.map((feature) => (
+                <div key={feature} className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 p-4">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary-700">
+                    <Icons.check2 size={17} />
+                  </span>
+                  <p className="text-sm font-semibold text-ink">{feature}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 rounded-xl bg-primary p-4 text-white">
+              <p className="text-sm font-bold">Akun demo</p>
+              <p className="mono mt-2 text-[13px]">admin@example.com / password123</p>
+              <p className="mono text-[13px]">user@example.com / password123</p>
+              <p className="mono text-[13px]">teacher@example.com / password123</p>
             </div>
           </div>
         </div>

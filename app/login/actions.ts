@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { UserRole, UserStatus } from "@/generated/prisma/client";
+import { UserStatus } from "@/generated/prisma/client";
 import { signInWithPassword } from "@/lib/auth";
 
 export async function loginAction(formData: FormData) {
@@ -22,5 +22,5 @@ export async function loginAction(formData: FormData) {
     redirect("/pending");
   }
 
-  redirect(user.role === UserRole.ADMIN ? "/admin" : "/dashboard");
+  redirect("/dashboard");
 }
