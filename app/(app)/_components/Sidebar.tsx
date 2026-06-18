@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icons } from "@/components/ui";
+import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 import { navFor, ROLE_BLURB, ROLE_LABEL, type Role } from "./nav";
 
 export function Sidebar({ role, open, onClose }: { role: Role; open: boolean; onClose: () => void }) {
@@ -34,8 +35,8 @@ export function Sidebar({ role, open, onClose }: { role: Role; open: boolean; on
             <Icons.cap size={22} style={{ color: "#fff" }} />
           </div>
           <div>
-            <div className="text-[17px] font-extrabold tracking-tight">General LMS</div>
-            <div className="text-[11px] font-semibold text-ink-3">Learning Platform</div>
+            <div className="text-[17px] font-extrabold tracking-tight">{APP_NAME}</div>
+            <div className="text-[11px] font-semibold text-ink-3">{APP_TAGLINE}</div>
           </div>
         </div>
 

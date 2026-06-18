@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireVerifiedUser } from "@/lib/auth";
-import { getDashboardData } from "@/lib/lms";
+import { getAnnouncements, getDashboardData, getParentChildren, getParentLevels } from "@/lib/lms";
 import {
   Avatar,
   BarChart,
@@ -16,11 +16,26 @@ import {
   initialsFromName,
   type IconKey,
 } from "@/components/ui";
+import { ParentDashboard } from "./ParentDashboard";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const annFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" });
 
 export default async function DashboardPage() {
   const user = await requireVerifiedUser();
+
+  if (user.role === "PARENT") {
+    const levels = await getParentLevels(user.id);
+    const [children, announcements] = await Promise.all([getParentChildren(user.id), getAnnouncements(levels)]);
+    return (
+      <ParentDashboard
+        name={user.name}
+        kids={children}
+        announcements={announcements.map((a) => ({ id: a.id, title: a.title, level: a.level, createdAt: annFmt.format(a.createdAt) }))}
+      />
+    );
+  }
+
   const data = await getDashboardData(user);
   const isStudent = user.role === "STUDENT";
   const greet = user.name.split(" ")[0];

@@ -4,8 +4,10 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  AdmissionStatus,
   AttendanceStatus,
   CourseStatus,
+  EducationLevel,
   EnrollmentStatus,
   LessonType,
   UserRole,
@@ -281,6 +283,7 @@ export async function createUserAction(input: {
   role: UserRole;
   className?: string;
   studentNumber?: string;
+  level?: EducationLevel;
 }): Promise<ActionResult> {
   await requireAdmin();
   const name = input.name.trim();
@@ -294,6 +297,7 @@ export async function createUserAction(input: {
 
   const passwordHash = await bcrypt.hash("password123", 12);
   const isStudent = input.role === UserRole.STUDENT;
+  const level = input.level && Object.values(EducationLevel).includes(input.level) ? input.level : EducationLevel.SMP;
   const studentNumber = (input.studentNumber?.trim() || `SIS-${Date.now().toString().slice(-6)}`).toUpperCase();
 
   await prisma.user.create({
@@ -305,7 +309,7 @@ export async function createUserAction(input: {
       status: UserStatus.VERIFIED,
       verifiedAt: new Date(),
       ...(isStudent
-        ? { profile: { create: { studentNumber, className: input.className?.trim() || "-" } } }
+        ? { profile: { create: { level, studentNumber, className: input.className?.trim() || "-" } } }
         : {}),
     },
   });
@@ -321,6 +325,7 @@ export async function updateUserAction(input: {
   role: UserRole;
   status: UserStatus;
   className?: string;
+  level?: EducationLevel;
 }): Promise<ActionResult> {
   await requireAdmin();
   const name = input.name.trim();
@@ -330,10 +335,121 @@ export async function updateUserAction(input: {
     where: { id: input.userId },
     data: { name, role: input.role, status: input.status },
   });
-  if (input.role === UserRole.STUDENT && input.className !== undefined) {
-    await prisma.studentProfile.updateMany({ where: { userId: input.userId }, data: { className: input.className.trim() || "-" } });
+  if (input.role === UserRole.STUDENT) {
+    const data: { className?: string; level?: EducationLevel } = {};
+    if (input.className !== undefined) data.className = input.className.trim() || "-";
+    if (input.level && Object.values(EducationLevel).includes(input.level)) data.level = input.level;
+    if (Object.keys(data).length) await prisma.studentProfile.updateMany({ where: { userId: input.userId }, data });
   }
   revalidatePath("/pengguna");
+  return { ok: true };
+}
+
+/* ---------------------- announcements (teacher/admin) ---------------------- */
+
+export async function createAnnouncementAction(formData: FormData) {
+  const user = await requireTeacherOrAdmin();
+  const title = String(formData.get("title") ?? "").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  const levelRaw = String(formData.get("level") ?? "");
+  const level = Object.values(EducationLevel).includes(levelRaw as EducationLevel) ? (levelRaw as EducationLevel) : null;
+  const pinned = formData.get("pinned") === "on";
+
+  if (!title || !body) {
+    redirect("/informasi?error=invalid");
+  }
+
+  await prisma.announcement.create({ data: { title, body, level, pinned, authorId: user.id } });
+  revalidatePath("/informasi");
+  revalidatePath("/dashboard");
+}
+
+export async function deleteAnnouncementAction(id: string): Promise<ActionResult> {
+  await requireTeacherOrAdmin();
+  if (!id) return { ok: false, message: "Informasi tidak ditemukan." };
+  await prisma.announcement.delete({ where: { id } });
+  revalidatePath("/informasi");
+  return { ok: true };
+}
+
+/* ----------------------- admissions review (admin) ------------------------- */
+
+export async function reviewAdmissionAction(input: {
+  admissionId: string;
+  decision: "ACCEPTED" | "REJECTED";
+}): Promise<ActionResult> {
+  const admin = await requireAdmin();
+  const adm = await prisma.admission.findUnique({ where: { id: input.admissionId } });
+  if (!adm) return { ok: false, message: "Pendaftaran tidak ditemukan." };
+  if (adm.status !== AdmissionStatus.PENDING) return { ok: false, message: "Pendaftaran sudah diproses." };
+
+  if (input.decision === "REJECTED") {
+    await prisma.admission.update({
+      where: { id: adm.id },
+      data: { status: AdmissionStatus.REJECTED, reviewedAt: new Date(), reviewedById: admin.id },
+    });
+    revalidatePath("/penerimaan");
+    return { ok: true };
+  }
+
+  const passwordHash = await bcrypt.hash("password123", 12);
+  const parentEmail = adm.parentEmail.toLowerCase().trim();
+
+  let parent = await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true } });
+  if (!parent) {
+    parent = await prisma.user.create({
+      data: {
+        name: adm.parentName,
+        email: parentEmail,
+        passwordHash,
+        role: UserRole.PARENT,
+        status: UserStatus.VERIFIED,
+        verifiedAt: new Date(),
+        verifiedById: admin.id,
+      },
+      select: { id: true },
+    });
+  } else {
+    await prisma.user.update({ where: { id: parent.id }, data: { role: UserRole.PARENT, status: UserStatus.VERIFIED } });
+  }
+
+  const studentEmail = `santri.${Date.now().toString(36)}@pesantren.local`;
+  const studentNumber = `${adm.level}-${Date.now().toString().slice(-6)}`;
+  const student = await prisma.user.create({
+    data: {
+      name: adm.childName,
+      email: studentEmail,
+      passwordHash,
+      role: UserRole.STUDENT,
+      status: UserStatus.VERIFIED,
+      verifiedAt: new Date(),
+      profile: {
+        create: {
+          level: adm.level,
+          studentNumber,
+          className: `${adm.level}-1`,
+          parentId: parent.id,
+          address: adm.address,
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  await prisma.admission.update({
+    where: { id: adm.id },
+    data: {
+      status: AdmissionStatus.ACCEPTED,
+      reviewedAt: new Date(),
+      reviewedById: admin.id,
+      createdParentId: parent.id,
+      createdStudentId: student.id,
+    },
+  });
+
+  revalidatePath("/penerimaan");
+  revalidatePath("/pengguna");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

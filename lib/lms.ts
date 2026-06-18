@@ -2,6 +2,7 @@ import { cache } from "react";
 import {
   AttendanceStatus,
   CourseStatus,
+  EducationLevel,
   EnrollmentStatus,
   UserRole,
   UserStatus,
@@ -176,7 +177,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
       done: Math.round((e.progress / 100) * e.course._count.lessons),
     }));
   } else {
-    const [students, pending, courses, allEnrollments, attendanceRecords] = await Promise.all([
+    const [students, pending, courses, attendanceRecords] = await Promise.all([
       prisma.user.count({ where: { role: UserRole.STUDENT, status: UserStatus.VERIFIED } }),
       prisma.user.count({ where: { status: UserStatus.PENDING } }),
       prisma.course.findMany({
@@ -190,7 +191,6 @@ export const getDashboardData = cache(async (user: AuthUser) => {
           enrollments: { select: { progress: true } },
         },
       }),
-      prisma.enrollment.count(),
       prisma.attendanceRecord.findMany({ select: { status: true } }),
     ]);
 
@@ -464,7 +464,7 @@ export const getManagedUsers = cache(async () => {
       role: true,
       status: true,
       createdAt: true,
-      profile: { select: { studentNumber: true, className: true, phone: true } },
+      profile: { select: { studentNumber: true, className: true, phone: true, level: true } },
     },
   });
 });
@@ -482,6 +482,200 @@ export const getProfile = cache(async (userId: string) => {
       email: true,
       role: true,
       profile: { select: { studentNumber: true, className: true, phone: true, address: true } },
+    },
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*                              parent (wali santri)                          */
+/* -------------------------------------------------------------------------- */
+
+function rate(part: number, total: number) {
+  return total ? Math.round((part / total) * 100) : 0;
+}
+
+/** Summary cards for each child linked to a parent. */
+export const getParentChildren = cache(async (parentId: string) => {
+  const children = await prisma.studentProfile.findMany({
+    where: { parentId },
+    orderBy: { user: { name: "asc" } },
+    select: {
+      level: true,
+      className: true,
+      studentNumber: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          gradeRecords: { select: { score: true, gradeItem: { select: { maxScore: true } } } },
+          attendanceRecords: { select: { status: true } },
+          _count: { select: { enrollments: true } },
+        },
+      },
+    },
+  });
+
+  return children.map((c) => {
+    const grades = c.user.gradeRecords;
+    const avg = grades.length
+      ? Math.round(grades.reduce((s, r) => s + (r.score / r.gradeItem.maxScore) * 100, 0) / grades.length)
+      : 0;
+    const att = c.user.attendanceRecords;
+    const present = att.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+    return {
+      childId: c.user.id,
+      name: c.user.name,
+      level: c.level,
+      className: c.className,
+      studentNumber: c.studentNumber,
+      courses: c.user._count.enrollments,
+      avg,
+      attRate: rate(present, att.length),
+    };
+  });
+});
+
+/** Full report for one child, only if it belongs to the requesting parent. */
+export const getChildDetail = cache(async (parentId: string, childId: string) => {
+  const profile = await prisma.studentProfile.findFirst({
+    where: { userId: childId, parentId },
+    select: {
+      level: true,
+      className: true,
+      studentNumber: true,
+      phone: true,
+      user: { select: { id: true, name: true, email: true } },
+    },
+  });
+  if (!profile) return null;
+
+  const enrollments = await prisma.enrollment.findMany({
+    where: { userId: childId, course: { deletedAt: null } },
+    orderBy: { course: { title: "asc" } },
+    select: {
+      course: {
+        select: {
+          id: true,
+          title: true,
+          createdBy: { select: { name: true } },
+          gradeItems: {
+            orderBy: { createdAt: "asc" },
+            select: { id: true, title: true, maxScore: true, records: { where: { userId: childId }, select: { score: true } } },
+          },
+          attendanceSessions: {
+            orderBy: { heldAt: "asc" },
+            select: { id: true, title: true, heldAt: true, records: { where: { userId: childId }, select: { status: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  let gradeSum = 0;
+  let gradeCount = 0;
+  let attPresent = 0;
+  let attTotal = 0;
+
+  const courses = enrollments.map((e) => {
+    const grades = e.course.gradeItems.map((g) => {
+      const rec = g.records[0];
+      const value = rec ? Math.round((rec.score / g.maxScore) * 100) : null;
+      if (value !== null) {
+        gradeSum += value;
+        gradeCount += 1;
+      }
+      return { id: g.id, title: g.title, value };
+    });
+    const present = grades.filter((g) => g.value !== null);
+    const courseAvg = present.length ? Math.round(present.reduce((s, g) => s + (g.value as number), 0) / present.length) : 0;
+
+    const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<AttendanceStatus, number>;
+    for (const s of e.course.attendanceSessions) {
+      const rec = s.records[0];
+      if (rec) {
+        marks[rec.status] += 1;
+        attTotal += 1;
+        if (rec.status === AttendanceStatus.PRESENT) attPresent += 1;
+      }
+    }
+    const courseAttTotal = marks.PRESENT + marks.LATE + marks.ABSENT + marks.EXCUSED;
+
+    return {
+      id: e.course.id,
+      title: e.course.title,
+      teacher: e.course.createdBy?.name ?? "Pengajar",
+      grades,
+      courseAvg,
+      marks,
+      attRate: rate(marks.PRESENT, courseAttTotal),
+    };
+  });
+
+  return {
+    child: {
+      id: profile.user.id,
+      name: profile.user.name,
+      level: profile.level,
+      className: profile.className,
+      studentNumber: profile.studentNumber,
+    },
+    overall: { avg: gradeCount ? Math.round(gradeSum / gradeCount) : 0, attRate: rate(attPresent, attTotal) },
+    courses,
+  };
+});
+
+/* -------------------------------------------------------------------------- */
+/*                          announcements (informasi)                         */
+/* -------------------------------------------------------------------------- */
+
+/** levels null = staff view (all). Otherwise only matching levels + global (null). */
+export const getAnnouncements = cache(async (levels: EducationLevel[] | null) => {
+  const where = levels ? { OR: [{ level: null }, { level: { in: levels } }] } : {};
+  return prisma.announcement.findMany({
+    where,
+    orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+    take: 50,
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      level: true,
+      pinned: true,
+      createdAt: true,
+      author: { select: { name: true } },
+    },
+  });
+});
+
+/** Distinct levels of a parent's children, for filtering their announcements. */
+export const getParentLevels = cache(async (parentId: string) => {
+  const rows = await prisma.studentProfile.findMany({ where: { parentId }, select: { level: true } });
+  const set = new Set(rows.map((r) => r.level));
+  return [...set];
+});
+
+/* -------------------------------------------------------------------------- */
+/*                           admissions (pendaftaran)                         */
+/* -------------------------------------------------------------------------- */
+
+export const getAdmissions = cache(async () => {
+  return prisma.admission.findMany({
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    select: {
+      id: true,
+      childName: true,
+      level: true,
+      gender: true,
+      birthPlace: true,
+      birthDate: true,
+      previousSchool: true,
+      parentName: true,
+      parentPhone: true,
+      parentEmail: true,
+      address: true,
+      note: true,
+      status: true,
+      createdAt: true,
     },
   });
 });
