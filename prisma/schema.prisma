@@ -9,8 +9,21 @@ datasource db {
 
 enum UserRole {
   STUDENT
+  PARENT
   TEACHER
   ADMIN
+}
+
+enum EducationLevel {
+  SD
+  SMP
+  SMA
+}
+
+enum AdmissionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
 }
 
 enum UserStatus {
@@ -56,11 +69,13 @@ model User {
   verifiedAt   DateTime?
   verifiedById String?
   profile      StudentProfile?
+  children     StudentProfile[] @relation("ParentChildren")
   sessions     Session[]
   courses      Course[]     @relation("CourseCreator")
   enrollments  Enrollment[]
   attendanceRecords AttendanceRecord[]
   gradeRecords GradeRecord[]
+  announcements Announcement[] @relation("AnnouncementAuthor")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -69,17 +84,22 @@ model User {
 }
 
 model StudentProfile {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  studentNumber String   @unique
+  id            String         @id @default(uuid())
+  userId        String         @unique
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level         EducationLevel @default(SMP)
+  studentNumber String         @unique
   className     String
   phone         String?
   address       String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  parentId      String?
+  parent        User?          @relation("ParentChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([className])
+  @@index([level])
+  @@index([parentId])
 }
 
 model Session {
@@ -95,11 +115,12 @@ model Session {
 }
 
 model Course {
-  id          String       @id @default(uuid())
+  id          String         @id @default(uuid())
   title       String
-  slug        String       @unique
+  slug        String         @unique
   description String
-  status      CourseStatus @default(PUBLISHED)
+  level       EducationLevel @default(SMP)
+  status      CourseStatus   @default(PUBLISHED)
   createdById String?
   createdBy   User?        @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
   lessons     Lesson[]
@@ -112,6 +133,7 @@ model Course {
   deletedAt   DateTime?
 
   @@index([status])
+  @@index([level])
   @@index([createdById])
 }
 
@@ -224,4 +246,47 @@ model GradeRecord {
 
   @@unique([gradeItemId, userId])
   @@index([userId])
+}
+
+// Pengumuman / info yang dikirim sekolah ke orang tua. level null = semua jenjang.
+model Announcement {
+  id        String          @id @default(uuid())
+  title     String
+  body      String
+  level     EducationLevel?
+  pinned    Boolean         @default(false)
+  authorId  String?
+  author    User?           @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([level])
+  @@index([createdAt])
+}
+
+// Pendaftaran siswa baru (PPDB). Saat diterima admin, dibuat akun orang tua + record siswa.
+model Admission {
+  id               String          @id @default(uuid())
+  childName        String
+  level            EducationLevel
+  gender           String?
+  birthPlace       String?
+  birthDate        DateTime?
+  previousSchool   String?
+  parentName       String
+  parentPhone      String
+  parentEmail      String
+  address          String?
+  note             String?
+  status           AdmissionStatus @default(PENDING)
+  reviewedAt       DateTime?
+  reviewedById     String?
+  createdStudentId String?
+  createdParentId  String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([status])
+  @@index([level])
+  @@index([createdAt])
 }

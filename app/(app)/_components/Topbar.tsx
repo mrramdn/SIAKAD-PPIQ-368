@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar, Icons, initialsFromName } from "@/components/ui";
+import { APP_NAME } from "@/lib/brand";
 import { PAGE_TITLE, ROLE_LABEL, type Role } from "./nav";
 
 export function Topbar({
@@ -15,7 +16,7 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const title = pathname.startsWith("/learning/") ? "Detail Kelas" : PAGE_TITLE[pathname] ?? "General LMS";
+  const title = pathname.startsWith("/learning/") ? "Detail Kelas" : PAGE_TITLE[pathname] ?? APP_NAME;
   const initials = initialsFromName(user.name);
 
   return (

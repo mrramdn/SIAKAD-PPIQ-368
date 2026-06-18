@@ -140,6 +140,16 @@ export async function requireTeacherOrAdmin() {
   return user;
 }
 
+export async function requireParent() {
+  const user = await requireVerifiedUser();
+
+  if (user.role !== UserRole.PARENT) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
 export async function destroyCurrentSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;

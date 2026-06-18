@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { Icons, inputClasses } from "@/components/ui";
+import { APP_NAME } from "@/lib/brand";
 import { loginAction } from "@/app/login/actions";
 
 type LoginPageProps = {
@@ -30,22 +31,22 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/15">
               <Icons.cap size={20} style={{ color: "#fff" }} />
             </span>
-            <span className="text-lg font-extrabold">General LMS</span>
+            <span className="text-lg font-extrabold">{APP_NAME}</span>
           </Link>
           <div className="mt-20">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] opacity-80">Login</p>
-            <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight">Masuk ke ruang belajarmu.</h1>
-            <p className="mt-4 opacity-90">Gunakan akun demo dari seed database atau daftar sebagai siswa baru.</p>
+            <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-balance">Masuk ke akun wali atau guru.</h1>
+            <p className="mt-4 opacity-90 text-pretty">Wali santri memantau anak; guru dan admin mengelola kelas dan pendaftaran.</p>
           </div>
           <div className="mono mt-12 rounded-xl bg-white/10 p-4 text-[13px]">
-            <p>admin@example.com / password123</p>
-            <p className="mt-1">user@example.com / password123</p>
-            <p className="mt-1">teacher@example.com / password123</p>
+            <p>admin@pesantren.id / password123</p>
+            <p className="mt-1">wali@pesantren.id / password123</p>
+            <p className="mt-1">guru@pesantren.id / password123</p>
           </div>
         </div>
 
         <div className="p-8 sm:p-10">
-          <h2 className="text-2xl font-bold">Masuk ke LMS</h2>
+          <h2 className="text-2xl font-bold">Masuk</h2>
           <p className="mt-2 text-sm text-ink-3">Session disimpan memakai HTTP-only cookie.</p>
 
           {errorMessage ? (
@@ -67,9 +68,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </form>
 
           <p className="mt-6 text-center text-sm text-ink-3">
-            Belum punya akun?{" "}
-            <Link href="/register" className="font-semibold text-primary-700 underline underline-offset-4">
-              Daftar siswa
+            Ingin mendaftarkan anak?{" "}
+            <Link href="/pendaftaran" className="font-semibold text-primary-700 underline underline-offset-4">
+              Daftar santri baru
             </Link>
           </p>
         </div>

@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { Avatar, Badge, Button, Card, Field, Icons, inputClasses, initialsFromName, type Tone } from "@/components/ui";
 import { createUserAction, deleteUserAction, setUserStatusAction, updateUserAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "STUDENT";
+type Role = "ADMIN" | "TEACHER" | "PARENT" | "STUDENT";
 type Status = "PENDING" | "VERIFIED" | "REJECTED" | "SUSPENDED";
-type User = { id: string; name: string; email: string; role: Role; status: Status; className: string | null };
+type Level = "SD" | "SMP" | "SMA";
+type User = { id: string; name: string; email: string; role: Role; status: Status; className: string | null; level: Level | null };
 
-const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", STUDENT: "Siswa" };
-const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", STUDENT: "neutral" };
+const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", PARENT: "Orang Tua", STUDENT: "Siswa" };
+const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", PARENT: "warning", STUDENT: "neutral" };
+const LEVELS: Level[] = ["SD", "SMP", "SMA"];
 const STATUS_LABEL: Record<Status, string> = { PENDING: "Menunggu", VERIFIED: "Aktif", REJECTED: "Ditolak", SUSPENDED: "Nonaktif" };
 const STATUS_COLOR: Record<Status, string> = {
   PENDING: "var(--amber)",
@@ -18,8 +20,8 @@ const STATUS_COLOR: Record<Status, string> = {
   REJECTED: "var(--red)",
   SUSPENDED: "var(--text-3)",
 };
-const TABS: (Role | "ALL")[] = ["ALL", "STUDENT", "TEACHER", "ADMIN"];
-const TAB_LABEL: Record<Role | "ALL", string> = { ALL: "Semua", STUDENT: "Siswa", TEACHER: "Guru", ADMIN: "Admin" };
+const TABS: (Role | "ALL")[] = ["ALL", "STUDENT", "PARENT", "TEACHER", "ADMIN"];
+const TAB_LABEL: Record<Role | "ALL", string> = { ALL: "Semua", STUDENT: "Siswa", PARENT: "Wali", TEACHER: "Guru", ADMIN: "Admin" };
 
 /* --------------------------------- Modal ---------------------------------- */
 function Modal({ title, sub, onClose, children, width = 460 }: { title: string; sub?: string; onClose: () => void; children: ReactNode; width?: number }) {
@@ -58,6 +60,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
   const [role, setRole] = useState<Role>(initial?.role ?? "STUDENT");
   const [status, setStatus] = useState<Status>(initial?.status ?? "VERIFIED");
   const [className, setClassName] = useState(initial?.className ?? "");
+  const [level, setLevel] = useState<Level>(initial?.level ?? "SMP");
   const [studentNumber, setStudentNumber] = useState("");
   const valid = name.trim() && email.trim();
 
@@ -84,6 +87,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
         <Field label="Peran">
           <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClasses}>
             <option value="STUDENT">Siswa</option>
+            <option value="PARENT">Orang Tua</option>
             <option value="TEACHER">Guru</option>
             <option value="ADMIN">Admin</option>
           </select>
@@ -106,9 +110,20 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
         )}
       </div>
       {role === "STUDENT" ? (
-        <Field label="Kelas / Grup">
-          <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="cth. XI-A" className={inputClasses} />
-        </Field>
+        <div className="grid grid-cols-2 gap-3.5">
+          <Field label="Jenjang">
+            <select value={level} onChange={(e) => setLevel(e.target.value as Level)} className={inputClasses}>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Kelas / Grup">
+            <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="cth. 7A" className={inputClasses} />
+          </Field>
+        </div>
       ) : null}
       <div className="mt-5 flex justify-end gap-2.5">
         <Button variant="ghost" onClick={onClose}>
@@ -117,7 +132,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
         <Button
           variant="primary"
           disabled={!valid}
-          onClick={() => onSave({ name, email, role, status, className, studentNumber })}
+          onClick={() => onSave({ name, email, role, status, className, level, studentNumber })}
           className={!valid ? "opacity-50" : ""}
         >
           {isEdit ? "Simpan Perubahan" : "Tambah Pengguna"}
@@ -127,7 +142,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
   );
 }
 
-type FormSnapshot = { name: string; email: string; role: Role; status: Status; className: string; studentNumber: string };
+type FormSnapshot = { name: string; email: string; role: Role; status: Status; className: string; level: Level; studentNumber: string };
 
 /* ------------------------------ User manager ------------------------------ */
 export function UserManager({ users, adminId }: { users: User[]; adminId: string }) {
@@ -148,6 +163,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
     () => ({
       ALL: users.length,
       STUDENT: users.filter((u) => u.role === "STUDENT").length,
+      PARENT: users.filter((u) => u.role === "PARENT").length,
       TEACHER: users.filter((u) => u.role === "TEACHER").length,
       ADMIN: users.filter((u) => u.role === "ADMIN").length,
     }),
@@ -171,12 +187,12 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
   function save(data: FormSnapshot) {
     if (modal?.type === "edit" && modal.user) {
       run(
-        updateUserAction({ userId: modal.user.id, name: data.name, role: data.role, status: data.status, className: data.className }),
+        updateUserAction({ userId: modal.user.id, name: data.name, role: data.role, status: data.status, className: data.className, level: data.level }),
         `Data ${data.name} diperbarui`,
       );
     } else {
       run(
-        createUserAction({ name: data.name, email: data.email, role: data.role, className: data.className, studentNumber: data.studentNumber }),
+        createUserAction({ name: data.name, email: data.email, role: data.role, className: data.className, level: data.level, studentNumber: data.studentNumber }),
         `${data.name} ditambahkan`,
       );
     }
@@ -186,8 +202,8 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
   const summary = [
     { label: "Total Pengguna", value: counts.ALL, icon: Icons.users, tone: "var(--primary)" },
     { label: "Siswa", value: counts.STUDENT, icon: Icons.book, tone: "var(--green)" },
+    { label: "Orang Tua", value: counts.PARENT, icon: Icons.users, tone: "var(--amber)" },
     { label: "Guru", value: counts.TEACHER, icon: Icons.award, tone: "var(--violet)" },
-    { label: "Admin", value: counts.ADMIN, icon: Icons.settings, tone: "var(--amber)" },
   ];
 
   return (
@@ -195,7 +211,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Manajemen Pengguna</h1>
-          <p className="mt-1 text-sm text-ink-3">Verifikasi, tambah, dan kelola akun siswa, guru, dan admin.</p>
+          <p className="mt-1 text-sm text-ink-3">Verifikasi, tambah, dan kelola akun santri, wali, guru, dan admin.</p>
         </div>
         <Button variant="primary" icon={<Icons.plus size={17} />} onClick={() => setModal({ type: "add" })}>
           Tambah Pengguna
@@ -277,7 +293,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
                   <td className="px-3.5 py-3">
                     <Badge tone={ROLE_TONE[u.role]}>{ROLE_LABEL[u.role]}</Badge>
                   </td>
-                  <td className="px-3.5 py-3 text-ink-2">{u.role === "STUDENT" ? u.className ?? "-" : "—"}</td>
+                  <td className="px-3.5 py-3 text-ink-2">{u.role === "STUDENT" ? `${u.level ?? "-"} · ${u.className ?? "-"}` : "—"}</td>
                   <td className="px-3.5 py-3">
                     <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: STATUS_COLOR[u.status] }}>
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: STATUS_COLOR[u.status] }} />

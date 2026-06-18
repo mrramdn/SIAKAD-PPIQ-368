@@ -1,8 +1,8 @@
-# General LMS
+# Pesantren Digital
 
-General LMS adalah fondasi Learning Management System berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS.
+Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS. Aplikasi menghubungkan pesantren dengan **wali santri**: orang tua memantau nilai, kehadiran, dan informasi anaknya; guru mengelola kelas dan penilaian; admin meninjau pendaftaran santri baru.
 
-Project ini dibuat general agar bisa disesuaikan setelah konsep final disetujui. Fitur saat ini mencakup registrasi siswa, verifikasi admin, dashboard siswa, admin panel, course, lesson, enrollment, absensi, dan nilai.
+Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **PWA** (installable, ada halaman offline).
 
 ## Tech Stack
 
@@ -12,58 +12,64 @@ Project ini dibuat general agar bisa disesuaikan setelah konsep final disetujui.
 - PostgreSQL
 - Tailwind CSS v4
 - pnpm
+- PWA (manifest + service worker)
+
+## Peran
+
+- **Orang Tua (wali)**: dasbor anak, rincian nilai & kehadiran per mata pelajaran, informasi sekolah.
+- **Guru**: kelola materi, isi nilai, catat kehadiran, kirim informasi ke wali.
+- **Admin**: tinjau pendaftaran (PPDB), kelola pengguna, kelas, nilai, absensi, dan informasi.
 
 ## Demo Account
 
-Seed database membuat akun berikut:
+Seed database membuat akun berikut (kata sandi `password123`):
 
-- Admin: `admin@example.com` / `password123`
-- Teacher: `teacher@example.com` / `password123`
-- Siswa verified: `user@example.com` / `password123`
-- Siswa pending: `pending@example.com` / `password123`
+- Admin: `admin@pesantren.id`
+- Guru: `guru@pesantren.id` (juga `guru2@`, `guru3@`)
+- Wali santri (punya 2 anak: SMP & SMA): `wali@pesantren.id`
 
 ## Setup
 
-Salin `.env.example` menjadi `.env`, lalu isi `DATABASE_URL` sesuai database PostgreSQL yang dipakai.
+Salin `.env.example` menjadi `.env`, lalu isi `DATABASE_URL`. Untuk lokal cepat dengan Docker:
+
+```bash
+docker run -d --name pesantren-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=pesantren -p 5432:5432 postgres:16
+```
 
 ```bash
 pnpm install
-pnpm prisma generate
-pnpm prisma db push --force-reset --accept-data-loss
+pnpm prisma migrate dev
 pnpm prisma db seed
 pnpm dev
 ```
 
-Buka `http://localhost:3000` untuk melihat aplikasi.
+Buka `http://localhost:3000`.
 
 ## Scripts
 
-- `pnpm dev`: menjalankan development server
+- `pnpm dev`: development server
 - `pnpm build`: generate Prisma Client lalu build Next.js
-- `pnpm start`: menjalankan production server
-- `pnpm lint`: menjalankan ESLint untuk source app
-- `pnpm db:generate`: generate Prisma Client
-- `pnpm db:migrate`: membuat migration development
-- `pnpm db:deploy`: menjalankan migration production
-- `pnpm db:seed`: menjalankan seed database
-- `pnpm db:studio`: membuka Prisma Studio
+- `pnpm start`: production server
+- `pnpm lint`: ESLint untuk `app lib prisma`
+- `pnpm db:migrate` / `pnpm db:deploy` / `pnpm db:seed` / `pnpm db:studio`
+- `node scripts/gen-icons.mjs`: regenerasi ikon PWA dari logo
 
 ## Struktur Utama
 
-- `app/page.tsx`: landing page LMS
-- `app/register`, `app/login`, `app/pending`: alur auth dan verifikasi
+- `app/page.tsx`: landing pesantren
+- `app/pendaftaran`: formulir pendaftaran santri baru (publik) + halaman sukses
+- `app/login`, `app/pending`: alur auth
 - `app/(app)`: app shell (sidebar + topbar) untuk pengguna terverifikasi
-  - `dashboard`: dasbor role-aware (siswa, guru, admin)
-  - `learning` & `learning/[id]`: daftar kelas dan detail kelas (materi, enrollment)
-  - `nilai`: gradebook (admin/guru edit, siswa read-only)
-  - `absen`: absensi grid (admin/guru edit, siswa read-only)
-  - `pengguna`: manajemen + verifikasi pengguna (admin)
-  - `pengaturan`: profil dan preferensi akun
-  - `actions.ts`: server actions LMS dengan guard per peran
-- `app/logout/route.ts`: logout route handler
+  - `dashboard`: dasbor per peran (wali memakai `ParentDashboard`)
+  - `anak` & `anak/[childId]`: portal wali — daftar anak dan rincian nilai/kehadiran
+  - `informasi`: pengumuman (wali baca, guru/admin kelola)
+  - `penerimaan`: tinjauan pendaftaran (admin); menerima membuat akun wali + data santri
+  - `learning`, `nilai`, `absen`, `pengguna`, `pengaturan`
+  - `actions.ts`: server actions dengan guard per peran
 - `components/ui`: komponen UI bersama dan ikon
-- `lib/auth.ts`: session auth berbasis HTTP-only cookie
-- `lib/lms.ts`: data access untuk seluruh layar LMS
-- `lib/prisma.ts`: Prisma client singleton
-- `prisma/schema.prisma`: schema database LMS
-- `prisma/seed.ts`: seed admin, guru, satu kelas siswa, course, lesson, jadwal, enrollment, absensi, dan nilai
+- `lib/auth.ts`: session auth HTTP-only cookie (termasuk `requireParent`)
+- `lib/lms.ts`: data access (dashboard, parent portal, informasi, pendaftaran)
+- `lib/brand.ts`: nama aplikasi dan label jenjang
+- `prisma/schema.prisma`: schema (User+role PARENT, EducationLevel, Admission, Announcement)
+- `prisma/seed.ts`: seed admin, guru, santri 3 jenjang + wali, course, nilai, absensi, informasi, pendaftaran
+- `app/manifest.ts`, `public/sw.js`, `components/PWARegister.tsx`: PWA

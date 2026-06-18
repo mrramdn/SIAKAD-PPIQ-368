@@ -2,30 +2,30 @@
 
 ## Product
 
-General LMS membantu admin menyediakan course dan lesson sederhana, memverifikasi siswa, mencatat absensi, mengisi nilai, lalu membantu siswa melihat kursus, progres, absensi, dan nilai.
+Pesantren Digital menghubungkan pondok pesantren dengan wali santri. Orang tua memantau nilai, kehadiran, dan informasi anaknya tanpa harus datang ke sekolah. Guru mengelola materi, nilai, dan kehadiran. Admin meninjau pendaftaran santri baru dan mengelola seluruh data. Mendukung jenjang SD, SMP, dan SMA.
 
 ## Users
 
-- Siswa yang membutuhkan akses materi belajar terstruktur.
-- Admin yang mengelola data course, lesson, dan enrollment.
-- Guru atau operator yang mencatat absensi dan nilai.
-- Stakeholder yang masih mengevaluasi konsep final produk.
+- **Orang tua / wali santri**: pengguna utama, memantau perkembangan anak.
+- **Guru**: mencatat kehadiran, mengisi nilai, mengirim informasi.
+- **Admin**: meninjau pendaftaran, mengelola pengguna, kelas, dan informasi.
+- **Santri**: data yang dipantau, tidak memakai aplikasi secara langsung.
 
 ## Product Purpose
 
-Siswa harus bisa registrasi, menunggu verifikasi admin, login setelah verified, melihat kursus, absensi, dan nilai. Admin harus bisa memverifikasi akun, memasukkan course, enroll siswa, mencatat absen, dan mengisi nilai tanpa akses database langsung.
+Calon wali mendaftarkan anak lewat formulir pendaftaran publik. Admin meninjau; saat diterima, akun wali dan data santri dibuat otomatis. Wali login untuk melihat ringkasan anak, rincian nilai dan kehadiran per mata pelajaran, serta informasi sekolah. Guru dan admin mengelola kelas, nilai, kehadiran, dan pengumuman dari satu panel.
 
 ## Brand Tone
 
-Jelas, tenang, dan fungsional. UI harus terasa seperti fondasi produk belajar yang siap dikembangkan, bukan dashboard yang terlalu ramai.
+Jelas, tenang, dan terpercaya. Nuansa hijau pesantren. UI ringkas, mudah dibaca wali dari ponsel, dan dapat dipasang sebagai aplikasi (PWA).
 
 ## Strategic Principles
 
-1. Verified access first: siswa baru harus disetujui admin sebelum memakai LMS.
-2. LMS stays general: hindari domain spesifik sampai konsep final disetujui.
-3. Backend remains simple: schema fokus pada user, siswa, session, course, lesson, enrollment, absensi, dan nilai.
-4. Admin sees data fast: admin panel menampilkan metrik, verifikasi, course, siswa, absen, dan nilai.
-5. Student sees progress: dashboard siswa menampilkan kursus aktif, absen terbaru, dan nilai terbaru.
+1. Wali sebagai pusat: setiap layar wali fokus pada perkembangan anak.
+2. Data santri terlindungi: wali hanya melihat anaknya sendiri (cek kepemilikan di server).
+3. Pendaftaran jadi pintu masuk: PPDB membuat akun wali dan santri secara otomatis.
+4. Jenjang sadar konteks: SD, SMP, SMA memiliki kelas dan informasi sendiri.
+5. Akses cepat di lapangan: dapat dipasang sebagai PWA dengan halaman offline.
 
 ## Content Rules
 
