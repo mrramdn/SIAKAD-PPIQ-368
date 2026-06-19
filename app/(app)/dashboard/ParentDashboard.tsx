@@ -59,7 +59,7 @@ export function ParentDashboard({ name, kids, announcements }: { name: string; k
           <div className="mt-0.5 text-[13px] font-medium text-ink-3">Anak Terpantau</div>
         </Card>
         <Card hover pad={18}>
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--violet)" }}>{Icons.award({ size: 21 })}</div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--teal)" }}>{Icons.award({ size: 21 })}</div>
           <div className="mt-3.5 text-[28px] font-extrabold tabular-nums tracking-tight">{avgAll || "-"}</div>
           <div className="mt-0.5 text-[13px] font-medium text-ink-3">Rata Nilai</div>
         </Card>
