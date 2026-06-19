@@ -7,7 +7,7 @@ import { Badge, Card, Icons, Progress, Ring, SectionTitle, scoreColor, scoreTone
 const ATT_META = [
   { key: "PRESENT", label: "Hadir", color: "var(--green)" },
   { key: "LATE", label: "Terlambat", color: "var(--amber)" },
-  { key: "EXCUSED", label: "Izin", color: "var(--violet)" },
+  { key: "EXCUSED", label: "Izin", color: "var(--teal)" },
   { key: "ABSENT", label: "Alpa", color: "var(--red)" },
 ] as const;
 

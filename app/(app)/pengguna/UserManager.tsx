@@ -203,7 +203,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
     { label: "Total Pengguna", value: counts.ALL, icon: Icons.users, tone: "var(--primary)" },
     { label: "Siswa", value: counts.STUDENT, icon: Icons.book, tone: "var(--green)" },
     { label: "Orang Tua", value: counts.PARENT, icon: Icons.users, tone: "var(--amber)" },
-    { label: "Guru", value: counts.TEACHER, icon: Icons.award, tone: "var(--violet)" },
+    { label: "Guru", value: counts.TEACHER, icon: Icons.award, tone: "var(--teal)" },
   ];
 
   return (
@@ -280,7 +280,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
                 <tr key={u.id} className="border-t border-line hover:bg-surface-2">
                   <td className="px-3.5 py-3">
                     <div className="flex items-center gap-2.5">
-                      <Avatar initials={initialsFromName(u.name)} color={u.role === "STUDENT" ? "var(--violet)" : "var(--primary)"} size={36} />
+                      <Avatar initials={initialsFromName(u.name)} color={u.role === "STUDENT" ? "var(--teal)" : "var(--primary)"} size={36} />
                       <div className="min-w-0">
                         <div className="whitespace-nowrap text-sm font-semibold">{u.name}</div>
                         <div className="flex items-center gap-1.5 text-[12px] text-ink-3">

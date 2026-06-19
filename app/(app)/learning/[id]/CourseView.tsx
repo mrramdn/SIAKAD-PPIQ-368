@@ -10,7 +10,7 @@ type Lesson = { id: string; title: string; type: LessonType; duration: string | 
 
 const TYPE_META: Record<LessonType, { icon: (p: IconProps) => React.ReactNode; tone: string; label: string }> = {
   VIDEO: { icon: Icons.play, tone: "var(--primary)", label: "Video" },
-  TEXT: { icon: Icons.doc, tone: "var(--violet)", label: "Bacaan" },
+  TEXT: { icon: Icons.doc, tone: "var(--teal)", label: "Bacaan" },
   QUIZ: { icon: Icons.quiz, tone: "var(--amber)", label: "Kuis" },
   ASSIGNMENT: { icon: Icons.edit, tone: "var(--green)", label: "Tugas" },
 };

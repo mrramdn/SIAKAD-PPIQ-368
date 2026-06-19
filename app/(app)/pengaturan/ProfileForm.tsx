@@ -70,7 +70,7 @@ export function ProfileForm({
       {tab === "profil" ? (
         <Card pad={24}>
           <div className="mb-6 flex items-center gap-4">
-            <Avatar initials={initialsFromName(profile.name)} color={profile.role === "STUDENT" ? "var(--violet)" : "var(--primary)"} size={64} />
+            <Avatar initials={initialsFromName(profile.name)} color={profile.role === "STUDENT" ? "var(--teal)" : "var(--primary)"} size={64} />
             <div>
               <div className="text-lg font-bold">{profile.name}</div>
               <div className="text-[13.5px] text-ink-3">{ROLE_LABEL[profile.role]}</div>
@@ -127,7 +127,7 @@ export function ProfileForm({
         <Card pad={24}>
           <div className="mb-3.5 text-[14.5px] font-semibold">Warna Aksen</div>
           <div className="flex gap-3">
-            {["var(--primary)", "var(--violet)", "var(--green)", "var(--amber)", "var(--red)"].map((c, i) => (
+            {["var(--primary)", "var(--teal)", "var(--green)", "var(--amber)", "var(--red)"].map((c, i) => (
               <button
                 key={c}
                 className="h-[42px] w-[42px] rounded-xl shadow-soft"

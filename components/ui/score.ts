@@ -17,8 +17,8 @@ export function scoreColor(n: number): string {
   return "var(--red)";
 }
 
-const ACCENTS = ["var(--primary)", "var(--violet)", "var(--green)", "var(--amber)", "var(--red)"] as const;
-const ACCENT_SOFTS = ["var(--primary-soft)", "var(--violet-soft)", "var(--green-soft)", "var(--amber-soft)", "var(--red-soft)"] as const;
+const ACCENTS = ["var(--primary)", "var(--teal)", "var(--green)", "var(--amber)", "var(--red)"] as const;
+const ACCENT_SOFTS = ["var(--primary-soft)", "var(--teal-soft)", "var(--green-soft)", "var(--amber-soft)", "var(--red-soft)"] as const;
 
 function hashIndex(id: string, mod: number): number {
   let h = 0;

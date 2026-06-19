@@ -166,7 +166,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
     stats = [
       { label: "Rata-rata Nilai", value: String(avgGrade || "-"), tone: "var(--primary)", icon: "award", up: true, delta: avgGrade >= 75 ? "tuntas" : undefined },
       { label: "Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2", up: true },
-      { label: "Materi Selesai", value: `${doneLessons}/${totalLessons}`, tone: "var(--violet)", icon: "book", up: true },
+      { label: "Materi Selesai", value: `${doneLessons}/${totalLessons}`, tone: "var(--teal)", icon: "book", up: true },
       { label: "Kelas Diikuti", value: String(enrollments.length), tone: "var(--amber)", icon: "doc", up: true },
     ];
     continueLearning = enrollments.map((e) => ({
@@ -200,7 +200,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
     stats = [
       { label: "Siswa Aktif", value: String(students), tone: "var(--primary)", icon: "users", up: true },
       { label: "Menunggu Verifikasi", value: String(pending), tone: "var(--amber)", icon: "award", up: false, delta: pending ? "perlu tinjauan" : undefined },
-      { label: "Kelas Berjalan", value: String(courses.length), tone: "var(--violet)", icon: "book", up: true },
+      { label: "Kelas Berjalan", value: String(courses.length), tone: "var(--teal)", icon: "book", up: true },
       { label: "Rata Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2", up: true },
     ];
     continueLearning = courses.map((c) => {
