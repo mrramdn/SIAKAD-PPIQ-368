@@ -1,8 +1,10 @@
-# General LMS Agent Rules
+# Pesantren LMS Agent Rules
 
 ## Project Context
 
-This project is a general Learning Management System built as a Next.js monolith. The current scope covers student registration, admin verification, student dashboard, admin dashboard, course data, lesson data, enrollment data, attendance, and grades.
+Pesantren Digital is an Islamic boarding school (pondok pesantren) information system built as a Next.js monolith. Its primary audience is **wali santri (parents)**: parents monitor their child's grades, attendance, and announcements. **Students (santri) do not log in** — their data is only viewed. Teachers (guru) manage classes and assessment, and admins review new-student admissions (PPDB). The system supports three levels: **SD, SMP, and SMA**.
+
+Current scope: public admission form, admin admission review (accepting auto-creates the parent account and santri record), parent portal (child list + per-subject grades and attendance), announcements, teacher class/grade/attendance management, user management, and an installable PWA.
 
 Primary stack:
 
@@ -15,12 +17,13 @@ Primary stack:
 - PostgreSQL
 - bcryptjs
 - Zod
+- PWA (manifest + service worker)
 
 ## Next.js Version Rule
 
 This is NOT the Next.js you know.
 
-This project uses a newer Next.js version with breaking changes. APIs, conventions, and file structure may differ from older examples or training data. Read relevant local Next.js package docs when available and prefer current project conventions.
+This project uses a newer Next.js version with breaking changes. APIs, conventions, and file structure may differ from older examples or training data. `params` and `searchParams` are async. Read relevant local Next.js package docs when available and prefer current project conventions.
 
 ## Development Principles
 
@@ -28,30 +31,46 @@ This project uses a newer Next.js version with breaking changes. APIs, conventio
 - Do not use `npm`, `yarn`, `package-lock.json`, or `yarn.lock`.
 - Keep the app as a Next.js monolith.
 - Use Prisma as the official database access layer.
-- Protect admin functionality on the server side.
-- New student accounts must stay `PENDING` until an admin verifies them.
+- Protect role-restricted functionality on the server side (admin, teacher, parent guards in `lib/auth.ts`).
+- Parents must only ever see their own children (ownership checks in `lib/lms.ts`).
+- Parent and santri accounts are created through admission review, not public self-registration.
 - Store passwords only as hashes.
 - Do not commit `.env`, `.env.local`, `.env.production`, or `.env.staging`.
-- Keep the LMS general until the final product concept is approved.
+- Keep branding centralized in `lib/brand.ts` (app name, level labels).
 
 ## Project Structure
 
 ```text
 app/
-  admin/
-  dashboard/
-  login/
-  logout/
-  register/
-  pending/
+  page.tsx              landing
+  pendaftaran/          public admission form (PPDB) + actions
+  login/  logout/  pending/
+  register/             redirects to /pendaftaran
+  offline/              PWA offline fallback
+  manifest.ts           PWA manifest
+  (app)/                authenticated shell (sidebar + topbar)
+    dashboard/          role-based dashboard (ParentDashboard for wali)
+    anak/  anak/[childId]/   parent portal: children + per-child detail
+    informasi/          announcements (parents read, staff manage)
+    penerimaan/         admin admission review
+    learning/ nilai/ absen/ pengguna/ pengaturan/
+    actions.ts          server actions with per-role guards
 lib/
-  auth.ts
-  lms.ts
+  auth.ts               session cookie auth (requireParent/Admin/TeacherOrAdmin)
+  lms.ts                data access (dashboard, parent portal, informasi, admissions)
+  brand.ts              app name + level labels (SD/SMP/SMA)
   prisma.ts
+components/
+  ui/                   shared UI kit
+  PWARegister.tsx       service worker registration
 prisma/
   migrations/
-  schema.prisma
+  schema.prisma         User+PARENT role, EducationLevel, Admission, Announcement
   seed.ts
+public/
+  sw.js                 service worker
+scripts/
+  gen-icons.mjs         PWA icon generator
 ```
 
 ## Vercel React Best Practices
