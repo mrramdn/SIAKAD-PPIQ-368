@@ -17,8 +17,6 @@ export default async function PenggunaPage() {
         email: u.email,
         role: u.role,
         status: u.status,
-        className: u.profile?.className ?? null,
-        level: u.profile?.level ?? null,
       }))}
     />
   );

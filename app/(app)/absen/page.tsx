@@ -49,7 +49,7 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
               <div>
                 <div className="text-[13px] font-semibold text-ink-3">Kehadiran Sesi Terbaru</div>
                 <div className="mt-1 text-[22px] font-extrabold tracking-tight">
-                  {counts.PRESENT}/{total} siswa
+                  {counts.PRESENT}/{total} santri
                 </div>
                 <div className="mt-0.5 text-[12.5px] text-ink-3">{todayCol >= 0 ? sessions[todayCol].date : "-"}</div>
               </div>
