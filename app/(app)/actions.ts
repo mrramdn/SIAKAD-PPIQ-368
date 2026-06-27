@@ -395,7 +395,7 @@ export async function reviewAdmissionAction(input: {
   const passwordHash = await bcrypt.hash("password123", 12);
   const parentEmail = adm.parentEmail.toLowerCase().trim();
 
-  let parent = await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true } });
+  let parent = await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true, role: true } });
   if (!parent) {
     parent = await prisma.user.create({
       data: {
@@ -407,10 +407,16 @@ export async function reviewAdmissionAction(input: {
         verifiedAt: new Date(),
         verifiedById: admin.id,
       },
-      select: { id: true },
+      select: { id: true, role: true },
     });
   } else {
-    await prisma.user.update({ where: { id: parent.id }, data: { role: UserRole.PARENT, status: UserStatus.VERIFIED } });
+    if (parent.role !== UserRole.PARENT) {
+      return { ok: false, message: "Email sudah dipakai akun non-wali. Gunakan email wali yang berbeda." };
+    }
+    await prisma.user.update({
+      where: { id: parent.id },
+      data: { name: adm.parentName, status: UserStatus.VERIFIED, verifiedAt: new Date(), verifiedById: admin.id },
+    });
   }
 
   const studentEmail = `santri.${Date.now().toString(36)}@pesantren.local`;
@@ -449,6 +455,7 @@ export async function reviewAdmissionAction(input: {
 
   revalidatePath("/penerimaan");
   revalidatePath("/pengguna");
+  revalidatePath("/anak");
   revalidatePath("/dashboard");
   return { ok: true };
 }

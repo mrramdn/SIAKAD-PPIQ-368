@@ -19,12 +19,14 @@ Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **
 - **Orang Tua (wali)**: dasbor anak, rincian nilai & kehadiran per mata pelajaran, informasi sekolah.
 - **Guru**: kelola materi, isi nilai, catat kehadiran, kirim informasi ke wali.
 - **Admin**: tinjau pendaftaran (PPDB), kelola pengguna, kelas, nilai, absensi, dan informasi.
+- **Mudir Ma'had**: pantau pengguna, pembelajaran, nilai, absensi, dan informasi tanpa aksi pengelolaan.
 
 ## Demo Account
 
 Seed database membuat akun berikut (kata sandi `password123`):
 
 - Admin: `admin@pesantren.id`
+- Mudir: `mudir@pesantren.id`
 - Guru: `guru@pesantren.id` (juga `guru2@`, `guru3@`)
 - Wali santri (punya 2 anak: SMP & SMA): `wali@pesantren.id`
 
@@ -70,6 +72,6 @@ Buka `http://localhost:3000`.
 - `lib/auth.ts`: session auth HTTP-only cookie (termasuk `requireParent`)
 - `lib/lms.ts`: data access (dashboard, parent portal, informasi, pendaftaran)
 - `lib/brand.ts`: nama aplikasi dan label jenjang
-- `prisma/schema.prisma`: schema (User+role PARENT, EducationLevel, Admission, Announcement)
+- `prisma/schema.prisma`: schema (User+role PARENT/MUDIR, EducationLevel, Admission, Announcement)
 - `prisma/seed.ts`: seed admin, guru, santri 3 jenjang + wali, course, nilai, absensi, informasi, pendaftaran
 - `app/manifest.ts`, `public/sw.js`, `components/PWARegister.tsx`: PWA

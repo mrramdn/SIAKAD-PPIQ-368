@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Avatar, Button, Card, Field, Icons, inputClasses, initialsFromName } from "@/components/ui";
 import { updateProfileAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "PARENT" | "STUDENT";
-const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", PARENT: "Orang Tua", STUDENT: "Siswa" };
+type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT" | "STUDENT";
+const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", MUDIR: "Mudir Ma'had", PARENT: "Orang Tua", STUDENT: "Siswa" };
 
 const TABS = [
   ["profil", "Profil"],

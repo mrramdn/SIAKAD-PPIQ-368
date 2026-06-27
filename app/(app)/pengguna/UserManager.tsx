@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { Avatar, Badge, Button, Card, Field, Icons, inputClasses, initialsFromName, type Tone } from "@/components/ui";
 import { createUserAction, deleteUserAction, setUserStatusAction, updateUserAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "PARENT" | "STUDENT";
+type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT" | "STUDENT";
 type Status = "PENDING" | "VERIFIED" | "REJECTED" | "SUSPENDED";
 type Level = "SD" | "SMP" | "SMA";
 type User = { id: string; name: string; email: string; role: Role; status: Status; className: string | null; level: Level | null };
 
-const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", PARENT: "Orang Tua", STUDENT: "Siswa" };
-const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", PARENT: "warning", STUDENT: "neutral" };
+const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", MUDIR: "Mudir Ma'had", PARENT: "Orang Tua", STUDENT: "Siswa" };
+const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", MUDIR: "success", PARENT: "warning", STUDENT: "neutral" };
 const LEVELS: Level[] = ["SD", "SMP", "SMA"];
 const STATUS_LABEL: Record<Status, string> = { PENDING: "Menunggu", VERIFIED: "Aktif", REJECTED: "Ditolak", SUSPENDED: "Nonaktif" };
 const STATUS_COLOR: Record<Status, string> = {
@@ -20,8 +20,8 @@ const STATUS_COLOR: Record<Status, string> = {
   REJECTED: "var(--red)",
   SUSPENDED: "var(--text-3)",
 };
-const TABS: (Role | "ALL")[] = ["ALL", "STUDENT", "PARENT", "TEACHER", "ADMIN"];
-const TAB_LABEL: Record<Role | "ALL", string> = { ALL: "Semua", STUDENT: "Siswa", PARENT: "Wali", TEACHER: "Guru", ADMIN: "Admin" };
+const TABS: (Role | "ALL")[] = ["ALL", "STUDENT", "PARENT", "TEACHER", "MUDIR", "ADMIN"];
+const TAB_LABEL: Record<Role | "ALL", string> = { ALL: "Semua", STUDENT: "Siswa", PARENT: "Wali", TEACHER: "Guru", MUDIR: "Mudir", ADMIN: "Admin" };
 
 /* --------------------------------- Modal ---------------------------------- */
 function Modal({ title, sub, onClose, children, width = 460 }: { title: string; sub?: string; onClose: () => void; children: ReactNode; width?: number }) {
@@ -89,6 +89,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
             <option value="STUDENT">Siswa</option>
             <option value="PARENT">Orang Tua</option>
             <option value="TEACHER">Guru</option>
+            <option value="MUDIR">Mudir Ma&apos;had</option>
             <option value="ADMIN">Admin</option>
           </select>
         </Field>
@@ -145,7 +146,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
 type FormSnapshot = { name: string; email: string; role: Role; status: Status; className: string; level: Level; studentNumber: string };
 
 /* ------------------------------ User manager ------------------------------ */
-export function UserManager({ users, adminId }: { users: User[]; adminId: string }) {
+export function UserManager({ users, adminId, readOnly = false }: { users: User[]; adminId: string; readOnly?: boolean }) {
   const router = useRouter();
   const [tab, setTab] = useState<Role | "ALL">("ALL");
   const [q, setQ] = useState("");
@@ -165,6 +166,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
       STUDENT: users.filter((u) => u.role === "STUDENT").length,
       PARENT: users.filter((u) => u.role === "PARENT").length,
       TEACHER: users.filter((u) => u.role === "TEACHER").length,
+      MUDIR: users.filter((u) => u.role === "MUDIR").length,
       ADMIN: users.filter((u) => u.role === "ADMIN").length,
     }),
     [users],
@@ -204,6 +206,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
     { label: "Siswa", value: counts.STUDENT, icon: Icons.book, tone: "var(--green)" },
     { label: "Orang Tua", value: counts.PARENT, icon: Icons.users, tone: "var(--amber)" },
     { label: "Guru", value: counts.TEACHER, icon: Icons.award, tone: "var(--teal)" },
+    { label: "Mudir", value: counts.MUDIR, icon: Icons.award, tone: "var(--primary)" },
   ];
 
   return (
@@ -211,11 +214,15 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Manajemen Pengguna</h1>
-          <p className="mt-1 text-sm text-ink-3">Verifikasi, tambah, dan kelola akun santri, wali, guru, dan admin.</p>
+          <p className="mt-1 text-sm text-ink-3">
+            {readOnly ? "Pantau akun santri, wali, guru, mudir, dan admin." : "Verifikasi, tambah, dan kelola akun santri, wali, guru, mudir, dan admin."}
+          </p>
         </div>
-        <Button variant="primary" icon={<Icons.plus size={17} />} onClick={() => setModal({ type: "add" })}>
-          Tambah Pengguna
-        </Button>
+        {!readOnly ? (
+          <Button variant="primary" icon={<Icons.plus size={17} />} onClick={() => setModal({ type: "add" })}>
+            Tambah Pengguna
+          </Button>
+        ) : null}
       </div>
 
       {/* summary */}
@@ -302,7 +309,7 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
                   </td>
                   <td className="px-3.5 py-3 text-right">
                     <div className="inline-flex gap-1">
-                      {u.status === "PENDING" ? (
+                      {!readOnly && u.status === "PENDING" ? (
                         <button
                           title="Verifikasi"
                           onClick={() => run(setUserStatusAction(u.id, "VERIFIED"), `${u.name} diverifikasi`)}
@@ -311,20 +318,24 @@ export function UserManager({ users, adminId }: { users: User[]; adminId: string
                           <Icons.check2 size={16} />
                         </button>
                       ) : null}
-                      <button
-                        title="Edit"
-                        onClick={() => setModal({ type: "edit", user: u })}
-                        className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-primary-soft hover:text-primary-700"
-                      >
-                        <Icons.edit size={16} />
-                      </button>
-                      <button
-                        title="Hapus"
-                        onClick={() => setModal({ type: "delete", user: u })}
-                        className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-danger-soft hover:text-danger"
-                      >
-                        <Icons.trash size={16} />
-                      </button>
+                      {!readOnly ? (
+                        <>
+                          <button
+                            title="Edit"
+                            onClick={() => setModal({ type: "edit", user: u })}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-primary-soft hover:text-primary-700"
+                          >
+                            <Icons.edit size={16} />
+                          </button>
+                          <button
+                            title="Hapus"
+                            onClick={() => setModal({ type: "delete", user: u })}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-danger-soft hover:text-danger"
+                          >
+                            <Icons.trash size={16} />
+                          </button>
+                        </>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

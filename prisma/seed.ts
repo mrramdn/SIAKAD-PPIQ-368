@@ -199,6 +199,7 @@ async function main() {
   const passwordHash = await bcrypt.hash("password123", 12);
 
   const admin = await upsertUser("admin@pesantren.id", "Admin Pesantren", UserRole.ADMIN, passwordHash);
+  await upsertUser("mudir@pesantren.id", "Mudir Ma'had", UserRole.MUDIR, passwordHash);
 
   const teachers = [
     { email: "guru@pesantren.id", name: "Ustadz Ahmad" },
