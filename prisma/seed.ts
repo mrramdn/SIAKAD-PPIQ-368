@@ -199,6 +199,7 @@ async function main() {
   const passwordHash = await bcrypt.hash("password123", 12);
 
   const admin = await upsertUser("admin@pesantren.id", "Admin Pesantren", UserRole.ADMIN, passwordHash);
+  await upsertUser("mudir@pesantren.id", "Mudir Ma'had", UserRole.MUDIR, passwordHash);
 
   const teachers = [
     { email: "guru@pesantren.id", name: "Ustadz Ahmad" },
@@ -256,7 +257,7 @@ async function main() {
     coursesByLevel.set(level, list);
   }
 
-  // Students per level. First student of SMP & SMA belongs to the demo parent.
+  // Santri per level. First santri of SMP & SMA belongs to the demo parent.
   let studentCounter = 0;
   const studentsByLevel = new Map<EducationLevel, string[]>();
   for (const level of LEVELS) {
@@ -265,7 +266,6 @@ async function main() {
     const className = COURSES[level][0].className;
     for (let i = 0; i < names.length; i++) {
       studentCounter += 1;
-      const email = `santri.${level.toLowerCase()}.${i + 1}@pesantren.local`;
       const studentNumber = `${level}-${String(i + 1).padStart(3, "0")}`;
 
       let parentId: string;
@@ -276,18 +276,13 @@ async function main() {
         parentId = parent.id;
       }
 
-      const user = await prisma.user.upsert({
-        where: { email },
-        update: { name: names[i], passwordHash, role: UserRole.STUDENT, status: UserStatus.VERIFIED, verifiedAt: new Date() },
-        create: { name: names[i], email, passwordHash, role: UserRole.STUDENT, status: UserStatus.VERIFIED, verifiedAt: new Date() },
+      const student = await prisma.studentProfile.upsert({
+        where: { studentNumber },
+        update: { name: names[i], level, className, parentId, phone: "0812-3456-7890" },
+        create: { name: names[i], level, studentNumber, className, parentId, phone: "0812-3456-7890" },
         select: { id: true },
       });
-      await prisma.studentProfile.upsert({
-        where: { userId: user.id },
-        update: { level, studentNumber, className, parentId, phone: "0812-3456-7890" },
-        create: { userId: user.id, level, studentNumber, className, parentId, phone: "0812-3456-7890" },
-      });
-      ids.push(user.id);
+      ids.push(student.id);
     }
     studentsByLevel.set(level, ids);
   }
@@ -302,9 +297,9 @@ async function main() {
       for (let si = 0; si < students.length; si++) {
         const progress = Math.max(20, Math.min(100, det(ci + si, si) - 25));
         await prisma.enrollment.upsert({
-          where: { userId_courseId: { userId: students[si], courseId: course.id } },
+          where: { studentId_courseId: { studentId: students[si], courseId: course.id } },
           update: { progress, status: EnrollmentStatus.ACTIVE },
-          create: { userId: students[si], courseId: course.id, progress, status: EnrollmentStatus.ACTIVE },
+          create: { studentId: students[si], courseId: course.id, progress, status: EnrollmentStatus.ACTIVE },
         });
       }
 
@@ -312,9 +307,9 @@ async function main() {
         for (let si = 0; si < students.length; si++) {
           const score = det(si * 2.3 + gi * 1.7 + ci, gi);
           await prisma.gradeRecord.upsert({
-            where: { gradeItemId_userId: { gradeItemId: course.gradeItemIds[gi], userId: students[si] } },
+            where: { gradeItemId_studentId: { gradeItemId: course.gradeItemIds[gi], studentId: students[si] } },
             update: { score },
-            create: { gradeItemId: course.gradeItemIds[gi], userId: students[si], score },
+            create: { gradeItemId: course.gradeItemIds[gi], studentId: students[si], score },
           });
         }
       }
@@ -330,9 +325,9 @@ async function main() {
         for (let si = 0; si < students.length; si++) {
           const status = attStatus(si * 1.7 + se * 2.1 + ci);
           await prisma.attendanceRecord.upsert({
-            where: { attendanceSessionId_userId: { attendanceSessionId: session.id, userId: students[si] } },
+            where: { attendanceSessionId_studentId: { attendanceSessionId: session.id, studentId: students[si] } },
             update: { status },
-            create: { attendanceSessionId: session.id, userId: students[si], status },
+            create: { attendanceSessionId: session.id, studentId: students[si], status },
           });
         }
       }

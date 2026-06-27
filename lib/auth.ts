@@ -120,6 +120,16 @@ export async function requireAdmin() {
   return user;
 }
 
+export async function requireAdminOrMudir() {
+  const user = await requireVerifiedUser();
+
+  if (user.role !== UserRole.ADMIN && user.role !== UserRole.MUDIR) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
 export async function requireVerifiedUser() {
   const user = await requireUser();
 

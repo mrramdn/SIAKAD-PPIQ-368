@@ -70,7 +70,7 @@ export function AdmissionReview({ admissions }: { admissions: Admission[] }) {
     startTransition(async () => {
       const res = await reviewAdmissionAction({ admissionId: id, decision });
       if (res.ok) {
-        setToast({ msg: decision === "ACCEPTED" ? `${name} diterima — akun wali dibuat` : `${name} ditolak`, tone: decision === "ACCEPTED" ? "ok" : "warn" });
+        setToast({ msg: decision === "ACCEPTED" ? `${name} diterima, akun wali ditautkan` : `${name} ditolak`, tone: decision === "ACCEPTED" ? "ok" : "warn" });
         setOpen(null);
         router.refresh();
       } else {
@@ -83,7 +83,9 @@ export function AdmissionReview({ admissions }: { admissions: Admission[] }) {
     <div className="view-enter">
       <div className="mb-5">
         <h1 className="text-[26px] font-extrabold tracking-tight text-balance">Pendaftaran Santri</h1>
-        <p className="mt-1 text-sm text-ink-3 text-pretty">Tinjau pendaftaran santri baru. Menerima pendaftaran otomatis membuat akun wali dan data santri.</p>
+        <p className="mt-1 text-sm text-ink-3 text-pretty">
+          Tinjau pendaftaran santri baru. Menerima pendaftaran otomatis membuat atau menautkan akun wali dan data santri.
+        </p>
       </div>
 
       <div className="mb-4 grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))" }}>
