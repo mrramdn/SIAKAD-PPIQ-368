@@ -38,8 +38,9 @@ export function formatRelative(date: Date): string {
 export const getDashboardData = cache(async (user: AuthUser) => {
   void user;
   const todayDow = new Date().getDay();
+  const weekStart = new Date(Date.now() - 28 * 864e5);
 
-  const [schedule, deadlines, attendanceForWeek, recentGradeItems, recentLessons, recentSessions, recentVerified] =
+  const [schedule, deadlines, attendanceSessionsForWeek, recentGradeItems, recentLessons, recentSessions, recentVerified] =
     await Promise.all([
       prisma.scheduleSlot.findMany({
         where: { dayOfWeek: todayDow, course: { deletedAt: null } },
@@ -59,11 +60,9 @@ export const getDashboardData = cache(async (user: AuthUser) => {
         take: 4,
         select: { id: true, title: true, dueAt: true, course: { select: { title: true } } },
       }),
-      prisma.attendanceRecord.findMany({
-        where: {
-          attendanceSession: { heldAt: { gte: new Date(Date.now() - 28 * 864e5) } },
-        },
-        select: { status: true, attendanceSession: { select: { heldAt: true } } },
+      prisma.attendanceSession.findMany({
+        where: { heldAt: { gte: weekStart }, course: { deletedAt: null } },
+        select: { heldAt: true, _count: { select: { records: true } } },
       }),
       prisma.gradeItem.findMany({
         orderBy: { createdAt: "desc" },
@@ -91,9 +90,9 @@ export const getDashboardData = cache(async (user: AuthUser) => {
 
   // Weekly activity buckets (Mon–Sat) from attendance.
   const buckets = new Map<number, number>();
-  for (const rec of attendanceForWeek) {
-    const dow = rec.attendanceSession.heldAt.getDay();
-    buckets.set(dow, (buckets.get(dow) ?? 0) + 1);
+  for (const session of attendanceSessionsForWeek) {
+    const dow = session.heldAt.getDay();
+    buckets.set(dow, (buckets.get(dow) ?? 0) + session._count.records);
   }
   const weekData = WEEK_BARS.map((dow) => ({ l: WEEKDAY_LABELS[dow], v: buckets.get(dow) ?? 0 }));
   const maxVal = Math.max(0, ...weekData.map((d) => d.v));
@@ -139,7 +138,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
     done: number;
   }[] = [];
 
-  const [students, pending, courses, attendanceRecords] = await Promise.all([
+  const [students, pending, courses, attendanceGroups] = await Promise.all([
     prisma.studentProfile.count(),
     prisma.user.count({ where: { status: UserStatus.PENDING } }),
     prisma.course.findMany({
@@ -150,14 +149,26 @@ export const getDashboardData = cache(async (user: AuthUser) => {
         id: true,
         title: true,
         _count: { select: { lessons: true } },
-        enrollments: { select: { progress: true } },
       },
     }),
-    prisma.attendanceRecord.findMany({ select: { status: true } }),
+    prisma.attendanceRecord.groupBy({
+      by: ["status"],
+      _count: { status: true },
+    }),
   ]);
 
-  const present = attendanceRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
-  const attRate = attendanceRecords.length ? Math.round((present / attendanceRecords.length) * 100) : 0;
+  const attendanceTotal = attendanceGroups.reduce((sum, group) => sum + group._count.status, 0);
+  const present = attendanceGroups.find((group) => group.status === AttendanceStatus.PRESENT)?._count.status ?? 0;
+  const attRate = attendanceTotal ? Math.round((present / attendanceTotal) * 100) : 0;
+  const courseIds = courses.map((course) => course.id);
+  const progressGroups = courseIds.length
+    ? await prisma.enrollment.groupBy({
+        by: ["courseId"],
+        where: { courseId: { in: courseIds }, status: EnrollmentStatus.ACTIVE },
+        _avg: { progress: true },
+      })
+    : [];
+  const avgProgressByCourse = new Map(progressGroups.map((group) => [group.courseId, Math.round(group._avg.progress ?? 0)]));
 
   stats = [
     { label: "Santri Aktif", value: String(students), tone: "var(--primary)", icon: "users", up: true },
@@ -166,7 +177,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
     { label: "Rata Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2", up: true },
   ];
   continueLearning = courses.map((c) => {
-    const avg = c.enrollments.length ? Math.round(c.enrollments.reduce((s, e) => s + e.progress, 0) / c.enrollments.length) : 0;
+    const avg = avgProgressByCourse.get(c.id) ?? 0;
     return { id: c.id, title: c.title, progress: avg, lessons: c._count.lessons, done: Math.round((avg / 100) * c._count.lessons) };
   });
 
@@ -205,10 +216,19 @@ export const getLearningOverview = cache(async (user: AuthUser) => {
       title: true,
       description: true,
       createdBy: { select: { name: true } },
-      enrollments: { select: { progress: true } },
       _count: { select: { lessons: true, enrollments: true } },
     },
   });
+  const courseIds = courses.map((course) => course.id);
+  const progressGroups = courseIds.length
+    ? await prisma.enrollment.groupBy({
+        by: ["courseId"],
+        where: { courseId: { in: courseIds }, status: EnrollmentStatus.ACTIVE },
+        _avg: { progress: true },
+      })
+    : [];
+  const avgProgressByCourse = new Map(progressGroups.map((group) => [group.courseId, Math.round(group._avg.progress ?? 0)]));
+
   return courses.map((c) => ({
     id: c.id,
     title: c.title,
@@ -216,7 +236,7 @@ export const getLearningOverview = cache(async (user: AuthUser) => {
     teacher: c.createdBy?.name ?? "Pengajar",
     lessons: c._count.lessons,
     students: c._count.enrollments,
-    progress: c.enrollments.length ? Math.round(c.enrollments.reduce((s, e) => s + e.progress, 0) / c.enrollments.length) : 0,
+    progress: avgProgressByCourse.get(c.id) ?? 0,
   }));
 });
 
@@ -252,6 +272,7 @@ export const getCourseManagement = cache(async (courseId: string) => {
       },
     }),
     prisma.studentProfile.findMany({
+      where: { enrollments: { none: { courseId, status: EnrollmentStatus.ACTIVE } } },
       orderBy: { name: "asc" },
       select: { id: true, name: true, studentNumber: true, className: true },
     }),
@@ -289,10 +310,13 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
   });
 
   const columns = (course?.gradeItems ?? []).map((g) => ({ id: g.id, title: g.title, maxScore: g.maxScore }));
+  const recordsByGradeItem = new Map(
+    (course?.gradeItems ?? []).map((g) => [g.id, new Map(g.records.map((record) => [record.studentId, record.score]))]),
+  );
   const rows = (course?.enrollments ?? []).map((e) => {
     const scores = (course?.gradeItems ?? []).map((g) => {
-      const rec = g.records.find((r) => r.studentId === e.student.id);
-      return rec ? Math.round((rec.score / g.maxScore) * 100) : null;
+      const score = recordsByGradeItem.get(g.id)?.get(e.student.id);
+      return score === undefined ? null : Math.round((score / g.maxScore) * 100);
     });
     const present = scores.filter((s): s is number => s !== null);
     const avg = present.length ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : 0;
@@ -341,10 +365,12 @@ export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string
     title: s.title,
     date: new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(s.heldAt),
   }));
+  const recordsBySession = new Map(
+    (course?.attendanceSessions ?? []).map((s) => [s.id, new Map(s.records.map((record) => [record.studentId, record.status]))]),
+  );
   const rows = (course?.enrollments ?? []).map((e) => {
     const marks = (course?.attendanceSessions ?? []).map((s) => {
-      const rec = s.records.find((r) => r.studentId === e.student.id);
-      return rec ? rec.status : null;
+      return recordsBySession.get(s.id)?.get(e.student.id) ?? null;
     });
     return { studentId: e.student.id, name: e.student.name, studentNumber: e.student.studentNumber, marks };
   });
@@ -405,19 +431,43 @@ export const getParentChildren = cache(async (parentId: string) => {
       level: true,
       className: true,
       studentNumber: true,
-      gradeRecords: { select: { score: true, gradeItem: { select: { maxScore: true } } } },
-      attendanceRecords: { select: { status: true } },
       _count: { select: { enrollments: true } },
     },
   });
+  const childIds = children.map((child) => child.id);
+  const [gradeRecords, attendanceGroups] = childIds.length
+    ? await Promise.all([
+        prisma.gradeRecord.findMany({
+          where: { studentId: { in: childIds } },
+          select: { studentId: true, score: true, gradeItem: { select: { maxScore: true } } },
+        }),
+        prisma.attendanceRecord.groupBy({
+          by: ["studentId", "status"],
+          where: { studentId: { in: childIds } },
+          _count: { status: true },
+        }),
+      ])
+    : [[], []];
+  const gradesByChild = new Map<string, typeof gradeRecords>();
+  for (const record of gradeRecords) {
+    const rows = gradesByChild.get(record.studentId) ?? [];
+    rows.push(record);
+    gradesByChild.set(record.studentId, rows);
+  }
+  const attendanceByChild = new Map<string, { present: number; total: number }>();
+  for (const group of attendanceGroups) {
+    const current = attendanceByChild.get(group.studentId) ?? { present: 0, total: 0 };
+    current.total += group._count.status;
+    if (group.status === AttendanceStatus.PRESENT) current.present += group._count.status;
+    attendanceByChild.set(group.studentId, current);
+  }
 
   return children.map((c) => {
-    const grades = c.gradeRecords;
+    const grades = gradesByChild.get(c.id) ?? [];
     const avg = grades.length
       ? Math.round(grades.reduce((s, r) => s + (r.score / r.gradeItem.maxScore) * 100, 0) / grades.length)
       : 0;
-    const att = c.attendanceRecords;
-    const present = att.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+    const att = attendanceByChild.get(c.id) ?? { present: 0, total: 0 };
     return {
       childId: c.id,
       name: c.name,
@@ -426,7 +476,7 @@ export const getParentChildren = cache(async (parentId: string) => {
       studentNumber: c.studentNumber,
       courses: c._count.enrollments,
       avg,
-      attRate: rate(present, att.length),
+      attRate: rate(att.present, att.total),
     };
   });
 });
