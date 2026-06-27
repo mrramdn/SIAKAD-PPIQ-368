@@ -1,20 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { PWARegister } from "@/components/PWARegister";
 import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 import "./globals.css";
-
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
 
 export const metadata: Metadata = {
   applicationName: APP_NAME,
@@ -41,10 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="id"
-      className={`${jakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
-    >
+    <html lang="id" className="h-full antialiased">
       <body className="min-h-full">
         {children}
         <PWARegister />

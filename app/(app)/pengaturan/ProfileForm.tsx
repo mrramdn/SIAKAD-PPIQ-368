@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Avatar, Button, Card, Field, Icons, inputClasses, initialsFromName } from "@/components/ui";
 import { updateProfileAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "PARENT" | "STUDENT";
-const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", PARENT: "Orang Tua", STUDENT: "Siswa" };
+type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT";
+const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", MUDIR: "Mudir Ma'had", PARENT: "Orang Tua" };
 
 const TABS = [
   ["profil", "Profil"],
@@ -24,12 +24,11 @@ const NOTIF = [
 export function ProfileForm({
   profile,
 }: {
-  profile: { name: string; email: string; role: Role; className: string | null; phone: string | null; isStudent: boolean };
+  profile: { name: string; email: string; role: Role };
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("profil");
   const [name, setName] = useState(profile.name);
-  const [phone, setPhone] = useState(profile.phone ?? "");
   const [toggles, setToggles] = useState<Record<string, boolean>>({ email: true, tugas: true, nilai: false, absen: true });
   const [toast, setToast] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -42,7 +41,7 @@ export function ProfileForm({
 
   function save() {
     startTransition(async () => {
-      const res = await updateProfileAction({ name, phone });
+      const res = await updateProfileAction({ name });
       setToast(res.ok ? "Perubahan disimpan" : res.message ?? "Gagal menyimpan");
       if (res.ok) router.refresh();
     });
@@ -70,7 +69,7 @@ export function ProfileForm({
       {tab === "profil" ? (
         <Card pad={24}>
           <div className="mb-6 flex items-center gap-4">
-            <Avatar initials={initialsFromName(profile.name)} color={profile.role === "STUDENT" ? "var(--teal)" : "var(--primary)"} size={64} />
+            <Avatar initials={initialsFromName(profile.name)} color="var(--primary)" size={64} />
             <div>
               <div className="text-lg font-bold">{profile.name}</div>
               <div className="text-[13.5px] text-ink-3">{ROLE_LABEL[profile.role]}</div>
@@ -86,13 +85,7 @@ export function ProfileForm({
             <Field label="Email">
               <input value={profile.email} disabled className={`${inputClasses} bg-surface-2 text-ink-3`} />
             </Field>
-            {profile.isStudent ? (
-              <Field label="No. Telepon">
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xx-xxxx-xxxx" className={inputClasses} />
-              </Field>
-            ) : (
-              <div />
-            )}
+            <div />
           </div>
           <div className="mt-2 flex justify-end gap-2.5">
             <Button variant="primary" onClick={save} disabled={pending}>

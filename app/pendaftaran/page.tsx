@@ -50,8 +50,8 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
               Daftarkan putra/putri Anda ke pesantren.
             </h1>
             <p className="mt-4 opacity-90 text-pretty">
-              Isi formulir penerimaan santri baru. Setelah diterima admin, akun wali santri otomatis dibuat agar Anda dapat
-              memantau nilai, kehadiran, dan informasi anak.
+              Isi formulir penerimaan santri baru. Setelah diterima admin, akun wali santri otomatis dibuat atau ditautkan
+              agar Anda dapat memantau nilai, kehadiran, dan informasi anak.
             </p>
             <div className="mt-8 space-y-2.5">
               {LEVELS.map((l) => (
@@ -125,7 +125,9 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-ink-2">Email orang tua *</span>
               <input name="parentEmail" type="email" required className={inputClasses} />
-              <span className="mt-1 block text-xs text-ink-3">Email ini akan menjadi akun login wali santri.</span>
+              <span className="mt-1 block text-xs text-ink-3">
+                Email ini menjadi akun login wali. Gunakan email yang sama untuk mendaftarkan lebih dari satu anak.
+              </span>
             </label>
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-ink-2">Alamat</span>

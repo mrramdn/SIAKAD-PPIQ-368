@@ -34,7 +34,7 @@ export function Topbar({
       <div className="ml-3 hidden w-[280px] items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 md:flex">
         <Icons.search size={17} style={{ color: "var(--text-3)" }} />
         <input
-          placeholder="Cari materi, siswa, tugas…"
+          placeholder="Cari materi, santri, tugas..."
           className="w-full bg-transparent py-2.5 text-[13.5px] text-ink outline-none"
         />
       </div>
@@ -55,7 +55,7 @@ export function Topbar({
             onClick={() => setMenuOpen((v) => !v)}
             className="flex items-center gap-2.5 rounded-full border border-line bg-surface p-1 pr-2 transition hover:bg-surface-2"
           >
-            <Avatar initials={initials} color={user.role === "STUDENT" ? "var(--teal)" : "var(--primary)"} size={32} />
+            <Avatar initials={initials} color="var(--primary)" size={32} />
             <div className="hidden text-left leading-tight sm:block">
               <div className="text-[13px] font-bold">{user.name}</div>
               <div className="text-[11px] text-ink-3">{ROLE_LABEL[user.role]}</div>

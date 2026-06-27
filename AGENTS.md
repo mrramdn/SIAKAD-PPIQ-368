@@ -4,7 +4,7 @@
 
 Pesantren Digital is an Islamic boarding school (pondok pesantren) information system built as a Next.js monolith. Its primary audience is **wali santri (parents)**: parents monitor their child's grades, attendance, and announcements. **Students (santri) do not log in** — their data is only viewed. Teachers (guru) manage classes and assessment, and admins review new-student admissions (PPDB). The system supports three levels: **SD, SMP, and SMA**.
 
-Current scope: public admission form, admin admission review (accepting auto-creates the parent account and santri record), parent portal (child list + per-subject grades and attendance), announcements, teacher class/grade/attendance management, user management, and an installable PWA.
+Current scope: public admission form, admin admission review (accepting auto-creates or reuses the parent account and links the santri record), parent portal (child list + per-subject grades and attendance), announcements, teacher class/grade/attendance management, mudir read-only supervision, user management, and an installable PWA.
 
 Primary stack:
 
@@ -56,7 +56,7 @@ app/
     learning/ nilai/ absen/ pengguna/ pengaturan/
     actions.ts          server actions with per-role guards
 lib/
-  auth.ts               session cookie auth (requireParent/Admin/TeacherOrAdmin)
+  auth.ts               session cookie auth (requireParent/Admin/AdminOrMudir/TeacherOrAdmin)
   lms.ts                data access (dashboard, parent portal, informasi, admissions)
   brand.ts              app name + level labels (SD/SMP/SMA)
   prisma.ts
@@ -65,7 +65,7 @@ components/
   PWARegister.tsx       service worker registration
 prisma/
   migrations/
-  schema.prisma         User+PARENT role, EducationLevel, Admission, Announcement
+  schema.prisma         User+PARENT/MUDIR role, EducationLevel, Admission, Announcement
   seed.ts
 public/
   sw.js                 service worker

@@ -22,7 +22,7 @@ Primary use:
 
 ## Typography
 
-- Body uses Plus Jakarta Sans; monospace uses JetBrains Mono (`.mono`), both loaded via `next/font` in `app/layout.tsx`.
+- Body uses a Plus Jakarta Sans-first system stack; monospace uses a JetBrains Mono-first system stack (`.mono`). Font variables are defined in `app/globals.css` so builds do not depend on fetching Google Fonts.
 - Headings use strong weight and tight tracking.
 - Body text uses clear line-height and readable measure.
 - Numeric counts and percentages use tabular numbers where practical.

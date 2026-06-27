@@ -38,7 +38,7 @@ export function AttendanceGrid({
     const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
     setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, marks: r.marks.map((m, c) => (c === colIdx ? next : m)) } : r)));
     startTransition(async () => {
-      await setAttendanceStatusAction({ sessionId: session.id, userId: rows[rowIdx].studentId, status: next });
+      await setAttendanceStatusAction({ sessionId: session.id, studentId: rows[rowIdx].studentId, status: next });
     });
   }
 
@@ -75,7 +75,7 @@ export function AttendanceGrid({
             <thead>
               <tr className="bg-surface-2">
                 <th className="sticky left-0 z-[2] min-w-[200px] bg-surface-2 px-3.5 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2">
-                  Siswa
+                  Santri
                 </th>
                 {sessions.map((s, i) => (
                   <th

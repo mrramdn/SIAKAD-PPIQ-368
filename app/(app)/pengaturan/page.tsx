@@ -14,9 +14,6 @@ export default async function PengaturanPage() {
         name: profile.name,
         email: profile.email,
         role: profile.role,
-        className: profile.profile?.className ?? null,
-        phone: profile.profile?.phone ?? null,
-        isStudent: profile.role === "STUDENT",
       }}
     />
   );
