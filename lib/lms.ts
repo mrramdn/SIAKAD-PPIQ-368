@@ -368,7 +368,7 @@ async function courseTabsFor(user: AuthUser) {
 export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = !isStudent(user);
+  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, columns: [], rows: [], canEdit };
@@ -413,7 +413,7 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
 export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = !isStudent(user);
+  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, sessions: [], rows: [], canEdit };

@@ -50,12 +50,16 @@ export default async function DashboardPage() {
     ? { href: "/learning", label: "Lanjutkan Belajar" }
     : user.role === "ADMIN"
       ? { href: "/pengguna", label: "Kelola Pengguna" }
-      : { href: "/nilai", label: "Mulai Menilai" };
+      : user.role === "MUDIR"
+        ? { href: "/pengguna", label: "Pantau Data" }
+        : { href: "/nilai", label: "Mulai Menilai" };
 
   const heroBlurb = isStudent
     ? "Lanjutkan materi yang sedang berjalan dan pantau progres belajarmu."
     : user.role === "TEACHER"
       ? "Catat kehadiran dan isi nilai kelas yang kamu ampu hari ini."
+      : user.role === "MUDIR"
+        ? "Pantau data pengguna, pembelajaran, nilai, absensi, dan informasi pesantren."
       : "Pantau verifikasi siswa, kelas aktif, dan kehadiran seluruh LMS.";
 
   return (
