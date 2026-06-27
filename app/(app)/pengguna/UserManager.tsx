@@ -5,14 +5,12 @@ import { useRouter } from "next/navigation";
 import { Avatar, Badge, Button, Card, Field, Icons, inputClasses, initialsFromName, type Tone } from "@/components/ui";
 import { createUserAction, deleteUserAction, setUserStatusAction, updateUserAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT" | "STUDENT";
+type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT";
 type Status = "PENDING" | "VERIFIED" | "REJECTED" | "SUSPENDED";
-type Level = "SD" | "SMP" | "SMA";
-type User = { id: string; name: string; email: string; role: Role; status: Status; className: string | null; level: Level | null };
+type User = { id: string; name: string; email: string; role: Role; status: Status };
 
-const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", MUDIR: "Mudir Ma'had", PARENT: "Orang Tua", STUDENT: "Siswa" };
-const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", MUDIR: "success", PARENT: "warning", STUDENT: "neutral" };
-const LEVELS: Level[] = ["SD", "SMP", "SMA"];
+const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", MUDIR: "Mudir Ma'had", PARENT: "Orang Tua" };
+const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", MUDIR: "success", PARENT: "warning" };
 const STATUS_LABEL: Record<Status, string> = { PENDING: "Menunggu", VERIFIED: "Aktif", REJECTED: "Ditolak", SUSPENDED: "Nonaktif" };
 const STATUS_COLOR: Record<Status, string> = {
   PENDING: "var(--amber)",
@@ -20,8 +18,8 @@ const STATUS_COLOR: Record<Status, string> = {
   REJECTED: "var(--red)",
   SUSPENDED: "var(--text-3)",
 };
-const TABS: (Role | "ALL")[] = ["ALL", "STUDENT", "PARENT", "TEACHER", "MUDIR", "ADMIN"];
-const TAB_LABEL: Record<Role | "ALL", string> = { ALL: "Semua", STUDENT: "Siswa", PARENT: "Wali", TEACHER: "Guru", MUDIR: "Mudir", ADMIN: "Admin" };
+const TABS: (Role | "ALL")[] = ["ALL", "PARENT", "TEACHER", "MUDIR", "ADMIN"];
+const TAB_LABEL: Record<Role | "ALL", string> = { ALL: "Semua", PARENT: "Wali", TEACHER: "Guru", MUDIR: "Mudir", ADMIN: "Admin" };
 
 /* --------------------------------- Modal ---------------------------------- */
 function Modal({ title, sub, onClose, children, width = 460 }: { title: string; sub?: string; onClose: () => void; children: ReactNode; width?: number }) {
@@ -57,11 +55,8 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
   const isEdit = !!initial;
   const [name, setName] = useState(initial?.name ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
-  const [role, setRole] = useState<Role>(initial?.role ?? "STUDENT");
+  const [role, setRole] = useState<Role>(initial?.role ?? "PARENT");
   const [status, setStatus] = useState<Status>(initial?.status ?? "VERIFIED");
-  const [className, setClassName] = useState(initial?.className ?? "");
-  const [level, setLevel] = useState<Level>(initial?.level ?? "SMP");
-  const [studentNumber, setStudentNumber] = useState("");
   const valid = name.trim() && email.trim();
 
   return (
@@ -86,7 +81,6 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
       <div className="grid grid-cols-2 gap-3.5">
         <Field label="Peran">
           <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClasses}>
-            <option value="STUDENT">Siswa</option>
             <option value="PARENT">Orang Tua</option>
             <option value="TEACHER">Guru</option>
             <option value="MUDIR">Mudir Ma&apos;had</option>
@@ -102,30 +96,10 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
               <option value="SUSPENDED">Nonaktif</option>
             </select>
           </Field>
-        ) : role === "STUDENT" ? (
-          <Field label="No. Induk (opsional)">
-            <input value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} placeholder="otomatis bila kosong" className={inputClasses} />
-          </Field>
         ) : (
           <div />
         )}
       </div>
-      {role === "STUDENT" ? (
-        <div className="grid grid-cols-2 gap-3.5">
-          <Field label="Jenjang">
-            <select value={level} onChange={(e) => setLevel(e.target.value as Level)} className={inputClasses}>
-              {LEVELS.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Kelas / Grup">
-            <input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="cth. 7A" className={inputClasses} />
-          </Field>
-        </div>
-      ) : null}
       <div className="mt-5 flex justify-end gap-2.5">
         <Button variant="ghost" onClick={onClose}>
           Batal
@@ -133,7 +107,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
         <Button
           variant="primary"
           disabled={!valid}
-          onClick={() => onSave({ name, email, role, status, className, level, studentNumber })}
+          onClick={() => onSave({ name, email, role, status })}
           className={!valid ? "opacity-50" : ""}
         >
           {isEdit ? "Simpan Perubahan" : "Tambah Pengguna"}
@@ -143,7 +117,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
   );
 }
 
-type FormSnapshot = { name: string; email: string; role: Role; status: Status; className: string; level: Level; studentNumber: string };
+type FormSnapshot = { name: string; email: string; role: Role; status: Status };
 
 /* ------------------------------ User manager ------------------------------ */
 export function UserManager({ users, adminId, readOnly = false }: { users: User[]; adminId: string; readOnly?: boolean }) {
@@ -163,7 +137,6 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
   const counts = useMemo(
     () => ({
       ALL: users.length,
-      STUDENT: users.filter((u) => u.role === "STUDENT").length,
       PARENT: users.filter((u) => u.role === "PARENT").length,
       TEACHER: users.filter((u) => u.role === "TEACHER").length,
       MUDIR: users.filter((u) => u.role === "MUDIR").length,
@@ -189,12 +162,12 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
   function save(data: FormSnapshot) {
     if (modal?.type === "edit" && modal.user) {
       run(
-        updateUserAction({ userId: modal.user.id, name: data.name, role: data.role, status: data.status, className: data.className, level: data.level }),
+        updateUserAction({ userId: modal.user.id, name: data.name, role: data.role, status: data.status }),
         `Data ${data.name} diperbarui`,
       );
     } else {
       run(
-        createUserAction({ name: data.name, email: data.email, role: data.role, className: data.className, level: data.level, studentNumber: data.studentNumber }),
+        createUserAction({ name: data.name, email: data.email, role: data.role }),
         `${data.name} ditambahkan`,
       );
     }
@@ -203,7 +176,6 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
 
   const summary = [
     { label: "Total Pengguna", value: counts.ALL, icon: Icons.users, tone: "var(--primary)" },
-    { label: "Siswa", value: counts.STUDENT, icon: Icons.book, tone: "var(--green)" },
     { label: "Orang Tua", value: counts.PARENT, icon: Icons.users, tone: "var(--amber)" },
     { label: "Guru", value: counts.TEACHER, icon: Icons.award, tone: "var(--teal)" },
     { label: "Mudir", value: counts.MUDIR, icon: Icons.award, tone: "var(--primary)" },
@@ -215,7 +187,7 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Manajemen Pengguna</h1>
           <p className="mt-1 text-sm text-ink-3">
-            {readOnly ? "Pantau akun santri, wali, guru, mudir, dan admin." : "Verifikasi, tambah, dan kelola akun santri, wali, guru, mudir, dan admin."}
+            {readOnly ? "Pantau akun wali, guru, mudir, dan admin." : "Verifikasi, tambah, dan kelola akun wali, guru, mudir, dan admin."}
           </p>
         </div>
         {!readOnly ? (
@@ -277,7 +249,6 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
               <tr className="bg-surface-2 text-xs font-bold uppercase tracking-wide text-ink-2">
                 <th className="px-3.5 py-3 text-left">Nama</th>
                 <th className="px-3.5 py-3 text-left">Peran</th>
-                <th className="px-3.5 py-3 text-left">Kelas</th>
                 <th className="px-3.5 py-3 text-left">Status</th>
                 <th className="px-3.5 py-3 text-right" />
               </tr>
@@ -287,7 +258,7 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
                 <tr key={u.id} className="border-t border-line hover:bg-surface-2">
                   <td className="px-3.5 py-3">
                     <div className="flex items-center gap-2.5">
-                      <Avatar initials={initialsFromName(u.name)} color={u.role === "STUDENT" ? "var(--teal)" : "var(--primary)"} size={36} />
+                      <Avatar initials={initialsFromName(u.name)} color="var(--primary)" size={36} />
                       <div className="min-w-0">
                         <div className="whitespace-nowrap text-sm font-semibold">{u.name}</div>
                         <div className="flex items-center gap-1.5 text-[12px] text-ink-3">
@@ -300,7 +271,6 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
                   <td className="px-3.5 py-3">
                     <Badge tone={ROLE_TONE[u.role]}>{ROLE_LABEL[u.role]}</Badge>
                   </td>
-                  <td className="px-3.5 py-3 text-ink-2">{u.role === "STUDENT" ? `${u.level ?? "-"} · ${u.className ?? "-"}` : "—"}</td>
                   <td className="px-3.5 py-3">
                     <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: STATUS_COLOR[u.status] }}>
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: STATUS_COLOR[u.status] }} />

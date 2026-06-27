@@ -8,7 +8,6 @@ datasource db {
 }
 
 enum UserRole {
-  STUDENT
   PARENT
   TEACHER
   MUDIR
@@ -65,17 +64,13 @@ model User {
   name         String
   email        String       @unique
   passwordHash String
-  role         UserRole     @default(STUDENT)
+  role         UserRole
   status       UserStatus   @default(PENDING)
   verifiedAt   DateTime?
   verifiedById String?
-  profile      StudentProfile?
   children     StudentProfile[] @relation("ParentChildren")
   sessions     Session[]
   courses      Course[]     @relation("CourseCreator")
-  enrollments  Enrollment[]
-  attendanceRecords AttendanceRecord[]
-  gradeRecords GradeRecord[]
   announcements Announcement[] @relation("AnnouncementAuthor")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -86,8 +81,7 @@ model User {
 
 model StudentProfile {
   id            String         @id @default(uuid())
-  userId        String         @unique
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
   level         EducationLevel @default(SMP)
   studentNumber String         @unique
   className     String
@@ -95,9 +89,13 @@ model StudentProfile {
   address       String?
   parentId      String?
   parent        User?          @relation("ParentChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  enrollments   Enrollment[]
+  attendanceRecords AttendanceRecord[]
+  gradeRecords  GradeRecord[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
+  @@index([name])
   @@index([className])
   @@index([level])
   @@index([parentId])
@@ -173,8 +171,8 @@ model ScheduleSlot {
 
 model Enrollment {
   id          String           @id @default(uuid())
-  userId      String
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   courseId    String
   course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
   status      EnrollmentStatus @default(ACTIVE)
@@ -183,7 +181,7 @@ model Enrollment {
   completedAt DateTime?
   updatedAt   DateTime         @updatedAt
 
-  @@unique([userId, courseId])
+  @@unique([studentId, courseId])
   @@index([courseId])
   @@index([status])
 }
@@ -206,15 +204,15 @@ model AttendanceRecord {
   id                  String           @id @default(uuid())
   attendanceSessionId String
   attendanceSession   AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
-  userId              String
-  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId           String
+  student             StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   status              AttendanceStatus @default(PRESENT)
   note                String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
-  @@unique([attendanceSessionId, userId])
-  @@index([userId])
+  @@unique([attendanceSessionId, studentId])
+  @@index([studentId])
   @@index([status])
 }
 
@@ -238,15 +236,15 @@ model GradeRecord {
   id          String    @id @default(uuid())
   gradeItemId String
   gradeItem   GradeItem @relation(fields: [gradeItemId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
   score       Int
   feedback    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  @@unique([gradeItemId, userId])
-  @@index([userId])
+  @@unique([gradeItemId, studentId])
+  @@index([studentId])
 }
 
 // Pengumuman / info yang dikirim sekolah ke orang tua. level null = semua jenjang.
@@ -265,7 +263,7 @@ model Announcement {
   @@index([createdAt])
 }
 
-// Pendaftaran siswa baru (PPDB). Saat diterima admin, dibuat akun orang tua + record siswa.
+// Pendaftaran santri baru (PPDB). Saat diterima admin, dibuat akun orang tua + record santri.
 model Admission {
   id               String          @id @default(uuid())
   childName        String

@@ -2,10 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LessonType } from "@/generated/prisma/client";
 import { requireVerifiedUser } from "@/lib/auth";
-import { getCourseManagement, getStudentCourseView } from "@/lib/lms";
+import { getCourseManagement } from "@/lib/lms";
 import { Avatar, Badge, Card, Field, Icons, inputClasses, buttonClasses, courseAccent, courseCode, initialsFromName } from "@/components/ui";
 import { createLessonAction, enrollStudentAction } from "../../actions";
-import { CourseView } from "./CourseView";
 
 const LESSON_LABEL: Record<LessonType, string> = {
   TEXT: "Bacaan",
@@ -18,30 +17,11 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
   const user = await requireVerifiedUser();
   const { id } = await params;
 
-  // Student: focused learning view.
-  if (user.role === "STUDENT") {
-    const { course, progress } = await getStudentCourseView(id, user.id);
-    if (!course) notFound();
-    return (
-      <CourseView
-        course={{
-          id: course.id,
-          title: course.title,
-          description: course.description,
-          teacher: course.createdBy?.name ?? "Pengajar",
-          students: course._count.enrollments,
-          lessons: course.lessons,
-        }}
-        initialProgress={progress}
-      />
-    );
-  }
-
   // Staff view; Mudir can supervise without write controls.
   const { course, verifiedStudents } = await getCourseManagement(id);
   if (!course) notFound();
   const accent = courseAccent(course.id);
-  const enrolledIds = new Set(course.enrollments.map((e) => e.user.id));
+  const enrolledIds = new Set(course.enrollments.map((e) => e.student.id));
   const availableStudents = verifiedStudents.filter((s) => !enrolledIds.has(s.id));
   const isAdmin = user.role === "ADMIN";
   const canManageLessons = user.role === "ADMIN" || user.role === "TEACHER";
@@ -64,7 +44,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
           <h1 className="my-3 text-2xl font-extrabold tracking-tight lg:text-3xl">{course.title}</h1>
           <p className="max-w-[560px] text-[14.5px] leading-relaxed opacity-90">{course.description}</p>
           <div className="mt-4 text-[13.5px]">
-            <strong>{course.enrollments.length}</strong> siswa · <strong>{course.lessons.length}</strong> materi · status {course.status}
+            <strong>{course.enrollments.length}</strong> santri · <strong>{course.lessons.length}</strong> materi · status {course.status}
           </div>
         </div>
       </div>
@@ -142,13 +122,13 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
           {isAdmin ? (
             <form action={enrollStudentAction} className="mb-4 flex gap-2">
               <input type="hidden" name="courseId" value={course.id} />
-              <select name="userId" className={inputClasses} disabled={availableStudents.length === 0}>
+              <select name="studentId" className={inputClasses} disabled={availableStudents.length === 0}>
                 {availableStudents.length === 0 ? (
-                  <option>Semua siswa sudah terdaftar</option>
+                  <option>Semua santri sudah terdaftar</option>
                 ) : (
                   availableStudents.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} · {s.profile?.className ?? "-"}
+                      {s.name} · {s.className}
                     </option>
                   ))
                 )}
@@ -169,10 +149,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
             ) : (
               course.enrollments.map((e) => (
                 <div key={e.id} className="flex items-center gap-2.5 rounded-xl bg-surface-2 p-2.5">
-                  <Avatar initials={initialsFromName(e.user.name)} color={accent.color} size={32} />
+                  <Avatar initials={initialsFromName(e.student.name)} color={accent.color} size={32} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] font-semibold">{e.user.name}</div>
-                    <div className="mono text-[11px] text-ink-3">{e.user.profile?.studentNumber ?? "-"}</div>
+                    <div className="truncate text-[13.5px] font-semibold">{e.student.name}</div>
+                    <div className="mono text-[11px] text-ink-3">{e.student.studentNumber}</div>
                   </div>
                   <Badge tone="neutral">{e.progress}%</Badge>
                 </div>

@@ -37,30 +37,23 @@ export default async function DashboardPage() {
   }
 
   const data = await getDashboardData(user);
-  const isStudent = user.role === "STUDENT";
   const greet = user.name.split(" ")[0];
 
-  const heroRing = isStudent
-    ? data.continueLearning.length
-      ? Math.round(data.continueLearning.reduce((s, c) => s + c.progress, 0) / data.continueLearning.length)
-      : 0
-    : Number(String(data.stats[3]?.value ?? "0").replace("%", "")) || 0;
+  const heroRing = Number(String(data.stats[3]?.value ?? "0").replace("%", "")) || 0;
 
-  const primaryCta = isStudent
-    ? { href: "/learning", label: "Lanjutkan Belajar" }
-    : user.role === "ADMIN"
+  const primaryCta =
+    user.role === "ADMIN"
       ? { href: "/pengguna", label: "Kelola Pengguna" }
       : user.role === "MUDIR"
         ? { href: "/pengguna", label: "Pantau Data" }
         : { href: "/nilai", label: "Mulai Menilai" };
 
-  const heroBlurb = isStudent
-    ? "Lanjutkan materi yang sedang berjalan dan pantau progres belajarmu."
-    : user.role === "TEACHER"
+  const heroBlurb =
+    user.role === "TEACHER"
       ? "Catat kehadiran dan isi nilai kelas yang kamu ampu hari ini."
       : user.role === "MUDIR"
         ? "Pantau data pengguna, pembelajaran, nilai, absensi, dan informasi pesantren."
-      : "Pantau verifikasi siswa, kelas aktif, dan kehadiran seluruh LMS.";
+      : "Pantau verifikasi akun, kelas aktif, dan kehadiran santri.";
 
   return (
     <div className="view-enter flex flex-col gap-5.5" style={{ gap: 22 }}>
@@ -94,7 +87,7 @@ export default async function DashboardPage() {
           </div>
           <div className="hidden flex-col items-center gap-1.5 sm:flex">
             <Ring value={heroRing} size={120} stroke={12} color="#fff" label={`${heroRing}%`} />
-            <div className="text-[12.5px] font-semibold opacity-90">{isStudent ? "Progres Semester" : "Tingkat Kehadiran"}</div>
+            <div className="text-[12.5px] font-semibold opacity-90">Tingkat Kehadiran</div>
           </div>
         </div>
       </div>
@@ -120,7 +113,7 @@ export default async function DashboardPage() {
           {/* Continue learning */}
           <Card pad={20}>
             <SectionTitle
-              title={isStudent ? "Lanjutkan Belajar" : "Kelas Anda"}
+              title="Kelas Anda"
               sub="Materi yang sedang berjalan"
               action={
                 <Link href="/learning" className={buttonClasses("ghost", "sm")}>

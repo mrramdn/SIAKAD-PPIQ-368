@@ -107,16 +107,16 @@ export async function createLessonAction(formData: FormData) {
 export async function enrollStudentAction(formData: FormData) {
   await requireAdmin();
   const courseId = String(formData.get("courseId") ?? "");
-  const userId = String(formData.get("userId") ?? "");
+  const studentId = String(formData.get("studentId") ?? "");
 
-  if (!courseId || !userId) {
+  if (!courseId || !studentId) {
     redirect(`/learning/${courseId}?error=enrollment`);
   }
 
   await prisma.enrollment.upsert({
-    where: { userId_courseId: { userId, courseId } },
+    where: { studentId_courseId: { studentId, courseId } },
     update: { status: EnrollmentStatus.ACTIVE },
-    create: { userId, courseId, status: EnrollmentStatus.ACTIVE },
+    create: { studentId, courseId, status: EnrollmentStatus.ACTIVE },
   });
 
   revalidateCourseAreas(courseId);
@@ -141,12 +141,12 @@ export async function createAttendanceSessionAction(formData: FormData) {
 
   const enrollments = await prisma.enrollment.findMany({
     where: { courseId, status: EnrollmentStatus.ACTIVE },
-    select: { userId: true },
+    select: { studentId: true },
   });
 
   if (enrollments.length > 0) {
     await prisma.attendanceRecord.createMany({
-      data: enrollments.map((e) => ({ attendanceSessionId: session.id, userId: e.userId, status: AttendanceStatus.PRESENT })),
+      data: enrollments.map((e) => ({ attendanceSessionId: session.id, studentId: e.studentId, status: AttendanceStatus.PRESENT })),
       skipDuplicates: true,
     });
   }
@@ -156,17 +156,17 @@ export async function createAttendanceSessionAction(formData: FormData) {
 
 export async function setAttendanceStatusAction(input: {
   sessionId: string;
-  userId: string;
+  studentId: string;
   status: AttendanceStatus;
 }): Promise<ActionResult> {
   await requireTeacherOrAdmin();
-  if (!input.sessionId || !input.userId || !Object.values(AttendanceStatus).includes(input.status)) {
+  if (!input.sessionId || !input.studentId || !Object.values(AttendanceStatus).includes(input.status)) {
     return { ok: false, message: "Data absensi tidak valid." };
   }
   await prisma.attendanceRecord.upsert({
-    where: { attendanceSessionId_userId: { attendanceSessionId: input.sessionId, userId: input.userId } },
+    where: { attendanceSessionId_studentId: { attendanceSessionId: input.sessionId, studentId: input.studentId } },
     update: { status: input.status },
-    create: { attendanceSessionId: input.sessionId, userId: input.userId, status: input.status },
+    create: { attendanceSessionId: input.sessionId, studentId: input.studentId, status: input.status },
   });
   revalidatePath("/absen");
   return { ok: true };
@@ -206,52 +206,33 @@ export async function createGradeItemAction(formData: FormData) {
 
 export async function saveGradeAction(input: {
   gradeItemId: string;
-  userId: string;
+  studentId: string;
   value: number; // 0-100 display value
 }): Promise<ActionResult> {
   await requireTeacherOrAdmin();
   const item = await prisma.gradeItem.findUnique({ where: { id: input.gradeItemId }, select: { maxScore: true } });
-  if (!item || !input.userId || !Number.isFinite(input.value)) {
+  if (!item || !input.studentId || !Number.isFinite(input.value)) {
     return { ok: false, message: "Data nilai tidak valid." };
   }
   const clamped = Math.max(0, Math.min(100, Math.round(input.value)));
   const score = Math.round((clamped / 100) * item.maxScore);
   await prisma.gradeRecord.upsert({
-    where: { gradeItemId_userId: { gradeItemId: input.gradeItemId, userId: input.userId } },
+    where: { gradeItemId_studentId: { gradeItemId: input.gradeItemId, studentId: input.studentId } },
     update: { score },
-    create: { gradeItemId: input.gradeItemId, userId: input.userId, score },
+    create: { gradeItemId: input.gradeItemId, studentId: input.studentId, score },
   });
   revalidatePath("/nilai");
   return { ok: true };
 }
 
-/* --------------------------- progress (student) ---------------------------- */
-
-export async function markLessonProgressAction(courseId: string, progress: number): Promise<ActionResult> {
-  const user = await requireVerifiedUser();
-  const clamped = Math.max(0, Math.min(100, Math.round(progress)));
-  const updated = await prisma.enrollment.updateMany({
-    where: { userId: user.id, courseId },
-    data: { progress: clamped, ...(clamped >= 100 ? { status: EnrollmentStatus.COMPLETED, completedAt: new Date() } : { status: EnrollmentStatus.ACTIVE }) },
-  });
-  if (updated.count === 0) return { ok: false, message: "Kamu belum terdaftar di kelas ini." };
-  revalidatePath(`/learning/${courseId}`);
-  revalidatePath("/learning");
-  revalidatePath("/dashboard");
-  return { ok: true };
-}
-
 /* ----------------------------- profile (self) ------------------------------ */
 
-export async function updateProfileAction(input: { name: string; phone?: string }): Promise<ActionResult> {
+export async function updateProfileAction(input: { name: string }): Promise<ActionResult> {
   const user = await requireVerifiedUser();
   const name = input.name.trim();
   if (!name) return { ok: false, message: "Nama wajib diisi." };
 
   await prisma.user.update({ where: { id: user.id }, data: { name } });
-  if (user.role === UserRole.STUDENT) {
-    await prisma.studentProfile.updateMany({ where: { userId: user.id }, data: { phone: input.phone?.trim() || null } });
-  }
   revalidatePath("/pengaturan");
   revalidatePath("/dashboard");
   return { ok: true };
@@ -281,9 +262,6 @@ export async function createUserAction(input: {
   name: string;
   email: string;
   role: UserRole;
-  className?: string;
-  studentNumber?: string;
-  level?: EducationLevel;
 }): Promise<ActionResult> {
   await requireAdmin();
   const name = input.name.trim();
@@ -296,9 +274,6 @@ export async function createUserAction(input: {
   if (existing) return { ok: false, message: "Email sudah dipakai akun lain." };
 
   const passwordHash = await bcrypt.hash("password123", 12);
-  const isStudent = input.role === UserRole.STUDENT;
-  const level = input.level && Object.values(EducationLevel).includes(input.level) ? input.level : EducationLevel.SMP;
-  const studentNumber = (input.studentNumber?.trim() || `SIS-${Date.now().toString().slice(-6)}`).toUpperCase();
 
   await prisma.user.create({
     data: {
@@ -308,9 +283,6 @@ export async function createUserAction(input: {
       role: input.role,
       status: UserStatus.VERIFIED,
       verifiedAt: new Date(),
-      ...(isStudent
-        ? { profile: { create: { level, studentNumber, className: input.className?.trim() || "-" } } }
-        : {}),
     },
   });
 
@@ -324,8 +296,6 @@ export async function updateUserAction(input: {
   name: string;
   role: UserRole;
   status: UserStatus;
-  className?: string;
-  level?: EducationLevel;
 }): Promise<ActionResult> {
   await requireAdmin();
   const name = input.name.trim();
@@ -335,12 +305,6 @@ export async function updateUserAction(input: {
     where: { id: input.userId },
     data: { name, role: input.role, status: input.status },
   });
-  if (input.role === UserRole.STUDENT) {
-    const data: { className?: string; level?: EducationLevel } = {};
-    if (input.className !== undefined) data.className = input.className.trim() || "-";
-    if (input.level && Object.values(EducationLevel).includes(input.level)) data.level = input.level;
-    if (Object.keys(data).length) await prisma.studentProfile.updateMany({ where: { userId: input.userId }, data });
-  }
   revalidatePath("/pengguna");
   return { ok: true };
 }
@@ -392,11 +356,11 @@ export async function reviewAdmissionAction(input: {
     return { ok: true };
   }
 
-  const passwordHash = await bcrypt.hash("password123", 12);
   const parentEmail = adm.parentEmail.toLowerCase().trim();
 
   let parent = await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true, role: true } });
   if (!parent) {
+    const passwordHash = await bcrypt.hash("password123", 12);
     parent = await prisma.user.create({
       data: {
         name: adm.parentName,
@@ -419,25 +383,15 @@ export async function reviewAdmissionAction(input: {
     });
   }
 
-  const studentEmail = `santri.${Date.now().toString(36)}@pesantren.local`;
   const studentNumber = `${adm.level}-${Date.now().toString().slice(-6)}`;
-  const student = await prisma.user.create({
+  const student = await prisma.studentProfile.create({
     data: {
       name: adm.childName,
-      email: studentEmail,
-      passwordHash,
-      role: UserRole.STUDENT,
-      status: UserStatus.VERIFIED,
-      verifiedAt: new Date(),
-      profile: {
-        create: {
-          level: adm.level,
-          studentNumber,
-          className: `${adm.level}-1`,
-          parentId: parent.id,
-          address: adm.address,
-        },
-      },
+      level: adm.level,
+      studentNumber,
+      className: `${adm.level}-1`,
+      parentId: parent.id,
+      address: adm.address,
     },
     select: { id: true },
   });

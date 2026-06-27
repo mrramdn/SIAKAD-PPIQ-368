@@ -1,6 +1,6 @@
 import type { IconKey } from "@/components/ui";
 
-export type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT" | "STUDENT";
+export type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT";
 
 export type NavItem = { href: string; label: string; icon: IconKey };
 
@@ -46,11 +46,7 @@ export function navFor(role: Role): NavItem[] {
   if (role === "MUDIR") return MUDIR_NAV;
   if (role === "PARENT") return PARENT_NAV;
   if (role === "TEACHER") return TEACHER_NAV;
-  // Siswa tidak memakai aplikasi; tampilkan menu minimal bila terlanjur login.
-  return [
-    { href: "/dashboard", label: "Dasbor", icon: "grid" },
-    { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
-  ];
+  return PARENT_NAV;
 }
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -58,7 +54,6 @@ export const ROLE_LABEL: Record<Role, string> = {
   TEACHER: "Guru",
   MUDIR: "Mudir Ma'had",
   PARENT: "Orang Tua",
-  STUDENT: "Siswa",
 };
 
 export const ROLE_BLURB: Record<Role, string> = {
@@ -66,7 +61,6 @@ export const ROLE_BLURB: Record<Role, string> = {
   TEACHER: "Catat kehadiran, isi nilai, dan kirim informasi ke wali santri.",
   MUDIR: "Pantau data pengguna, pembelajaran, nilai, absensi, dan informasi.",
   PARENT: "Pantau nilai, kehadiran, dan informasi terbaru anak Anda.",
-  STUDENT: "Akun santri sebagai data; aktivitas dipantau oleh wali.",
 };
 
 export const PAGE_TITLE: Record<string, string> = {

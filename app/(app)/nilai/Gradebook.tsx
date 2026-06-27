@@ -14,11 +14,11 @@ export function Gradebook({ columns, rows, canEdit }: { columns: Column[]; rows:
   const [editing, setEditing] = useState<{ studentId: string; col: number } | null>(null);
   const [, startTransition] = useTransition();
 
-  function save(gradeItemId: string, userId: string, raw: string) {
+  function save(gradeItemId: string, studentId: string, raw: string) {
     setEditing(null);
     const value = Math.max(0, Math.min(100, parseInt(raw, 10) || 0));
     startTransition(async () => {
-      await saveGradeAction({ gradeItemId, userId, value });
+      await saveGradeAction({ gradeItemId, studentId, value });
       router.refresh();
     });
   }
@@ -38,7 +38,7 @@ export function Gradebook({ columns, rows, canEdit }: { columns: Column[]; rows:
           <thead>
             <tr className="bg-surface-2">
               <th className="sticky left-0 z-[2] min-w-[200px] bg-surface-2 px-3.5 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2">
-                Siswa
+                Santri
               </th>
               {columns.map((c) => (
                 <th key={c.id} className="px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2 whitespace-nowrap">
