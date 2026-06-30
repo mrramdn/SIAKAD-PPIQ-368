@@ -5,8 +5,14 @@ import { useRouter } from "next/navigation";
 import { Avatar, Button, Card, Field, Icons, inputClasses, initialsFromName } from "@/components/ui";
 import { updateProfileAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT";
-const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", MUDIR: "Mudir Ma'had", PARENT: "Orang Tua" };
+type Role = "ADMIN" | "TEACHER" | "HOMEROOM" | "MUDIR" | "PARENT";
+const ROLE_LABEL: Record<Role, string> = {
+  ADMIN: "Administrasi",
+  TEACHER: "Pengajar",
+  HOMEROOM: "Wali Kelas",
+  MUDIR: "Mudir Ma'had",
+  PARENT: "Wali Santri",
+};
 
 const TABS = [
   ["profil", "Profil"],

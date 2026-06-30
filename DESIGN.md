@@ -2,7 +2,7 @@
 
 ## Design Direction
 
-Scene: wali santri membuka aplikasi dari HP untuk memantau nilai, kehadiran, dan informasi anaknya tanpa datang ke sekolah. Guru membuka panel untuk mengelola kelas, mengisi nilai, mencatat absensi, dan mengirim pengumuman. Admin meninjau pendaftaran santri baru dan mengelola data.
+Scene: wali santri membuka aplikasi dari HP untuk membuat akun, mendaftarkan anak, lalu memantau nilai, kehadiran, dan informasi anaknya tanpa datang ke sekolah. Wali kelas dan pengajar membuka panel untuk mengelola kelas, mengisi nilai, mencatat absensi, dan mengirim pengumuman. Administrasi meninjau pendaftaran santri baru dan dokumen pendukung.
 
 Theme: calm school information dashboard.
 

@@ -358,13 +358,16 @@ export async function reviewAdmissionAction(input: {
 
   const parentEmail = adm.parentEmail.toLowerCase().trim();
 
-  let parent = await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true, role: true } });
+  let parent = adm.submitterId
+    ? await prisma.user.findUnique({ where: { id: adm.submitterId }, select: { id: true, role: true } })
+    : await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true, role: true } });
   if (!parent) {
     const passwordHash = await bcrypt.hash("password123", 12);
     parent = await prisma.user.create({
       data: {
         name: adm.parentName,
         email: parentEmail,
+        phone: adm.parentPhone,
         passwordHash,
         role: UserRole.PARENT,
         status: UserStatus.VERIFIED,
@@ -379,7 +382,7 @@ export async function reviewAdmissionAction(input: {
     }
     await prisma.user.update({
       where: { id: parent.id },
-      data: { name: adm.parentName, status: UserStatus.VERIFIED, verifiedAt: new Date(), verifiedById: admin.id },
+      data: { name: adm.parentName, phone: adm.parentPhone, status: UserStatus.VERIFIED, verifiedAt: new Date(), verifiedById: admin.id },
     });
   }
 

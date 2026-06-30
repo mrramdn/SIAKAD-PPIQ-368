@@ -6,7 +6,7 @@ import { APP_NAME, APP_TAGLINE, LEVEL_FULL, LEVELS } from "@/lib/brand";
 const features = [
   "Pantau nilai dan kehadiran anak secara berkala",
   "Informasi dan pengumuman langsung dari pesantren",
-  "Pendaftaran santri baru untuk SD, SMP, dan SMA",
+  "Akun wali dapat mendaftarkan lebih dari satu anak",
 ] as const;
 
 export default async function Home() {
@@ -39,21 +39,21 @@ export default async function Home() {
               Hubungkan pesantren dengan wali santri.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-ink-2 text-pretty">
-              Orang tua memantau nilai, kehadiran, dan informasi anak. Guru mengelola kelas dan penilaian. Admin meninjau
-              pendaftaran santri baru dari satu panel.
+              Wali santri memantau nilai, kehadiran, dan informasi anak. Wali kelas dan pengajar mengelola kelas. Administrasi
+              meninjau pendaftaran santri baru dari satu panel.
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/pendaftaran"
+                href={user ? "/pendaftaran" : "/register"}
                 className="rounded-xl bg-primary px-6 py-3 text-center font-semibold text-white transition hover:bg-primary-600"
               >
-                Daftar Santri Baru
+                {user ? "Daftarkan Anak" : "Buat Akun Wali"}
               </Link>
               <Link
                 href={user ? "/dashboard" : "/login"}
                 className="rounded-xl border border-line-strong px-6 py-3 text-center font-semibold text-ink-2 transition hover:bg-surface-2"
               >
-                {user ? "Buka Dashboard" : "Login Wali / Guru"}
+                {user ? "Buka Dashboard" : "Login"}
               </Link>
             </div>
             <div className="mt-7 flex flex-wrap gap-2.5">

@@ -186,11 +186,11 @@ const STUDENT_NAMES: Record<EducationLevel, string[]> = {
 
 const LEVELS: EducationLevel[] = [EducationLevel.SD, EducationLevel.SMP, EducationLevel.SMA];
 
-async function upsertUser(email: string, name: string, role: UserRole, passwordHash: string) {
+async function upsertUser(email: string, name: string, role: UserRole, passwordHash: string, phone?: string) {
   return prisma.user.upsert({
     where: { email },
-    update: { name, passwordHash, role, status: UserStatus.VERIFIED, verifiedAt: new Date() },
-    create: { name, email, passwordHash, role, status: UserStatus.VERIFIED, verifiedAt: new Date() },
+    update: { name, phone: phone ?? null, passwordHash, role, status: UserStatus.VERIFIED, verifiedAt: new Date() },
+    create: { name, email, phone: phone ?? null, passwordHash, role, status: UserStatus.VERIFIED, verifiedAt: new Date() },
     select: { id: true },
   });
 }
@@ -198,8 +198,9 @@ async function upsertUser(email: string, name: string, role: UserRole, passwordH
 async function main() {
   const passwordHash = await bcrypt.hash("password123", 12);
 
-  const admin = await upsertUser("admin@pesantren.id", "Admin Pesantren", UserRole.ADMIN, passwordHash);
+  const admin = await upsertUser("admin@pesantren.id", "Administrasi Pesantren", UserRole.ADMIN, passwordHash);
   await upsertUser("mudir@pesantren.id", "Mudir Ma'had", UserRole.MUDIR, passwordHash);
+  await upsertUser("walikelas@pesantren.id", "Ustadzah Nur Wali Kelas", UserRole.HOMEROOM, passwordHash);
 
   const teachers = [
     { email: "guru@pesantren.id", name: "Ustadz Ahmad" },
@@ -213,7 +214,7 @@ async function main() {
   }
 
   // Demo parent owns two children across levels.
-  const demoParent = await upsertUser("wali@pesantren.id", "Bapak Hadi Santoso", UserRole.PARENT, passwordHash);
+  const demoParent = await upsertUser("wali@pesantren.id", "Bapak Hadi Santoso", UserRole.PARENT, passwordHash, "0812-0000-1111");
 
   // Courses + lessons + schedule + grade items, grouped by level.
   const coursesByLevel = new Map<EducationLevel, { id: string; gradeItemIds: string[] }[]>();
@@ -272,7 +273,7 @@ async function main() {
       if ((level === EducationLevel.SMP || level === EducationLevel.SMA) && i === 0) {
         parentId = demoParent.id;
       } else {
-        const parent = await upsertUser(`wali.${level.toLowerCase()}.${i + 1}@pesantren.id`, `Wali ${names[i]}`, UserRole.PARENT, passwordHash);
+        const parent = await upsertUser(`wali.${level.toLowerCase()}.${i + 1}@pesantren.id`, `Wali ${names[i]}`, UserRole.PARENT, passwordHash, "0812-3456-7890");
         parentId = parent.id;
       }
 

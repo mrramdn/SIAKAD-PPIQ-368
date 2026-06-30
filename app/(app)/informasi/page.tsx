@@ -9,7 +9,7 @@ export default async function InformasiPage() {
   const isParent = user.role === "PARENT";
   const levels = isParent ? await getParentLevels(user.id) : null;
   const items = await getAnnouncements(levels);
-  const canManage = user.role === "ADMIN" || user.role === "TEACHER";
+  const canManage = user.role === "ADMIN" || user.role === "TEACHER" || user.role === "HOMEROOM";
 
   const rows = items.map((a) => ({
     id: a.id,

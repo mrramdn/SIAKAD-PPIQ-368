@@ -3,23 +3,25 @@
 ## Aktor
 
 1. Wali Santri
-2. Administrasi
+2. Wali Kelas
 3. Pengajar
-4. Mudir Ma'had
-5. Santri
+4. Administrasi
+5. Mudir Ma'had
+6. Santri
 
 Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 
 ## Relasi Akun Wali dan Anak
 
 - Satu akun wali santri dapat memiliki lebih dari satu anak.
-- Email wali menjadi identitas akun login.
-- Jika wali mendaftarkan anak kedua dengan email yang sama, sistem menautkan santri baru ke akun wali yang sudah ada.
-- Jika email sudah dipakai akun non-wali, administrasi perlu memakai email wali lain.
+- Wali membuat akun terlebih dahulu, lalu login untuk mendaftarkan anak.
+- Pendaftaran anak dapat menyimpan URL dokumen pendukung: KK, akta kelahiran, rapor terakhir, dan pas foto. Upload file disiapkan untuk integrasi Cloudinary.
+- Administrasi meninjau pendaftaran dan menautkan data santri ke akun wali pengaju.
 
 ## Use Case Wali Santri
 
 - Login
+- Buat Akun Wali
 - Pendaftaran Anak
 - Melihat Anak Saya
 - Melihat Informasi Akademik
@@ -27,10 +29,20 @@ Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 - Melihat Data Rapor
 - Melihat Informasi Pengumuman
 
+## Use Case Wali Kelas
+
+- Login
+- Melihat Informasi Akademik
+- Melihat Informasi Pembelajaran
+- Mengelola Absensi Santri
+- Mengelola Nilai
+- Melihat Data Rapor
+- Mengelola Informasi Pengumuman
+
 ## Use Case Administrasi
 
 - Login
-- Meninjau Pendaftaran Anak
+- Meninjau Pendaftaran Anak dan Dokumen
 - Mengelola Data Pengguna
 - Mengelola Akun Pengguna
 - Mengelola Pembelajaran
@@ -70,7 +82,8 @@ Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 
 ## Catatan Diagram
 
-- Hubungkan `Pendaftaran Anak` dari Wali Santri ke proses `Meninjau Pendaftaran Anak` oleh Administrasi.
-- Tambahkan relasi `include` dari `Meninjau Pendaftaran Anak` ke `Membuat/Menautkan Akun Wali` dan `Membuat Data Santri`.
+- Hubungkan `Buat Akun Wali` ke `Pendaftaran Anak`.
+- Hubungkan `Pendaftaran Anak` dari Wali Santri ke proses `Meninjau Pendaftaran Anak dan Dokumen` oleh Administrasi.
+- Tambahkan relasi `include` dari `Meninjau Pendaftaran Anak dan Dokumen` ke `Membuat Data Santri`.
 - Tambahkan kardinalitas konseptual: `1 Wali Santri` dapat memiliki `1..n Santri`.
 - Mudir Ma'had diberi akses pengawasan saja, sehingga gunakan label `Melihat` bukan `Mengelola`.
