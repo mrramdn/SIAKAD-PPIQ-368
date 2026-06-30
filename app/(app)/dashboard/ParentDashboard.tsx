@@ -40,6 +40,9 @@ export function ParentDashboard({ name, kids, announcements }: { name: string; k
                 Lihat Detail Anak
                 <Icons.chevR size={17} />
               </Link>
+              <Link href="/pendaftaran" className="inline-flex items-center rounded-xl border border-white/25 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white">
+                Daftarkan Anak
+              </Link>
               <Link href="/informasi" className="inline-flex items-center rounded-xl border border-white/25 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white">
                 Informasi
               </Link>

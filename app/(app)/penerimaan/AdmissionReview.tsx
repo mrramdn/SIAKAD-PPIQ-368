@@ -21,6 +21,10 @@ type Admission = {
   parentEmail: string;
   address: string | null;
   note: string | null;
+  familyCardUrl: string | null;
+  birthCertificateUrl: string | null;
+  previousReportUrl: string | null;
+  photoUrl: string | null;
   status: Status;
   createdAt: string;
 };
@@ -38,6 +42,16 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
       <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">{label}</div>
       <div className="mt-0.5 text-[13.5px] font-medium text-ink-2">{value}</div>
     </div>
+  );
+}
+
+function DocumentLink({ label, href }: { label: string; href: string | null }) {
+  if (!href) return null;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12.5px] font-semibold text-ink-2 transition hover:bg-surface-2">
+      <Icons.doc size={14} />
+      {label}
+    </a>
   );
 }
 
@@ -153,6 +167,17 @@ export function AdmissionReview({ admissions }: { admissions: Admission[] }) {
                       <Detail label="Alamat" value={a.address} />
                       <Detail label="Catatan" value={a.note} />
                     </div>
+                    {a.familyCardUrl || a.birthCertificateUrl || a.previousReportUrl || a.photoUrl ? (
+                      <div className="mt-5 border-t border-line pt-4">
+                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Dokumen Pendukung</div>
+                        <div className="flex flex-wrap gap-2">
+                          <DocumentLink label="Kartu Keluarga" href={a.familyCardUrl} />
+                          <DocumentLink label="Akta Kelahiran" href={a.birthCertificateUrl} />
+                          <DocumentLink label="Rapor Terakhir" href={a.previousReportUrl} />
+                          <DocumentLink label="Pas Foto" href={a.photoUrl} />
+                        </div>
+                      </div>
+                    ) : null}
                     {a.status === "PENDING" ? (
                       <div className="mt-5 flex justify-end gap-2.5">
                         <Button variant="danger" disabled={pending} onClick={() => review(a.id, "REJECTED", a.childName)}>

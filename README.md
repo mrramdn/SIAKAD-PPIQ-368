@@ -1,6 +1,6 @@
 # Pesantren Digital
 
-Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS. Aplikasi menghubungkan pesantren dengan **wali santri**: orang tua memantau nilai, kehadiran, dan informasi anaknya; guru mengelola kelas dan penilaian; admin meninjau pendaftaran santri baru.
+Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS. Aplikasi menghubungkan pesantren dengan **wali santri**: wali membuat akun, mendaftarkan anak, lalu memantau nilai, kehadiran, dan informasi anaknya. Wali kelas dan pengajar mengelola kelas dan penilaian. Administrasi meninjau pendaftaran santri baru.
 
 Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **PWA** (installable, ada halaman offline).
 
@@ -16,18 +16,20 @@ Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **
 
 ## Peran
 
-- **Orang Tua (wali)**: dasbor anak, rincian nilai & kehadiran per mata pelajaran, informasi sekolah.
-- **Guru**: kelola materi, isi nilai, catat kehadiran, kirim informasi ke wali.
-- **Admin**: tinjau pendaftaran (PPDB), kelola pengguna, kelas, nilai, absensi, dan informasi.
+- **Wali Santri**: buat akun, daftarkan anak, lihat dasbor anak, rincian nilai & kehadiran per mata pelajaran, informasi sekolah.
+- **Wali Kelas**: pantau kelas binaan, nilai, absensi, dan informasi wali.
+- **Pengajar**: kelola materi, isi nilai, catat kehadiran, kirim informasi ke wali.
+- **Administrasi**: tinjau pendaftaran (PPDB), kelola pengguna, kelas, nilai, absensi, dan informasi.
 - **Mudir Ma'had**: pantau pengguna, pembelajaran, nilai, absensi, dan informasi tanpa aksi pengelolaan.
 
 ## Demo Account
 
 Seed database membuat akun berikut (kata sandi `password123`):
 
-- Admin: `admin@pesantren.id`
+- Administrasi: `admin@pesantren.id`
 - Mudir: `mudir@pesantren.id`
-- Guru: `guru@pesantren.id` (juga `guru2@`, `guru3@`)
+- Wali kelas: `walikelas@pesantren.id`
+- Pengajar: `guru@pesantren.id` (juga `guru2@`, `guru3@`)
 - Wali santri (punya 2 anak: SMP & SMA): `wali@pesantren.id`
 
 ## Setup
@@ -59,19 +61,20 @@ Buka `http://localhost:3000`.
 ## Struktur Utama
 
 - `app/page.tsx`: landing pesantren
-- `app/pendaftaran`: formulir pendaftaran santri baru (publik) + halaman sukses
+- `app/register`: pembuatan akun wali santri
+- `app/pendaftaran`: formulir pendaftaran anak untuk wali yang sudah login + halaman sukses
 - `app/login`, `app/pending`: alur auth
 - `app/(app)`: app shell (sidebar + topbar) untuk pengguna terverifikasi
   - `dashboard`: dasbor per peran (wali memakai `ParentDashboard`)
   - `anak` & `anak/[childId]`: portal wali — daftar anak dan rincian nilai/kehadiran
   - `informasi`: pengumuman (wali baca, guru/admin kelola)
-  - `penerimaan`: tinjauan pendaftaran (admin); menerima membuat akun wali + data santri
+  - `penerimaan`: tinjauan pendaftaran (administrasi); menerima menautkan data santri ke akun wali
   - `learning`, `nilai`, `absen`, `pengguna`, `pengaturan`
   - `actions.ts`: server actions dengan guard per peran
 - `components/ui`: komponen UI bersama dan ikon
 - `lib/auth.ts`: session auth HTTP-only cookie (termasuk `requireParent`)
 - `lib/lms.ts`: data access (dashboard, parent portal, informasi, pendaftaran)
 - `lib/brand.ts`: nama aplikasi dan label jenjang
-- `prisma/schema.prisma`: schema (User+role PARENT/MUDIR, EducationLevel, Admission, Announcement)
+- `prisma/schema.prisma`: schema (User+role PARENT/HOMEROOM/TEACHER/MUDIR/ADMIN, EducationLevel, Admission, Announcement)
 - `prisma/seed.ts`: seed admin, guru, santri 3 jenjang + wali, course, nilai, absensi, informasi, pendaftaran
 - `app/manifest.ts`, `public/sw.js`, `components/PWARegister.tsx`: PWA

@@ -2,9 +2,9 @@
 
 ## Project Context
 
-Pesantren Digital is an Islamic boarding school (pondok pesantren) information system built as a Next.js monolith. Its primary audience is **wali santri (parents)**: parents monitor their child's grades, attendance, and announcements. **Students (santri) do not log in** — their data is only viewed. Teachers (guru) manage classes and assessment, and admins review new-student admissions (PPDB). The system supports three levels: **SD, SMP, and SMA**.
+Pesantren Digital is an Islamic boarding school (pondok pesantren) information system built as a Next.js monolith. Its primary audience is **wali santri**: wali create an account, register one or more children, then monitor grades, attendance, and announcements. **Students (santri) do not log in** — their data is only viewed. Wali kelas and pengajar manage learning, grades, attendance, and announcements. Administrasi review new-student admissions (PPDB). Mudir supervises read-only data. The system supports three levels: **SD, SMP, and SMA**.
 
-Current scope: public admission form, admin admission review (accepting auto-creates or reuses the parent account and links the santri record), parent portal (child list + per-subject grades and attendance), announcements, teacher class/grade/attendance management, mudir read-only supervision, user management, and an installable PWA.
+Current scope: parent account registration, logged-in child admission form with document URL fields ready for Cloudinary, admin admission review, parent portal (child list + per-subject grades and attendance), announcements, wali kelas/pengajar class/grade/attendance management, mudir read-only supervision, user management, and an installable PWA.
 
 Primary stack:
 

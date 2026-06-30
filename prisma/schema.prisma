@@ -9,6 +9,7 @@ datasource db {
 
 enum UserRole {
   PARENT
+  HOMEROOM
   TEACHER
   MUDIR
   ADMIN
@@ -63,12 +64,14 @@ model User {
   id           String       @id @default(uuid())
   name         String
   email        String       @unique
+  phone        String?
   passwordHash String
   role         UserRole
   status       UserStatus   @default(PENDING)
   verifiedAt   DateTime?
   verifiedById String?
   children     StudentProfile[] @relation("ParentChildren")
+  submittedAdmissions Admission[] @relation("AdmissionSubmitter")
   sessions     Session[]
   courses      Course[]     @relation("CourseCreator")
   announcements Announcement[] @relation("AnnouncementAuthor")
@@ -289,10 +292,17 @@ model Admission {
   reviewedById     String?
   createdStudentId String?
   createdParentId  String?
+  submitterId       String?
+  submitter         User?           @relation("AdmissionSubmitter", fields: [submitterId], references: [id], onDelete: SetNull)
+  familyCardUrl     String?
+  birthCertificateUrl String?
+  previousReportUrl String?
+  photoUrl          String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   @@index([status])
   @@index([level])
+  @@index([submitterId])
   @@index([createdAt])
 }

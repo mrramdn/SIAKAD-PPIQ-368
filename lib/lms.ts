@@ -120,7 +120,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
       tag: "Absensi",
     })),
     ...recentVerified.map((u) => ({
-      who: "Admin",
+      who: "Administrasi",
       text: `memverifikasi akun ${u.name}`,
       at: u.verifiedAt as Date,
       tag: "Sistem",
@@ -274,6 +274,7 @@ export const getCourseManagement = cache(async (courseId: string) => {
     prisma.studentProfile.findMany({
       where: { enrollments: { none: { courseId, status: EnrollmentStatus.ACTIVE } } },
       orderBy: { name: "asc" },
+      take: 200,
       select: { id: true, name: true, studentNumber: true, className: true },
     }),
   ]);
@@ -291,7 +292,7 @@ async function courseTabsFor() {
 export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor();
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER;
+  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, columns: [], rows: [], canEdit };
@@ -339,7 +340,7 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
 export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor();
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER;
+  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, sessions: [], rows: [], canEdit };
@@ -385,6 +386,7 @@ export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string
 export const getManagedUsers = cache(async () => {
   return prisma.user.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 200,
     select: {
       id: true,
       name: true,
@@ -608,6 +610,7 @@ export const getParentLevels = cache(async (parentId: string) => {
 export const getAdmissions = cache(async () => {
   return prisma.admission.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 100,
     select: {
       id: true,
       childName: true,
@@ -621,6 +624,10 @@ export const getAdmissions = cache(async () => {
       parentEmail: true,
       address: true,
       note: true,
+      familyCardUrl: true,
+      birthCertificateUrl: true,
+      previousReportUrl: true,
+      photoUrl: true,
       status: true,
       createdAt: true,
     },
