@@ -64,7 +64,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Pembelajaran tematik terpadu: lingkungan, kesehatan, dan kebersamaan.",
       teacher: "guru2@pesantren.id",
       className: "5A",
-      schedule: [{ dayOfWeek: 1, startTime: "07.30", room: "Kelas 5A" }, { dayOfWeek: 3, startTime: "07.30", room: "Kelas 5A" }],
+      schedule: [{ dayOfWeek: 1, startTime: "07:30", room: "Kelas 5A" }, { dayOfWeek: 3, startTime: "07:30", room: "Kelas 5A" }],
       lessons: [
         { title: "Lingkungan Sekitar", type: LessonType.TEXT, duration: "20 mnt" },
         { title: "Hidup Sehat", type: LessonType.VIDEO, duration: "12 mnt" },
@@ -78,7 +78,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Hafalan dan tahsin surat-surat pendek Juz 30.",
       teacher: "guru@pesantren.id",
       className: "5A",
-      schedule: [{ dayOfWeek: 2, startTime: "09.00", room: "Aula" }],
+      schedule: [{ dayOfWeek: 2, startTime: "09:00", room: "Aula" }],
       lessons: [
         { title: "An-Naba", type: LessonType.TEXT, duration: "Setoran" },
         { title: "An-Nazi'at", type: LessonType.TEXT, duration: "Setoran" },
@@ -91,7 +91,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Operasi pecahan, bangun datar, dan pengukuran dasar.",
       teacher: "guru3@pesantren.id",
       className: "5A",
-      schedule: [{ dayOfWeek: 4, startTime: "08.15", room: "Kelas 5A" }],
+      schedule: [{ dayOfWeek: 4, startTime: "08:15", room: "Kelas 5A" }],
       lessons: [
         { title: "Pecahan", type: LessonType.VIDEO, duration: "14 mnt" },
         { title: "Bangun Datar", type: LessonType.TEXT, duration: "10 mnt" },
@@ -106,7 +106,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Sistem persamaan linear, teorema Pythagoras, dan statistika dasar.",
       teacher: "guru3@pesantren.id",
       className: "8A",
-      schedule: [{ dayOfWeek: 1, startTime: "07.30", room: "Ruang 8A" }, { dayOfWeek: 3, startTime: "07.30", room: "Ruang 8A" }],
+      schedule: [{ dayOfWeek: 1, startTime: "07:30", room: "Ruang 8A" }, { dayOfWeek: 3, startTime: "07:30", room: "Ruang 8A" }],
       lessons: [
         { title: "Persamaan Linear", type: LessonType.VIDEO, duration: "16 mnt" },
         { title: "Teorema Pythagoras", type: LessonType.VIDEO, duration: "15 mnt" },
@@ -121,7 +121,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Mufrodat, percakapan harian, dan kaidah nahwu dasar.",
       teacher: "guru@pesantren.id",
       className: "8A",
-      schedule: [{ dayOfWeek: 2, startTime: "10.00", room: "Ruang 8A" }],
+      schedule: [{ dayOfWeek: 2, startTime: "10:00", room: "Ruang 8A" }],
       lessons: [
         { title: "Mufrodat Sehari-hari", type: LessonType.TEXT, duration: "10 mnt" },
         { title: "Percakapan", type: LessonType.VIDEO, duration: "13 mnt" },
@@ -134,7 +134,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Sistem gerak, zat dan perubahannya, serta energi.",
       teacher: "guru2@pesantren.id",
       className: "8A",
-      schedule: [{ dayOfWeek: 4, startTime: "09.15", room: "Lab IPA" }],
+      schedule: [{ dayOfWeek: 4, startTime: "09:15", room: "Lab IPA" }],
       lessons: [
         { title: "Sistem Gerak", type: LessonType.VIDEO, duration: "17 mnt" },
         { title: "Zat dan Perubahan", type: LessonType.TEXT, duration: "11 mnt" },
@@ -150,7 +150,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Trigonometri, limit, dan turunan fungsi aljabar.",
       teacher: "guru3@pesantren.id",
       className: "11 IPA",
-      schedule: [{ dayOfWeek: 1, startTime: "08.00", room: "Ruang 11 IPA" }, { dayOfWeek: 3, startTime: "08.00", room: "Ruang 11 IPA" }],
+      schedule: [{ dayOfWeek: 1, startTime: "08:00", room: "Ruang 11 IPA" }, { dayOfWeek: 3, startTime: "08:00", room: "Ruang 11 IPA" }],
       lessons: [
         { title: "Trigonometri", type: LessonType.VIDEO, duration: "18 mnt" },
         { title: "Identitas Trigonometri", type: LessonType.TEXT, duration: "10 mnt" },
@@ -165,7 +165,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Hukum Newton, usaha dan energi, serta momentum.",
       teacher: "guru2@pesantren.id",
       className: "11 IPA",
-      schedule: [{ dayOfWeek: 2, startTime: "09.15", room: "Lab Fisika" }, { dayOfWeek: 4, startTime: "09.15", room: "Lab Fisika" }],
+      schedule: [{ dayOfWeek: 2, startTime: "09:15", room: "Lab Fisika" }, { dayOfWeek: 4, startTime: "09:15", room: "Lab Fisika" }],
       lessons: [
         { title: "Hukum Newton", type: LessonType.VIDEO, duration: "20 mnt" },
         { title: "Usaha dan Energi", type: LessonType.VIDEO, duration: "17 mnt" },
@@ -179,7 +179,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       description: "Kajian tafsir ayat pilihan dan hadits arba'in.",
       teacher: "guru@pesantren.id",
       className: "11 IPA",
-      schedule: [{ dayOfWeek: 5, startTime: "07.30", room: "Aula" }],
+      schedule: [{ dayOfWeek: 5, startTime: "07:30", room: "Aula" }],
       lessons: [
         { title: "Tafsir Surat Al-Hujurat", type: LessonType.TEXT, duration: "20 mnt" },
         { title: "Hadits Arba'in 1-5", type: LessonType.TEXT, duration: "18 mnt" },

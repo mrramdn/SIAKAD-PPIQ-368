@@ -1,8 +1,16 @@
 # Pesantren Digital
 
-Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS. Aplikasi menghubungkan pesantren dengan **wali santri**: wali membuat akun, mendaftarkan anak, lalu memantau nilai, kehadiran, dan informasi anaknya. Wali kelas dan pengajar mengelola kelas dan penilaian. Administrasi meninjau pendaftaran santri baru.
+Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS. Aplikasi menghubungkan pesantren dengan **wali santri**: wali membuat akun, mendaftarkan anak, lalu memantau jadwal, nilai, kehadiran, dan rapor anaknya.
 
-Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **PWA** (installable, ada halaman offline).
+## Fitur Inti
+
+1. **Pendaftaran (PPDB)**: wali mendaftarkan anak dari dashboard, administrasi meninjau dan menerima.
+2. **Absensi**: pencatatan kehadiran santri per sesi pelajaran.
+3. **Penjadwalan**: jadwal pelajaran per pekan per jenjang; wali hanya melihat jadwal anaknya.
+4. **Pengelolaan Nilai**: komponen nilai per mata pelajaran per periode (semester + tahun ajaran).
+5. **Pengelolaan Rapor**: rekap nilai + absensi per semester di-snapshot menjadi rapor, diberi catatan wali kelas, lalu diterbitkan ke wali.
+
+Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **PWA** (installable, halaman terakhir bisa dibuka saat offline).
 
 ## Tech Stack
 
@@ -16,11 +24,11 @@ Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **
 
 ## Peran
 
-- **Wali Santri**: buat akun, daftarkan anak, lihat dasbor anak, rincian nilai & kehadiran per mata pelajaran, informasi sekolah.
-- **Wali Kelas**: pantau kelas binaan, nilai, absensi, dan informasi wali.
-- **Pengajar**: kelola materi, isi nilai, catat kehadiran, kirim informasi ke wali.
-- **Administrasi**: tinjau pendaftaran (PPDB), kelola pengguna, kelas, nilai, absensi, dan informasi.
-- **Mudir Ma'had**: pantau pengguna, pembelajaran, nilai, absensi, dan informasi tanpa aksi pengelolaan.
+- **Wali Santri**: buat akun, daftarkan anak, lihat jadwal, nilai, kehadiran, dan rapor anaknya sendiri.
+- **Wali Kelas**: pantau kelas binaan; kelola nilai, absensi, jadwal, catatan wali kelas, dan penerbitan rapor.
+- **Pengajar**: isi nilai, catat kehadiran, kelola jadwal dan rapor, kirim informasi ke wali.
+- **Administrasi**: tinjau pendaftaran (PPDB), kelola pengguna, mapel, jadwal, nilai, absensi, rapor, dan informasi.
+- **Mudir Ma'had**: pantau seluruh data tanpa aksi pengelolaan.
 
 ## Demo Account
 
@@ -62,19 +70,22 @@ Buka `http://localhost:3000`.
 
 - `app/page.tsx`: landing pesantren
 - `app/register`: pembuatan akun wali santri
-- `app/pendaftaran`: formulir pendaftaran anak untuk wali yang sudah login + halaman sukses
 - `app/login`, `app/pending`: alur auth
 - `app/(app)`: app shell (sidebar + topbar) untuk pengguna terverifikasi
   - `dashboard`: dasbor per peran (wali memakai `ParentDashboard`)
-  - `anak` & `anak/[childId]`: portal wali — daftar anak dan rincian nilai/kehadiran
-  - `informasi`: pengumuman (wali baca, guru/admin kelola)
+  - `anak` & `anak/[childId]`: portal wali — daftar anak, rincian nilai/kehadiran, dan rapor terbit
+  - `pendaftaran`: formulir pendaftaran anak (wali) + halaman sukses
   - `penerimaan`: tinjauan pendaftaran (administrasi); menerima menautkan data santri ke akun wali
-  - `learning`, `nilai`, `absen`, `pengguna`, `pengaturan`
+  - `jadwal`: jadwal pelajaran per pekan (staf kelola per jenjang; wali melihat jadwal anaknya)
+  - `nilai`, `absen`: pengelolaan nilai dan absensi per mapel
+  - `rapor` & `rapor/[id]`: papan rapor per kelas, detail, catatan wali kelas, penerbitan
+  - `informasi`: pengumuman (wali baca, guru/admin kelola)
+  - `learning`, `pengguna`, `pengaturan`
   - `actions.ts`: server actions dengan guard per peran
 - `components/ui`: komponen UI bersama dan ikon
 - `lib/auth.ts`: session auth HTTP-only cookie (termasuk `requireParent`)
-- `lib/lms.ts`: data access (dashboard, parent portal, informasi, pendaftaran)
+- `lib/lms.ts`: data access (dashboard, jadwal, rapor, parent portal, informasi, pendaftaran, helper periode)
 - `lib/brand.ts`: nama aplikasi dan label jenjang
-- `prisma/schema.prisma`: schema (User+role PARENT/HOMEROOM/TEACHER/MUDIR/ADMIN, EducationLevel, Admission, Announcement)
-- `prisma/seed.ts`: seed admin, guru, santri 3 jenjang + wali, course, nilai, absensi, informasi, pendaftaran
+- `prisma/schema.prisma`: schema (User + role, EducationLevel, Semester, Admission, Announcement, Course/ScheduleSlot, GradeItem/GradeRecord, AttendanceSession/Record, ReportCard/ReportCardEntry)
+- `prisma/seed.ts`: seed akun demo, santri 3 jenjang, mapel + jadwal, nilai + absensi per periode, dan rapor demo
 - `app/manifest.ts`, `public/sw.js`, `components/PWARegister.tsx`: PWA
