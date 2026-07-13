@@ -91,6 +91,16 @@ Ikuti kontrak helper dan server action yang sudah tersedia, jangan membuat
 akses data baru. Setelah selesai jalankan pnpm lint dan pnpm build.
 ```
 
-## 6. Definisi Selesai
+## 6. Perbaikan Pasca-QA (13 Juli 2026)
+
+- [x] Jadwal wali: hanya menampilkan jadwal mapel yang diikuti anaknya sendiri (`getParentScheduleBoard`), dengan tab per anak jika lebih dari satu.
+- [x] Jadwal: slot ditampilkan sebagai baris datar (tidak ada card di dalam card), input waktu memakai `type="time"`, format jam dinormalisasi ke `HH:MM` di action, helper, dan seed.
+- [x] Pendaftaran anak dipindah ke dalam shell dashboard (`app/(app)/pendaftaran`), URL tetap `/pendaftaran`; non-wali diarahkan ke Penerimaan/Dashboard.
+
+## 7. Backlog (dikerjakan terakhir)
+
+- [ ] PWA: sempurnakan pengalaman installable + offline (manifest dan service worker dasar sudah ada di `app/manifest.ts` + `public/sw.js`; perlu review caching, halaman offline, dan uji install di ponsel). Dikerjakan paling akhir setelah semua fitur inti stabil, atas permintaan user 13 Juli 2026.
+
+## 8. Definisi Selesai
 
 Skripsi bisa mendemokan alur penuh: wali daftar akun dan mendaftarkan anak, admin menerima pendaftaran, staf menyusun jadwal, mengisi absensi dan nilai per semester, membuat lalu menerbitkan rapor, dan wali melihat jadwal, absensi, nilai, serta rapor anaknya dari ponsel.
