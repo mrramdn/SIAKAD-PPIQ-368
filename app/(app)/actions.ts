@@ -244,10 +244,10 @@ export async function createScheduleSlotAction(formData: FormData) {
   await requireTeacherOrAdmin();
   const courseId = String(formData.get("courseId") ?? "");
   const dayOfWeek = Number(formData.get("dayOfWeek") ?? -1);
-  const startTime = String(formData.get("startTime") ?? "").trim();
+  const startTime = String(formData.get("startTime") ?? "").trim().replace(".", ":");
   const room = toNullableString(formData.get("room"));
 
-  if (!courseId || !Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || !startTime) {
+  if (!courseId || !Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
     redirect("/jadwal?error=invalid");
   }
 

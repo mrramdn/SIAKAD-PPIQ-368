@@ -91,6 +91,46 @@ Ikuti kontrak helper dan server action yang sudah tersedia, jangan membuat
 akses data baru. Setelah selesai jalankan pnpm lint dan pnpm build.
 ```
 
-## 6. Definisi Selesai
+## 6. Perbaikan Pasca-QA (13 Juli 2026)
+
+- [x] Jadwal wali: hanya menampilkan jadwal mapel yang diikuti anaknya sendiri (`getParentScheduleBoard`), dengan tab per anak jika lebih dari satu.
+- [x] Jadwal: slot ditampilkan sebagai baris datar (tidak ada card di dalam card), input waktu memakai `type="time"`, format jam dinormalisasi ke `HH:MM` di action, helper, dan seed.
+- [x] Pendaftaran anak dipindah ke dalam shell dashboard (`app/(app)/pendaftaran`), URL tetap `/pendaftaran`; non-wali diarahkan ke Penerimaan/Dashboard.
+
+## 7. Fase UX Refinement (Gemini)
+
+Fokus: pengalaman mobile (wali mengakses dari ponsel) dan mengurangi kebisingan visual. Kerjakan per halaman, uji setiap perubahan di viewport 360px.
+
+### Temuan konkret (audit Claude, 13 Juli 2026)
+
+1. **Tombol ganda di landing** (`app/page.tsx`): header punya "Login Wali" (± baris 26) dan hero punya "Login" (± baris 53) yang sama-sama menuju `/login` (saat login: dua-duanya "Buka Dashboard"). Sisakan satu CTA primary di hero; di header cukup satu link teks kecil. Audit juga halaman lain untuk pola serupa: dua tombol berbeda label menuju tujuan yang sama di satu layar itu dilarang.
+2. **Stat tile 4 kolom tanpa breakpoint**: `app/(app)/rapor/[id]/page.tsx` (± baris 136) dan `app/(app)/anak/[childId]/page.tsx` (± baris 156) memakai `grid grid-cols-4` langsung sehingga sempit di layar 360px. Ubah ke `grid-cols-2 sm:grid-cols-4` atau satu baris ringkas "H 24 • I 2 • T 1 • A 3".
+3. **Grid tanpa fallback mobile lain**: `app/(app)/pengguna/UserManager.tsx` (± baris 94, `grid-cols-2`) dan `app/(app)/anak/page.tsx` (± baris 39, `grid-cols-3`) perlu dicek di 360px; beri breakpoint bila sempit.
+4. **Kepadatan card di dashboard**: dashboard staf dan `ParentDashboard` menumpuk banyak `Card` kecil (4 kartu stat + beberapa kartu list), di ponsel jadi gulungan panjang. Gabungkan yang satu klaster (mis. stat jadi satu card berisi baris/grid 2x2), dan urutkan konten wali: anak + rapor terbit + pengumuman di atas.
+5. **Tabel lebar di mobile**: semua tabel ber-`minWidth` (nilai, absen, rapor, pengguna, detail anak) wajib berada dalam wrapper `overflow-x-auto`; kolom identitas (nama santri) dibuat sticky kiri seperti di `Gradebook.tsx` dan `AttendanceGrid.tsx`. Halaman tidak boleh scroll horizontal.
+6. **Efek hover di elemen list**: `hover:-translate-y` pada item list tidak berguna di layar sentuh; hapus di item list, sisakan pada card navigasi utama saja.
+
+### Aturan refine
+
+- Satu CTA primary per layar; aksi sekunder pakai tombol soft/teks.
+- Card hanya untuk klaster konten, bukan per item; dilarang card di dalam card (item di dalam card memakai baris datar dengan pemisah, pola `/jadwal`).
+- Touch target minimal 44px; label form tetap terlihat; copy Indonesia tanpa em dash.
+- Jangan mengubah logika data, server action, guard, atau route. Murni presentasi.
+- Setelah tiap halaman: `pnpm lint` dan `pnpm build`, lalu cek manual viewport 360px dan 768px.
+
+Template prompt untuk Gemini:
+
+```text
+Baca ORCHESTRATOR.md bagian "Fase UX Refinement" dan DESIGN.md. Kerjakan
+temuan nomor <N> saja. Jangan menyentuh lib/, actions.ts, atau prisma/.
+Uji di viewport 360px, lalu jalankan pnpm lint dan pnpm build.
+```
+
+## 8. Backlog
+
+- [x] PWA (13 Juli 2026): manifest dilengkapi `id` + shortcuts (Anak Saya, Jadwal, Informasi); service worker di-upgrade — navigation preload, halaman yang pernah dibuka tersimpan sehingga bisa dibuka ulang saat offline, cache-first untuk aset `_next/static` (hashed), stale-while-revalidate untuk ikon/manifest. Sisa: uji install langsung di ponsel.
+- [ ] Deployment produksi: server sendiri via Docker (Vercel hanya untuk preview; user melaporkan kombinasi Vercel + Prisma lambat). Perlu: Dockerfile multi-stage (`next build` standalone), docker compose app + PostgreSQL, jalankan `prisma migrate deploy` saat rilis.
+
+## 9. Definisi Selesai
 
 Skripsi bisa mendemokan alur penuh: wali daftar akun dan mendaftarkan anak, admin menerima pendaftaran, staf menyusun jadwal, mengisi absensi dan nilai per semester, membuat lalu menerbitkan rapor, dan wali melihat jadwal, absensi, nilai, serta rapor anaknya dari ponsel.

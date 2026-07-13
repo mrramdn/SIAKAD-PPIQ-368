@@ -208,7 +208,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
     weeklyActivity,
     schedule: schedule.map((s) => ({
       id: s.id,
-      time: s.startTime,
+      time: s.startTime.replace(".", ":"),
       title: s.course.title,
       room: s.room ?? "-",
       teacher: s.course.createdBy?.name ?? "-",
@@ -628,7 +628,7 @@ export const getScheduleBoard = cache(async (level?: EducationLevel) => {
       .filter((s) => s.dayOfWeek === dayOfWeek)
       .map((s) => ({
         id: s.id,
-        startTime: s.startTime,
+        startTime: s.startTime.replace(".", ":"),
         room: s.room ?? "-",
         courseId: s.course.id,
         courseTitle: s.course.title,
@@ -638,6 +638,60 @@ export const getScheduleBoard = cache(async (level?: EducationLevel) => {
   }));
 
   return { days, courses };
+});
+
+/** Jadwal per anak untuk wali: hanya mapel yang diikuti anaknya sendiri. */
+export const getParentScheduleBoard = cache(async (parentId: string) => {
+  const children = await prisma.studentProfile.findMany({
+    where: { parentId },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      className: true,
+      level: true,
+      enrollments: {
+        where: { status: EnrollmentStatus.ACTIVE, course: { deletedAt: null } },
+        select: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              createdBy: { select: { name: true } },
+              scheduleSlots: { select: { id: true, dayOfWeek: true, startTime: true, room: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return children.map((child) => {
+    const slots = child.enrollments.flatMap((e) =>
+      e.course.scheduleSlots.map((s) => ({
+        id: s.id,
+        dayOfWeek: s.dayOfWeek,
+        startTime: s.startTime.replace(".", ":"),
+        room: s.room ?? "-",
+        courseId: e.course.id,
+        courseTitle: e.course.title,
+        teacher: e.course.createdBy?.name ?? "-",
+      })),
+    );
+    slots.sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+    return {
+      childId: child.id,
+      name: child.name,
+      className: child.className,
+      level: child.level,
+      days: DAY_NAMES.map((label, dayOfWeek) => ({
+        dayOfWeek,
+        label,
+        slots: slots.filter((s) => s.dayOfWeek === dayOfWeek),
+      })),
+    };
+  });
 });
 
 /* -------------------------------------------------------------------------- */
