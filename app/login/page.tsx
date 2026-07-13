@@ -35,8 +35,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </Link>
           <div className="mt-20">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] opacity-80">Login</p>
-            <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-balance">Masuk ke akun wali atau guru.</h1>
-            <p className="mt-4 opacity-90 text-pretty">Wali santri memantau anak; guru dan admin mengelola kelas dan pendaftaran.</p>
+            <h1 className="mt-4 text-4xl font-extrabold leading-tight tracking-tight text-balance">Masuk ke akun pesantren.</h1>
+            <p className="mt-4 opacity-90 text-pretty">
+              Wali santri memantau anak. Wali kelas dan pengajar mengelola kelas. Administrasi meninjau pendaftaran.
+            </p>
           </div>
           <div className="mono mt-12 rounded-xl bg-white/10 p-4 text-[13px]">
             <p>admin@pesantren.id / password123</p>
@@ -68,9 +70,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </form>
 
           <p className="mt-6 text-center text-sm text-ink-3">
-            Ingin mendaftarkan anak?{" "}
-            <Link href="/pendaftaran" className="font-semibold text-primary-700 underline underline-offset-4">
-              Daftar santri baru
+            Belum punya akun wali?{" "}
+            <Link href="/register" className="font-semibold text-primary-700 underline underline-offset-4">
+              Buat akun wali
             </Link>
           </p>
         </div>

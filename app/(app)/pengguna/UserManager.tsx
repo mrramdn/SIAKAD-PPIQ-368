@@ -5,12 +5,18 @@ import { useRouter } from "next/navigation";
 import { Avatar, Badge, Button, Card, Field, Icons, inputClasses, initialsFromName, type Tone } from "@/components/ui";
 import { createUserAction, deleteUserAction, setUserStatusAction, updateUserAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "MUDIR" | "PARENT";
+type Role = "ADMIN" | "TEACHER" | "HOMEROOM" | "MUDIR" | "PARENT";
 type Status = "PENDING" | "VERIFIED" | "REJECTED" | "SUSPENDED";
 type User = { id: string; name: string; email: string; role: Role; status: Status };
 
-const ROLE_LABEL: Record<Role, string> = { ADMIN: "Admin", TEACHER: "Guru", MUDIR: "Mudir Ma'had", PARENT: "Orang Tua" };
-const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", MUDIR: "success", PARENT: "warning" };
+const ROLE_LABEL: Record<Role, string> = {
+  ADMIN: "Administrasi",
+  TEACHER: "Pengajar",
+  HOMEROOM: "Wali Kelas",
+  MUDIR: "Mudir Ma'had",
+  PARENT: "Wali Santri",
+};
+const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", HOMEROOM: "neutral", MUDIR: "success", PARENT: "warning" };
 const STATUS_LABEL: Record<Status, string> = { PENDING: "Menunggu", VERIFIED: "Aktif", REJECTED: "Ditolak", SUSPENDED: "Nonaktif" };
 const STATUS_COLOR: Record<Status, string> = {
   PENDING: "var(--amber)",
@@ -18,8 +24,15 @@ const STATUS_COLOR: Record<Status, string> = {
   REJECTED: "var(--red)",
   SUSPENDED: "var(--text-3)",
 };
-const TABS: (Role | "ALL")[] = ["ALL", "PARENT", "TEACHER", "MUDIR", "ADMIN"];
-const TAB_LABEL: Record<Role | "ALL", string> = { ALL: "Semua", PARENT: "Wali", TEACHER: "Guru", MUDIR: "Mudir", ADMIN: "Admin" };
+const TABS: (Role | "ALL")[] = ["ALL", "PARENT", "HOMEROOM", "TEACHER", "MUDIR", "ADMIN"];
+const TAB_LABEL: Record<Role | "ALL", string> = {
+  ALL: "Semua",
+  PARENT: "Wali Santri",
+  HOMEROOM: "Wali Kelas",
+  TEACHER: "Pengajar",
+  MUDIR: "Mudir",
+  ADMIN: "Administrasi",
+};
 
 /* --------------------------------- Modal ---------------------------------- */
 function Modal({ title, sub, onClose, children, width = 460 }: { title: string; sub?: string; onClose: () => void; children: ReactNode; width?: number }) {
@@ -81,10 +94,11 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
       <div className="grid grid-cols-2 gap-3.5">
         <Field label="Peran">
           <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClasses}>
-            <option value="PARENT">Orang Tua</option>
-            <option value="TEACHER">Guru</option>
+            <option value="PARENT">Wali Santri</option>
+            <option value="HOMEROOM">Wali Kelas</option>
+            <option value="TEACHER">Pengajar</option>
             <option value="MUDIR">Mudir Ma&apos;had</option>
-            <option value="ADMIN">Admin</option>
+            <option value="ADMIN">Administrasi</option>
           </select>
         </Field>
         {isEdit ? (
@@ -138,6 +152,7 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
     () => ({
       ALL: users.length,
       PARENT: users.filter((u) => u.role === "PARENT").length,
+      HOMEROOM: users.filter((u) => u.role === "HOMEROOM").length,
       TEACHER: users.filter((u) => u.role === "TEACHER").length,
       MUDIR: users.filter((u) => u.role === "MUDIR").length,
       ADMIN: users.filter((u) => u.role === "ADMIN").length,
@@ -176,8 +191,9 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
 
   const summary = [
     { label: "Total Pengguna", value: counts.ALL, icon: Icons.users, tone: "var(--primary)" },
-    { label: "Orang Tua", value: counts.PARENT, icon: Icons.users, tone: "var(--amber)" },
-    { label: "Guru", value: counts.TEACHER, icon: Icons.award, tone: "var(--teal)" },
+    { label: "Wali Santri", value: counts.PARENT, icon: Icons.users, tone: "var(--amber)" },
+    { label: "Wali Kelas", value: counts.HOMEROOM, icon: Icons.award, tone: "var(--teal)" },
+    { label: "Pengajar", value: counts.TEACHER, icon: Icons.award, tone: "var(--green)" },
     { label: "Mudir", value: counts.MUDIR, icon: Icons.award, tone: "var(--primary)" },
   ];
 
@@ -187,7 +203,9 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Manajemen Pengguna</h1>
           <p className="mt-1 text-sm text-ink-3">
-            {readOnly ? "Pantau akun wali, guru, mudir, dan admin." : "Verifikasi, tambah, dan kelola akun wali, guru, mudir, dan admin."}
+            {readOnly
+              ? "Pantau akun wali santri, wali kelas, pengajar, mudir, dan administrasi."
+              : "Verifikasi, tambah, dan kelola akun wali santri, wali kelas, pengajar, mudir, dan administrasi."}
           </p>
         </div>
         {!readOnly ? (

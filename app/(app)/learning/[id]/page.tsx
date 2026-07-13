@@ -24,7 +24,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
   const enrolledIds = new Set(course.enrollments.map((e) => e.student.id));
   const availableStudents = verifiedStudents.filter((s) => !enrolledIds.has(s.id));
   const isAdmin = user.role === "ADMIN";
-  const canManageLessons = user.role === "ADMIN" || user.role === "TEACHER";
+  const canManageLessons = user.role === "ADMIN" || user.role === "TEACHER" || user.role === "HOMEROOM";
   const nextOrder = course.lessons.length + 1;
 
   return (

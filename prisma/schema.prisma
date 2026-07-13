@@ -9,6 +9,7 @@ datasource db {
 
 enum UserRole {
   PARENT
+  HOMEROOM
   TEACHER
   MUDIR
   ADMIN
@@ -59,24 +60,38 @@ enum AttendanceStatus {
   EXCUSED
 }
 
+enum Semester {
+  GANJIL
+  GENAP
+}
+
+enum ReportCardStatus {
+  DRAFT
+  PUBLISHED
+}
+
 model User {
   id           String       @id @default(uuid())
   name         String
   email        String       @unique
+  phone        String?
   passwordHash String
   role         UserRole
   status       UserStatus   @default(PENDING)
   verifiedAt   DateTime?
   verifiedById String?
   children     StudentProfile[] @relation("ParentChildren")
+  submittedAdmissions Admission[] @relation("AdmissionSubmitter")
   sessions     Session[]
   courses      Course[]     @relation("CourseCreator")
   announcements Announcement[] @relation("AnnouncementAuthor")
+  reportCards  ReportCard[] @relation("ReportCardCreator")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   @@index([role])
   @@index([status])
+  @@index([verifiedAt])
 }
 
 model StudentProfile {
@@ -92,6 +107,7 @@ model StudentProfile {
   enrollments   Enrollment[]
   attendanceRecords AttendanceRecord[]
   gradeRecords  GradeRecord[]
+  reportCards   ReportCard[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -153,6 +169,8 @@ model Lesson {
 
   @@unique([courseId, order])
   @@index([courseId])
+  @@index([createdAt])
+  @@index([deletedAt, createdAt])
 }
 
 model ScheduleSlot {
@@ -192,11 +210,16 @@ model AttendanceSession {
   course    Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
   title     String
   heldAt    DateTime
+  semester     Semester @default(GANJIL)
+  academicYear String   @default("2026/2027")
   records   AttendanceRecord[]
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
   @@index([courseId, heldAt])
+  @@index([heldAt])
+  @@index([createdAt])
+  @@index([academicYear, semester])
   @@unique([courseId, title])
 }
 
@@ -224,11 +247,16 @@ model GradeItem {
   description String?
   maxScore    Int           @default(100)
   dueAt       DateTime?
+  semester     Semester @default(GANJIL)
+  academicYear String   @default("2026/2027")
   records     GradeRecord[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   @@index([courseId])
+  @@index([dueAt])
+  @@index([createdAt])
+  @@index([academicYear, semester])
   @@unique([courseId, title])
 }
 
@@ -245,6 +273,45 @@ model GradeRecord {
 
   @@unique([gradeItemId, studentId])
   @@index([studentId])
+}
+
+// Rapor per santri per periode. Nilai akhir di-snapshot saat dibuat;
+// setelah PUBLISHED, isi rapor tidak berubah walau nilai sumber diedit.
+model ReportCard {
+  id           String           @id @default(uuid())
+  studentId    String
+  student      StudentProfile   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  semester     Semester
+  academicYear String
+  homeroomNote String?
+  status       ReportCardStatus @default(DRAFT)
+  publishedAt  DateTime?
+  createdById  String?
+  createdBy    User?            @relation("ReportCardCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  entries      ReportCardEntry[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([studentId, semester, academicYear])
+  @@index([status])
+  @@index([academicYear, semester])
+}
+
+// Satu baris rapor per mata pelajaran. courseTitle disimpan sebagai snapshot.
+model ReportCardEntry {
+  id           String     @id @default(uuid())
+  reportCardId String
+  reportCard   ReportCard @relation(fields: [reportCardId], references: [id], onDelete: Cascade)
+  courseId     String?
+  courseTitle  String
+  finalScore   Int
+  present      Int        @default(0)
+  late         Int        @default(0)
+  absent       Int        @default(0)
+  excused      Int        @default(0)
+
+  @@unique([reportCardId, courseTitle])
+  @@index([courseId])
 }
 
 // Pengumuman / info yang dikirim sekolah ke orang tua. level null = semua jenjang.
@@ -282,10 +349,17 @@ model Admission {
   reviewedById     String?
   createdStudentId String?
   createdParentId  String?
+  submitterId       String?
+  submitter         User?           @relation("AdmissionSubmitter", fields: [submitterId], references: [id], onDelete: SetNull)
+  familyCardUrl     String?
+  birthCertificateUrl String?
+  previousReportUrl String?
+  photoUrl          String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
   @@index([status])
   @@index([level])
+  @@index([submitterId])
   @@index([createdAt])
 }
