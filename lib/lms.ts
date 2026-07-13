@@ -4,6 +4,8 @@ import {
   CourseStatus,
   EducationLevel,
   EnrollmentStatus,
+  ReportCardStatus,
+  Semester,
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client";
@@ -29,6 +31,25 @@ export function formatRelative(date: Date): string {
   if (day === 1) return "kemarin";
   if (day < 7) return `${day} hari lalu`;
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" }).format(date);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          periode (semester + tahun ajaran)                 */
+/* -------------------------------------------------------------------------- */
+
+export type Period = { semester: Semester; academicYear: string };
+
+/** Juli-Desember = GANJIL tahun ajaran berjalan; Januari-Juni = GENAP tahun ajaran sebelumnya. */
+export function getCurrentPeriod(now = new Date()): Period {
+  const year = now.getFullYear();
+  const isFirstHalfOfSchoolYear = now.getMonth() >= 6;
+  return isFirstHalfOfSchoolYear
+    ? { semester: Semester.GANJIL, academicYear: `${year}/${year + 1}` }
+    : { semester: Semester.GENAP, academicYear: `${year - 1}/${year}` };
+}
+
+export function formatPeriod(period: Period) {
+  return `Semester ${period.semester === Semester.GANJIL ? "Ganjil" : "Genap"} ${period.academicYear}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -571,6 +592,191 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
     overall: { avg: gradeCount ? Math.round(gradeSum / gradeCount) : 0, attRate: rate(attPresent, attTotal) },
     courses,
   };
+});
+
+/* -------------------------------------------------------------------------- */
+/*                            schedule (penjadwalan)                          */
+/* -------------------------------------------------------------------------- */
+
+const DAY_NAMES = ["Ahad", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"] as const;
+
+/** Papan jadwal per hari (dayOfWeek 0 = Ahad, mengikuti Date.getDay()). */
+export const getScheduleBoard = cache(async (level?: EducationLevel) => {
+  const [slots, courses] = await Promise.all([
+    prisma.scheduleSlot.findMany({
+      where: { course: { deletedAt: null, ...(level ? { level } : {}) } },
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+      select: {
+        id: true,
+        dayOfWeek: true,
+        startTime: true,
+        room: true,
+        course: { select: { id: true, title: true, level: true, createdBy: { select: { name: true } } } },
+      },
+    }),
+    prisma.course.findMany({
+      where: { deletedAt: null },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, level: true },
+    }),
+  ]);
+
+  const days = DAY_NAMES.map((label, dayOfWeek) => ({
+    dayOfWeek,
+    label,
+    slots: slots
+      .filter((s) => s.dayOfWeek === dayOfWeek)
+      .map((s) => ({
+        id: s.id,
+        startTime: s.startTime,
+        room: s.room ?? "-",
+        courseId: s.course.id,
+        courseTitle: s.course.title,
+        level: s.course.level,
+        teacher: s.course.createdBy?.name ?? "-",
+      })),
+  }));
+
+  return { days, courses };
+});
+
+/* -------------------------------------------------------------------------- */
+/*                                rapor (staff)                               */
+/* -------------------------------------------------------------------------- */
+
+/** Rekap nilai + absensi per mapel untuk satu santri pada satu periode. */
+export async function computeReportEntries(studentId: string, period: Period) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId, course: { deletedAt: null } },
+    orderBy: { course: { title: "asc" } },
+    select: {
+      course: {
+        select: {
+          id: true,
+          title: true,
+          gradeItems: {
+            where: { semester: period.semester, academicYear: period.academicYear },
+            select: { maxScore: true, records: { where: { studentId }, select: { score: true } } },
+          },
+          attendanceSessions: {
+            where: { semester: period.semester, academicYear: period.academicYear },
+            select: { records: { where: { studentId }, select: { status: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  return enrollments.map(({ course }) => {
+    const values = course.gradeItems
+      .filter((g) => g.records.length > 0)
+      .map((g) => Math.round((g.records[0].score / g.maxScore) * 100));
+    const finalScore = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+
+    const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<AttendanceStatus, number>;
+    for (const session of course.attendanceSessions) {
+      const rec = session.records[0];
+      if (rec) marks[rec.status] += 1;
+    }
+
+    return {
+      courseId: course.id,
+      courseTitle: course.title,
+      finalScore,
+      present: marks.PRESENT,
+      late: marks.LATE,
+      absent: marks.ABSENT,
+      excused: marks.EXCUSED,
+    };
+  });
+}
+
+/** Daftar santri satu kelas + status rapor mereka pada periode itu. */
+export const getReportBoard = cache(async (period: Period, className?: string) => {
+  const classRows = await prisma.studentProfile.findMany({
+    distinct: ["className"],
+    orderBy: { className: "asc" },
+    select: { className: true },
+  });
+  const classes = classRows.map((row) => row.className);
+  const activeClass = className && classes.includes(className) ? className : classes[0] ?? null;
+
+  if (!activeClass) {
+    return { classes, activeClass: null, students: [] };
+  }
+
+  const students = await prisma.studentProfile.findMany({
+    where: { className: activeClass },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      studentNumber: true,
+      level: true,
+      reportCards: {
+        where: { semester: period.semester, academicYear: period.academicYear },
+        select: { id: true, status: true, publishedAt: true },
+      },
+    },
+  });
+
+  return {
+    classes,
+    activeClass,
+    students: students.map((s) => ({
+      studentId: s.id,
+      name: s.name,
+      studentNumber: s.studentNumber,
+      level: s.level,
+      reportCard: s.reportCards[0] ?? null,
+    })),
+  };
+});
+
+/** Detail satu rapor untuk staf (semua status) berikut barisnya. */
+export const getReportCardDetail = cache(async (reportCardId: string) => {
+  return prisma.reportCard.findUnique({
+    where: { id: reportCardId },
+    select: {
+      id: true,
+      semester: true,
+      academicYear: true,
+      homeroomNote: true,
+      status: true,
+      publishedAt: true,
+      createdBy: { select: { name: true } },
+      student: { select: { id: true, name: true, studentNumber: true, className: true, level: true } },
+      entries: {
+        orderBy: { courseTitle: "asc" },
+        select: { id: true, courseTitle: true, finalScore: true, present: true, late: true, absent: true, excused: true },
+      },
+    },
+  });
+});
+
+/** Rapor PUBLISHED milik satu anak, hanya jika anak itu milik wali peminta. */
+export const getChildReportCards = cache(async (parentId: string, childId: string) => {
+  const child = await prisma.studentProfile.findFirst({
+    where: { id: childId, parentId },
+    select: { id: true },
+  });
+  if (!child) return null;
+
+  return prisma.reportCard.findMany({
+    where: { studentId: childId, status: ReportCardStatus.PUBLISHED },
+    orderBy: [{ academicYear: "desc" }, { semester: "desc" }],
+    select: {
+      id: true,
+      semester: true,
+      academicYear: true,
+      homeroomNote: true,
+      publishedAt: true,
+      entries: {
+        orderBy: { courseTitle: "asc" },
+        select: { id: true, courseTitle: true, finalScore: true, present: true, late: true, absent: true, excused: true },
+      },
+    },
+  });
 });
 
 /* -------------------------------------------------------------------------- */
