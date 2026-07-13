@@ -33,7 +33,8 @@ Primary use:
 - Minimum interactive height: 44px.
 - Use clear sections for landing, pendaftaran, login, dashboard, and admin panel.
 - Avoid unnecessary nested cards.
-- Parent pages prioritize child summary, per-subject grades, and attendance recap.
+- Parent pages prioritize child summary, per-subject grades, attendance recap, and published report cards; parents only ever see their own children (including schedule).
+- Schedule board renders slots as flat divided rows inside a per-day card; never stack bordered cards inside cards.
 - Teacher/admin pages use summary cards, readable lists, compact forms, and per-section management.
 - Admission review uses status tabs (pending/accepted/rejected) dengan kartu yang dapat diperluas.
 
@@ -54,5 +55,5 @@ Primary use:
 
 ## PWA
 
-- Installable via `app/manifest.ts` with maskable icons in `public/icons`.
-- Offline fallback page at `app/offline`; service worker (`public/sw.js`) uses network-first navigation and stale-while-revalidate for static assets.
+- Installable via `app/manifest.ts` with maskable icons in `public/icons` and app shortcuts (Anak Saya, Jadwal, Informasi).
+- Offline fallback page at `app/offline`; service worker (`public/sw.js`) uses network-first navigation with last-visited-page cache fallback, cache-first for hashed `_next/static` assets, and stale-while-revalidate for icons/manifest.

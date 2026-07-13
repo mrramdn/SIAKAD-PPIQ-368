@@ -97,9 +97,10 @@ akses data baru. Setelah selesai jalankan pnpm lint dan pnpm build.
 - [x] Jadwal: slot ditampilkan sebagai baris datar (tidak ada card di dalam card), input waktu memakai `type="time"`, format jam dinormalisasi ke `HH:MM` di action, helper, dan seed.
 - [x] Pendaftaran anak dipindah ke dalam shell dashboard (`app/(app)/pendaftaran`), URL tetap `/pendaftaran`; non-wali diarahkan ke Penerimaan/Dashboard.
 
-## 7. Backlog (dikerjakan terakhir)
+## 7. Backlog
 
-- [ ] PWA: sempurnakan pengalaman installable + offline (manifest dan service worker dasar sudah ada di `app/manifest.ts` + `public/sw.js`; perlu review caching, halaman offline, dan uji install di ponsel). Dikerjakan paling akhir setelah semua fitur inti stabil, atas permintaan user 13 Juli 2026.
+- [x] PWA (13 Juli 2026): manifest dilengkapi `id` + shortcuts (Anak Saya, Jadwal, Informasi); service worker di-upgrade — navigation preload, halaman yang pernah dibuka tersimpan sehingga bisa dibuka ulang saat offline, cache-first untuk aset `_next/static` (hashed), stale-while-revalidate untuk ikon/manifest. Sisa: uji install langsung di ponsel.
+- [ ] Deployment produksi: server sendiri via Docker (Vercel hanya untuk preview; user melaporkan kombinasi Vercel + Prisma lambat). Perlu: Dockerfile multi-stage (`next build` standalone), docker compose app + PostgreSQL, jalankan `prisma migrate deploy` saat rilis.
 
 ## 8. Definisi Selesai
 
