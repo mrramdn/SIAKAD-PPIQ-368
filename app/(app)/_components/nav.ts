@@ -7,6 +7,7 @@ export type NavItem = { href: string; label: string; icon: IconKey };
 const PARENT_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid" },
   { href: "/anak", label: "Anak Saya", icon: "users" },
+  { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/pendaftaran", label: "Daftar Anak", icon: "doc" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
@@ -17,6 +18,8 @@ const TEACHER_NAV: NavItem[] = [
   { href: "/learning", label: "Pembelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
+  { href: "/rapor", label: "Rapor", icon: "award" },
+  { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
 ];
@@ -26,6 +29,8 @@ const HOMEROOM_NAV: NavItem[] = [
   { href: "/learning", label: "Pembelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
+  { href: "/rapor", label: "Rapor", icon: "award" },
+  { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
 ];
@@ -37,6 +42,8 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/learning", label: "Pembelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
+  { href: "/rapor", label: "Rapor", icon: "award" },
+  { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
 ];
@@ -47,6 +54,8 @@ const MUDIR_NAV: NavItem[] = [
   { href: "/learning", label: "Pembelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
+  { href: "/rapor", label: "Rapor", icon: "award" },
+  { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
 ];
@@ -86,5 +95,7 @@ export const PAGE_TITLE: Record<string, string> = {
   "/learning": "Pembelajaran",
   "/nilai": "Nilai",
   "/absen": "Absensi",
+  "/jadwal": "Jadwal",
+  "/rapor": "Rapor",
   "/pengaturan": "Pengaturan",
 };

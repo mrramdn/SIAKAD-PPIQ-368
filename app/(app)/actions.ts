@@ -10,10 +10,13 @@ import {
   EducationLevel,
   EnrollmentStatus,
   LessonType,
+  ReportCardStatus,
+  Semester,
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client";
 import { requireAdmin, requireTeacherOrAdmin, requireVerifiedUser } from "@/lib/auth";
+import { computeReportEntries, getCurrentPeriod } from "@/lib/lms";
 import { prisma } from "@/lib/prisma";
 
 type ActionResult = { ok: boolean; message?: string };
@@ -134,8 +137,9 @@ export async function createAttendanceSessionAction(formData: FormData) {
     redirect(`/absen?course=${courseId}&error=attendance`);
   }
 
+  const period = getCurrentPeriod(new Date(heldAtValue));
   const session = await prisma.attendanceSession.create({
-    data: { courseId, title, heldAt: new Date(heldAtValue) },
+    data: { courseId, title, heldAt: new Date(heldAtValue), semester: period.semester, academicYear: period.academicYear },
     select: { id: true },
   });
 
@@ -197,8 +201,17 @@ export async function createGradeItemAction(formData: FormData) {
     redirect(`/nilai?course=${courseId}&error=grade`);
   }
 
+  const period = getCurrentPeriod();
   await prisma.gradeItem.create({
-    data: { courseId, title, description, maxScore, dueAt: dueValue ? new Date(dueValue) : null },
+    data: {
+      courseId,
+      title,
+      description,
+      maxScore,
+      dueAt: dueValue ? new Date(dueValue) : null,
+      semester: period.semester,
+      academicYear: period.academicYear,
+    },
   });
 
   revalidateCourseAreas(courseId);
@@ -222,6 +235,121 @@ export async function saveGradeAction(input: {
     create: { gradeItemId: input.gradeItemId, studentId: input.studentId, score },
   });
   revalidatePath("/nilai");
+  return { ok: true };
+}
+
+/* ----------------------- schedule (teacher/admin) -------------------------- */
+
+export async function createScheduleSlotAction(formData: FormData) {
+  await requireTeacherOrAdmin();
+  const courseId = String(formData.get("courseId") ?? "");
+  const dayOfWeek = Number(formData.get("dayOfWeek") ?? -1);
+  const startTime = String(formData.get("startTime") ?? "").trim();
+  const room = toNullableString(formData.get("room"));
+
+  if (!courseId || !Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || !startTime) {
+    redirect("/jadwal?error=invalid");
+  }
+
+  await prisma.scheduleSlot.create({ data: { courseId, dayOfWeek, startTime, room } });
+  revalidatePath("/jadwal");
+  revalidatePath("/dashboard");
+}
+
+export async function deleteScheduleSlotAction(id: string): Promise<ActionResult> {
+  await requireTeacherOrAdmin();
+  if (!id) return { ok: false, message: "Jadwal tidak ditemukan." };
+  await prisma.scheduleSlot.delete({ where: { id } });
+  revalidatePath("/jadwal");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/* ----------------------- report card (teacher/admin) ----------------------- */
+
+export async function generateReportCardAction(input: {
+  studentId: string;
+  semester: Semester;
+  academicYear: string;
+}): Promise<ActionResult> {
+  const user = await requireTeacherOrAdmin();
+  const academicYear = input.academicYear.trim();
+  if (!input.studentId || !Object.values(Semester).includes(input.semester) || !/^\d{4}\/\d{4}$/.test(academicYear)) {
+    return { ok: false, message: "Data rapor tidak valid." };
+  }
+
+  const student = await prisma.studentProfile.findUnique({ where: { id: input.studentId }, select: { id: true } });
+  if (!student) return { ok: false, message: "Santri tidak ditemukan." };
+
+  const existing = await prisma.reportCard.findUnique({
+    where: {
+      studentId_semester_academicYear: { studentId: input.studentId, semester: input.semester, academicYear },
+    },
+    select: { id: true, status: true },
+  });
+  if (existing?.status === ReportCardStatus.PUBLISHED) {
+    return { ok: false, message: "Rapor periode ini sudah terbit dan tidak bisa dibuat ulang." };
+  }
+
+  const entries = await computeReportEntries(input.studentId, { semester: input.semester, academicYear });
+  if (entries.length === 0) {
+    return { ok: false, message: "Santri belum terdaftar di mata pelajaran mana pun." };
+  }
+
+  if (existing) {
+    await prisma.$transaction([
+      prisma.reportCardEntry.deleteMany({ where: { reportCardId: existing.id } }),
+      prisma.reportCardEntry.createMany({ data: entries.map((e) => ({ ...e, reportCardId: existing.id })) }),
+      prisma.reportCard.update({ where: { id: existing.id }, data: { createdById: user.id } }),
+    ]);
+  } else {
+    await prisma.reportCard.create({
+      data: {
+        studentId: input.studentId,
+        semester: input.semester,
+        academicYear,
+        createdById: user.id,
+        entries: { createMany: { data: entries } },
+      },
+    });
+  }
+
+  revalidatePath("/rapor");
+  return { ok: true };
+}
+
+export async function saveHomeroomNoteAction(input: { reportCardId: string; note: string }): Promise<ActionResult> {
+  await requireTeacherOrAdmin();
+  if (!input.reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
+
+  const card = await prisma.reportCard.findUnique({ where: { id: input.reportCardId }, select: { status: true } });
+  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
+  if (card.status === ReportCardStatus.PUBLISHED) {
+    return { ok: false, message: "Rapor sudah terbit, catatan tidak bisa diubah." };
+  }
+
+  await prisma.reportCard.update({
+    where: { id: input.reportCardId },
+    data: { homeroomNote: input.note.trim() || null },
+  });
+  revalidatePath("/rapor");
+  return { ok: true };
+}
+
+export async function publishReportCardAction(reportCardId: string): Promise<ActionResult> {
+  await requireTeacherOrAdmin();
+  if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
+
+  const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
+  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
+  if (card.status === ReportCardStatus.PUBLISHED) return { ok: false, message: "Rapor sudah terbit." };
+
+  await prisma.reportCard.update({
+    where: { id: reportCardId },
+    data: { status: ReportCardStatus.PUBLISHED, publishedAt: new Date() },
+  });
+  revalidatePath("/rapor");
+  revalidatePath("/anak");
   return { ok: true };
 }
 

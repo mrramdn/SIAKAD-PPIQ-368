@@ -9,6 +9,8 @@ import {
   EnrollmentStatus,
   LessonType,
   PrismaClient,
+  ReportCardStatus,
+  Semester,
   UserRole,
   UserStatus,
 } from "../generated/prisma/client";
@@ -22,6 +24,15 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
 
 const DAY = 24 * 60 * 60 * 1000;
 const GRADE_COLS = ["Tugas", "UH 1", "UH 2", "UTS", "Proyek"];
+
+/** Periode berjalan: Juli-Desember = GANJIL tahun berjalan, Januari-Juni = GENAP tahun sebelumnya. */
+function currentPeriod(now = new Date()) {
+  const year = now.getFullYear();
+  return now.getMonth() >= 6
+    ? { semester: Semester.GANJIL, academicYear: `${year}/${year + 1}` }
+    : { semester: Semester.GENAP, academicYear: `${year - 1}/${year}` };
+}
+const PERIOD = currentPeriod();
 
 /* deterministic helpers so reseeding stays stable */
 function det(a: number, b: number) {
@@ -247,8 +258,8 @@ async function main() {
       for (let gi = 0; gi < GRADE_COLS.length; gi++) {
         const item = await prisma.gradeItem.upsert({
           where: { courseId_title: { courseId: course.id, title: GRADE_COLS[gi] } },
-          update: { maxScore: 100, dueAt: new Date(Date.now() + (gi * 3 + 4) * DAY) },
-          create: { courseId: course.id, title: GRADE_COLS[gi], description: `${GRADE_COLS[gi]} ${def.title}`, maxScore: 100, dueAt: new Date(Date.now() + (gi * 3 + 4) * DAY) },
+          update: { maxScore: 100, dueAt: new Date(Date.now() + (gi * 3 + 4) * DAY), semester: PERIOD.semester, academicYear: PERIOD.academicYear },
+          create: { courseId: course.id, title: GRADE_COLS[gi], description: `${GRADE_COLS[gi]} ${def.title}`, maxScore: 100, dueAt: new Date(Date.now() + (gi * 3 + 4) * DAY), semester: PERIOD.semester, academicYear: PERIOD.academicYear },
           select: { id: true },
         });
         gradeItemIds.push(item.id);
@@ -319,8 +330,8 @@ async function main() {
         const heldAt = new Date(Date.now() - (6 - se) * DAY);
         const session = await prisma.attendanceSession.upsert({
           where: { courseId_title: { courseId: course.id, title: `Pertemuan ${se + 1}` } },
-          update: { heldAt },
-          create: { courseId: course.id, title: `Pertemuan ${se + 1}`, heldAt },
+          update: { heldAt, semester: PERIOD.semester, academicYear: PERIOD.academicYear },
+          create: { courseId: course.id, title: `Pertemuan ${se + 1}`, heldAt, semester: PERIOD.semester, academicYear: PERIOD.academicYear },
           select: { id: true },
         });
         for (let si = 0; si < students.length; si++) {
@@ -333,6 +344,87 @@ async function main() {
         }
       }
     }
+  }
+
+  // Rapor demo untuk anak wali demo: anak SMA terbit, anak SMP masih draf.
+  const demoReportTargets = [
+    { studentId: studentsByLevel.get(EducationLevel.SMA)?.[0], publish: true },
+    { studentId: studentsByLevel.get(EducationLevel.SMP)?.[0], publish: false },
+  ];
+  for (const target of demoReportTargets) {
+    if (!target.studentId) continue;
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: { studentId: target.studentId, course: { deletedAt: null } },
+      orderBy: { course: { title: "asc" } },
+      select: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+            gradeItems: {
+              where: { semester: PERIOD.semester, academicYear: PERIOD.academicYear },
+              select: { maxScore: true, records: { where: { studentId: target.studentId }, select: { score: true } } },
+            },
+            attendanceSessions: {
+              where: { semester: PERIOD.semester, academicYear: PERIOD.academicYear },
+              select: { records: { where: { studentId: target.studentId }, select: { status: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    const entries = enrollments.map(({ course }) => {
+      const values = course.gradeItems
+        .filter((g) => g.records.length > 0)
+        .map((g) => Math.round((g.records[0].score / g.maxScore) * 100));
+      const finalScore = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+      const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<AttendanceStatus, number>;
+      for (const session of course.attendanceSessions) {
+        const rec = session.records[0];
+        if (rec) marks[rec.status] += 1;
+      }
+      return {
+        courseId: course.id,
+        courseTitle: course.title,
+        finalScore,
+        present: marks.PRESENT,
+        late: marks.LATE,
+        absent: marks.ABSENT,
+        excused: marks.EXCUSED,
+      };
+    });
+    if (entries.length === 0) continue;
+
+    const card = await prisma.reportCard.upsert({
+      where: {
+        studentId_semester_academicYear: {
+          studentId: target.studentId,
+          semester: PERIOD.semester,
+          academicYear: PERIOD.academicYear,
+        },
+      },
+      update: {
+        status: target.publish ? ReportCardStatus.PUBLISHED : ReportCardStatus.DRAFT,
+        publishedAt: target.publish ? new Date() : null,
+        homeroomNote: target.publish ? "Alhamdulillah perkembangan baik. Tingkatkan murojaah dan kedisiplinan waktu." : null,
+        createdById: admin.id,
+      },
+      create: {
+        studentId: target.studentId,
+        semester: PERIOD.semester,
+        academicYear: PERIOD.academicYear,
+        status: target.publish ? ReportCardStatus.PUBLISHED : ReportCardStatus.DRAFT,
+        publishedAt: target.publish ? new Date() : null,
+        homeroomNote: target.publish ? "Alhamdulillah perkembangan baik. Tingkatkan murojaah dan kedisiplinan waktu." : null,
+        createdById: admin.id,
+      },
+      select: { id: true },
+    });
+
+    await prisma.reportCardEntry.deleteMany({ where: { reportCardId: card.id } });
+    await prisma.reportCardEntry.createMany({ data: entries.map((e) => ({ ...e, reportCardId: card.id })) });
   }
 
   // Announcements.
