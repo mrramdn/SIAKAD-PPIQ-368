@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Icons, inputClasses } from "@/components/ui";
+import { UserRole } from "@/generated/prisma/client";
+import { getCurrentUser } from "@/lib/auth";
 import { APP_NAME } from "@/lib/brand";
 import { LEVEL_FULL, LEVELS } from "@/lib/brand";
 import { submitAdmissionAction } from "./actions";
@@ -7,7 +9,7 @@ import { submitAdmissionAction } from "./actions";
 type PageProps = { searchParams: Promise<{ error?: string; success?: string }> };
 
 export default async function PendaftaranPage({ searchParams }: PageProps) {
-  const params = await searchParams;
+  const [params, user] = await Promise.all([searchParams, getCurrentUser()]);
 
   if (params.success) {
     return (
@@ -32,7 +34,51 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
     );
   }
 
-  const errorMessage = params.error ? "Periksa kembali data wajib: nama santri, jenjang, nama & kontak orang tua." : null;
+  if (!user) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-bg px-6 py-12 text-ink">
+        <section className="w-full max-w-lg rounded-[22px] border border-line bg-surface p-7 shadow-float">
+          <Link href="/" className="mb-8 flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: "var(--primary)" }}>
+              <Icons.cap size={20} style={{ color: "#fff" }} />
+            </span>
+            <span className="text-lg font-extrabold">{APP_NAME}</span>
+          </Link>
+          <h1 className="text-2xl font-extrabold tracking-tight text-balance">Masuk sebagai wali terlebih dahulu.</h1>
+          <p className="mt-3 text-sm leading-relaxed text-ink-2 text-pretty">
+            Pendaftaran anak disimpan ke akun wali. Satu akun dapat dipakai untuk mendaftarkan dan memantau lebih dari satu santri.
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <Link href="/register" className="rounded-xl bg-primary px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-primary-600">
+              Buat Akun Wali
+            </Link>
+            <Link href="/login" className="rounded-xl border border-line-strong px-5 py-3 text-center text-sm font-semibold text-ink-2 transition hover:bg-surface-2">
+              Login
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (user.role !== UserRole.PARENT) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-bg px-6 py-12 text-ink">
+        <section className="w-full max-w-lg rounded-[22px] border border-line bg-surface p-7 text-center shadow-float">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-primary-soft text-primary-700">
+            <Icons.users size={24} />
+          </span>
+          <h1 className="mt-5 text-2xl font-extrabold tracking-tight">Khusus akun wali santri</h1>
+          <p className="mt-3 text-sm leading-relaxed text-ink-2">Administrasi, pengajar, wali kelas, dan mudir mengelola pendaftaran dari dashboard.</p>
+          <Link href="/dashboard" className="mt-6 inline-flex rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white">
+            Kembali ke Dashboard
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
+  const errorMessage = params.error ? "Periksa kembali data wajib: nama santri, jenjang, dan format URL dokumen." : null;
 
   return (
     <main className="min-h-screen bg-bg px-6 py-10 text-ink">
@@ -47,11 +93,10 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
           <div className="mt-12">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] opacity-80">Pendaftaran Santri Baru</p>
             <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-balance">
-              Daftarkan putra/putri Anda ke pesantren.
+              Daftarkan anak dari akun wali.
             </h1>
             <p className="mt-4 opacity-90 text-pretty">
-              Isi formulir penerimaan santri baru. Setelah diterima admin, akun wali santri otomatis dibuat atau ditautkan
-              agar Anda dapat memantau nilai, kehadiran, dan informasi anak.
+              Data wali diambil dari akun login. Setelah diterima administrasi, anak akan muncul di menu Anak Saya.
             </p>
             <div className="mt-8 space-y-2.5">
               {LEVELS.map((l) => (
@@ -66,7 +111,9 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
 
         <div className="p-8 sm:p-10">
           <h2 className="text-2xl font-bold">Formulir Pendaftaran</h2>
-          <p className="mt-2 text-sm text-ink-3">Data bertanda wajib digunakan untuk verifikasi.</p>
+          <p className="mt-2 text-sm text-ink-3">
+            Diajukan oleh <strong className="text-ink">{user.name}</strong> ({user.email}).
+          </p>
 
           {errorMessage ? (
             <div className="mt-6 rounded-xl border border-danger-soft bg-danger-soft px-4 py-3 text-sm text-danger">{errorMessage}</div>
@@ -111,24 +158,6 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
               <input name="previousSchool" className={inputClasses} />
             </label>
 
-            <div className="sm:col-span-2 mt-1 border-t border-line pt-4 text-[12.5px] font-bold uppercase tracking-wider text-ink-3">
-              Data Orang Tua / Wali
-            </div>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold text-ink-2">Nama orang tua *</span>
-              <input name="parentName" required className={inputClasses} />
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold text-ink-2">Nomor HP *</span>
-              <input name="parentPhone" required className={inputClasses} />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-sm font-semibold text-ink-2">Email orang tua *</span>
-              <input name="parentEmail" type="email" required className={inputClasses} />
-              <span className="mt-1 block text-xs text-ink-3">
-                Email ini menjadi akun login wali. Gunakan email yang sama untuk mendaftarkan lebih dari satu anak.
-              </span>
-            </label>
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-ink-2">Alamat</span>
               <textarea name="address" rows={2} className={inputClasses} />
@@ -136,6 +165,29 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-ink-2">Catatan</span>
               <textarea name="note" rows={2} className={inputClasses} />
+            </label>
+
+            <div className="sm:col-span-2 mt-1 border-t border-line pt-4 text-[12.5px] font-bold uppercase tracking-wider text-ink-3">
+              Dokumen Pendukung
+            </div>
+            <p className="sm:col-span-2 -mt-3 text-xs leading-relaxed text-ink-3">
+              Sementara isi URL dokumen. Integrasi upload Cloudinary dapat memakai field yang sama nanti.
+            </p>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold text-ink-2">Kartu Keluarga</span>
+              <input name="familyCardUrl" type="url" placeholder="https://..." className={inputClasses} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold text-ink-2">Akta Kelahiran</span>
+              <input name="birthCertificateUrl" type="url" placeholder="https://..." className={inputClasses} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold text-ink-2">Rapor Terakhir</span>
+              <input name="previousReportUrl" type="url" placeholder="https://..." className={inputClasses} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-semibold text-ink-2">Pas Foto</span>
+              <input name="photoUrl" type="url" placeholder="https://..." className={inputClasses} />
             </label>
 
             <button
@@ -147,9 +199,9 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
           </form>
 
           <p className="mt-6 text-center text-sm text-ink-3">
-            Sudah punya akun wali?{" "}
-            <Link href="/login" className="font-semibold text-primary-700 underline underline-offset-4">
-              Login
+            Ingin mendaftarkan anak lain nanti?{" "}
+            <Link href="/anak" className="font-semibold text-primary-700 underline underline-offset-4">
+              Cek Anak Saya
             </Link>
           </p>
         </div>

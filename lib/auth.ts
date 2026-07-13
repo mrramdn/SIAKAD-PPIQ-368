@@ -13,6 +13,7 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
   role: UserRole;
   status: UserStatus;
 };
@@ -83,7 +84,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       id: true,
       expiresAt: true,
       user: {
-        select: { id: true, name: true, email: true, role: true, status: true },
+        select: { id: true, name: true, email: true, phone: true, role: true, status: true },
       },
     },
   });
@@ -143,7 +144,7 @@ export async function requireVerifiedUser() {
 export async function requireTeacherOrAdmin() {
   const user = await requireVerifiedUser();
 
-  if (user.role !== UserRole.ADMIN && user.role !== UserRole.TEACHER) {
+  if (user.role !== UserRole.ADMIN && user.role !== UserRole.TEACHER && user.role !== UserRole.HOMEROOM) {
     redirect("/dashboard");
   }
 

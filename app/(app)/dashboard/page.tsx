@@ -46,11 +46,15 @@ export default async function DashboardPage() {
       ? { href: "/pengguna", label: "Kelola Pengguna" }
       : user.role === "MUDIR"
         ? { href: "/pengguna", label: "Pantau Data" }
-        : { href: "/nilai", label: "Mulai Menilai" };
+        : user.role === "HOMEROOM"
+          ? { href: "/absen", label: "Pantau Kelas" }
+          : { href: "/nilai", label: "Mulai Menilai" };
 
   const heroBlurb =
     user.role === "TEACHER"
-      ? "Catat kehadiran dan isi nilai kelas yang kamu ampu hari ini."
+      ? "Kelola materi, catat kehadiran, dan isi nilai kelas yang kamu ampu hari ini."
+      : user.role === "HOMEROOM"
+        ? "Pantau kelas binaan, absensi santri, nilai, dan informasi untuk wali."
       : user.role === "MUDIR"
         ? "Pantau data pengguna, pembelajaran, nilai, absensi, dan informasi pesantren."
       : "Pantau verifikasi akun, kelas aktif, dan kehadiran santri.";

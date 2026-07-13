@@ -1,76 +1,83 @@
-# Revisi Use Case Pesantren Digital
+# Use Case Pesantren Digital (Revisi Scope)
 
 ## Aktor
 
 1. Wali Santri
-2. Administrasi
+2. Wali Kelas
 3. Pengajar
-4. Mudir Ma'had
-5. Santri
+4. Administrasi
+5. Mudir Ma'had
+6. Santri
 
 Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 
-## Relasi Akun Wali dan Anak
+## Cakupan Utama (5 Fitur Inti Skripsi)
 
-- Satu akun wali santri dapat memiliki lebih dari satu anak.
-- Email wali menjadi identitas akun login.
-- Jika wali mendaftarkan anak kedua dengan email yang sama, sistem menautkan santri baru ke akun wali yang sudah ada.
-- Jika email sudah dipakai akun non-wali, administrasi perlu memakai email wali lain.
+1. **Pendaftaran (PPDB)**: Wali mendaftarkan anak, Administrasi meninjau dan menerima pendaftaran.
+2. **Absensi**: Pengajar/Wali Kelas mencatat absensi santri per sesi pelajaran.
+3. **Penjadwalan**: Staff (Admin/Teacher/Homeroom) menyusun jadwal pelajaran per jenjang.
+4. **Pengelolaan Nilai**: Pengajar mengisi nilai komponen per mata pelajaran.
+5. **Pengelolaan Rapor**: Wali kelas/Staff membuat rapor semester (rekap nilai + absensi), menambahkan catatan wali kelas, menerbitkan rapor, dan Wali Santri memantau rapor anaknya.
 
-## Use Case Wali Santri
+## Use Case per Peran
 
+### 1. Wali Santri
 - Login
-- Pendaftaran Anak
-- Melihat Anak Saya
-- Melihat Informasi Akademik
-- Melihat Informasi Pembelajaran
-- Melihat Data Rapor
-- Melihat Informasi Pengumuman
+- Membuat Akun Wali
+- Mendaftarkan Anak Baru (PPDB) & Unggah Dokumen
+- Memantau Profil Anak
+- Memantau Jadwal Pelajaran Anak
+- Memantau Rekap Nilai Harian & Kehadiran Anak
+- Memantau Rapor Semester Anak (Hanya status PUBLISHED)
+- Memantau Pengumuman / Informasi Pesantren
 
-## Use Case Administrasi
-
+### 2. Wali Kelas
 - Login
-- Meninjau Pendaftaran Anak
-- Mengelola Data Pengguna
-- Mengelola Akun Pengguna
-- Mengelola Pembelajaran
-- Mengelola Absensi
-- Mengelola Nilai
-- Mengelola Rapor
-- Mengelola Informasi Pengumuman
+- Memantau Kelas Binaan
+- Menyusun Jadwal Pelajaran (Mengelola Slot)
+- Mencatat Kehadiran Sesi Pelajaran
+- Mengisi dan Mengelola Nilai Komponen
+- Membuat Rapor Semester Santri (Generate & Hitung Rata-rata)
+- Mengisi Catatan Wali Kelas (Homeroom Note) pada Rapor
+- Menerbitkan Rapor Semester (Publish)
+- Mengelola Pengumuman / Informasi Pesantren
 
-## Use Case Pengajar
-
+### 3. Pengajar
 - Login
-- Melihat Informasi Akademik
-- Mengelola Informasi Pembelajaran
-- Mengelola Absensi Ustadz dan BKKH
-- Mengelola Absensi Santri
-- Mengelola Nilai
-- Mengelola Rapor
-- Mengelola Informasi Pengumuman
+- Menyusun Jadwal Pelajaran (Mengelola Slot)
+- Mencatat Kehadiran Sesi Pelajaran
+- Mengisi dan Mengelola Nilai Komponen
+- Membuat Rapor Semester Santri
+- Mengisi Catatan Wali Kelas pada Rapor
+- Menerbitkan Rapor Semester
+- Mengelola Pengumuman / Informasi Pesantren
 
-## Use Case Mudir Ma'had
-
+### 4. Administrasi
 - Login
-- Melihat Data Pengguna
-- Melihat Informasi Akademik
-- Melihat Informasi Pembelajaran
-- Melihat Absensi Ustadz dan BKKH
-- Melihat Absensi Santri
-- Melihat Nilai
-- Melihat Rapor
-- Melihat Informasi Pengumuman
+- Meninjau dan Memverifikasi Pendaftaran Anak (PPDB)
+- Mengelola Status Pengguna (Verifikasi Akun Wali)
+- Menyusun Jadwal Pelajaran (Mengelola Slot)
+- Mencatat Kehadiran Sesi Pelajaran
+- Mengisi dan Mengelola Nilai Komponen
+- Membuat, Menulis Catatan, dan Menerbitkan Rapor Semester
+- Mengelola Pengumuman / Informasi Pesantren
 
-## Use Case Santri
+### 5. Mudir Ma'had (Pengawasan - Read-Only)
+- Login
+- Memantau Pengguna
+- Memantau Jadwal Pelajaran
+- Memantau Rekap Absensi Santri
+- Memantau Rekap Nilai Santri
+- Memantau Rapor Semester Santri (Semua Status)
+- Memantau Pengumuman / Informasi Pesantren
 
-- Terdaftar sebagai data santri
+### 6. Santri (Aktor Pasif)
+- Terdaftar di sistem dan memiliki profil
 - Ditautkan ke akun wali santri
-- Memiliki data kelas, nilai, absensi, dan rapor
+- Memiliki riwayat kelas, absensi, nilai, dan rapor semester
 
-## Catatan Diagram
+## Hubungan Antar Use Case
+- Proses pendaftaran anak oleh Wali Santri menghasilkan berkas pendaftaran yang ditinjau oleh Administrasi.
+- Saat pendaftaran diterima, sistem secara otomatis menautkan data profil Santri ke akun Wali Santri pengaju.
+- Pengelolaan Nilai dan Kehadiran merupakan basis data utama untuk menyusun Rapor Semester. Rapor semester di-snapshot dari rata-rata nilai dan total kehadiran pada periode berjalan sebelum diterbitkan.
 
-- Hubungkan `Pendaftaran Anak` dari Wali Santri ke proses `Meninjau Pendaftaran Anak` oleh Administrasi.
-- Tambahkan relasi `include` dari `Meninjau Pendaftaran Anak` ke `Membuat/Menautkan Akun Wali` dan `Membuat Data Santri`.
-- Tambahkan kardinalitas konseptual: `1 Wali Santri` dapat memiliki `1..n Santri`.
-- Mudir Ma'had diberi akses pengawasan saja, sehingga gunakan label `Melihat` bukan `Mengelola`.

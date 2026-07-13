@@ -21,6 +21,10 @@ export default async function PenerimaanPage() {
     parentEmail: a.parentEmail,
     address: a.address,
     note: a.note,
+    familyCardUrl: a.familyCardUrl,
+    birthCertificateUrl: a.birthCertificateUrl,
+    previousReportUrl: a.previousReportUrl,
+    photoUrl: a.photoUrl,
     status: a.status,
     createdAt: dateFmt.format(a.createdAt),
   }));

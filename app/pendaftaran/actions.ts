@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { EducationLevel } from "@/generated/prisma/client";
+import { requireParent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
@@ -12,14 +13,16 @@ const schema = z.object({
   birthPlace: z.string().trim().optional(),
   birthDate: z.string().trim().optional(),
   previousSchool: z.string().trim().optional(),
-  parentName: z.string().trim().min(2, "Nama orang tua wajib diisi."),
-  parentPhone: z.string().trim().min(6, "Nomor HP wajib diisi."),
-  parentEmail: z.string().trim().email("Email tidak valid."),
   address: z.string().trim().optional(),
   note: z.string().trim().optional(),
+  familyCardUrl: z.string().trim().url().optional().or(z.literal("")),
+  birthCertificateUrl: z.string().trim().url().optional().or(z.literal("")),
+  previousReportUrl: z.string().trim().url().optional().or(z.literal("")),
+  photoUrl: z.string().trim().url().optional().or(z.literal("")),
 });
 
 export async function submitAdmissionAction(formData: FormData) {
+  const parent = await requireParent();
   const parsed = schema.safeParse({
     childName: formData.get("childName"),
     level: formData.get("level"),
@@ -27,11 +30,12 @@ export async function submitAdmissionAction(formData: FormData) {
     birthPlace: formData.get("birthPlace"),
     birthDate: formData.get("birthDate"),
     previousSchool: formData.get("previousSchool"),
-    parentName: formData.get("parentName"),
-    parentPhone: formData.get("parentPhone"),
-    parentEmail: formData.get("parentEmail"),
     address: formData.get("address"),
     note: formData.get("note"),
+    familyCardUrl: formData.get("familyCardUrl"),
+    birthCertificateUrl: formData.get("birthCertificateUrl"),
+    previousReportUrl: formData.get("previousReportUrl"),
+    photoUrl: formData.get("photoUrl"),
   });
 
   if (!parsed.success) {
@@ -47,11 +51,16 @@ export async function submitAdmissionAction(formData: FormData) {
       birthPlace: d.birthPlace || null,
       birthDate: d.birthDate ? new Date(d.birthDate) : null,
       previousSchool: d.previousSchool || null,
-      parentName: d.parentName,
-      parentPhone: d.parentPhone,
-      parentEmail: d.parentEmail.toLowerCase(),
+      parentName: parent.name,
+      parentPhone: parent.phone ?? "-",
+      parentEmail: parent.email.toLowerCase(),
       address: d.address || null,
       note: d.note || null,
+      submitterId: parent.id,
+      familyCardUrl: d.familyCardUrl || null,
+      birthCertificateUrl: d.birthCertificateUrl || null,
+      previousReportUrl: d.previousReportUrl || null,
+      photoUrl: d.photoUrl || null,
     },
   });
 

@@ -4,6 +4,8 @@ import {
   CourseStatus,
   EducationLevel,
   EnrollmentStatus,
+  ReportCardStatus,
+  Semester,
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client";
@@ -32,14 +34,34 @@ export function formatRelative(date: Date): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/*                          periode (semester + tahun ajaran)                 */
+/* -------------------------------------------------------------------------- */
+
+export type Period = { semester: Semester; academicYear: string };
+
+/** Juli-Desember = GANJIL tahun ajaran berjalan; Januari-Juni = GENAP tahun ajaran sebelumnya. */
+export function getCurrentPeriod(now = new Date()): Period {
+  const year = now.getFullYear();
+  const isFirstHalfOfSchoolYear = now.getMonth() >= 6;
+  return isFirstHalfOfSchoolYear
+    ? { semester: Semester.GANJIL, academicYear: `${year}/${year + 1}` }
+    : { semester: Semester.GENAP, academicYear: `${year - 1}/${year}` };
+}
+
+export function formatPeriod(period: Period) {
+  return `Semester ${period.semester === Semester.GANJIL ? "Ganjil" : "Genap"} ${period.academicYear}`;
+}
+
+/* -------------------------------------------------------------------------- */
 /*                                  dashboard                                 */
 /* -------------------------------------------------------------------------- */
 
 export const getDashboardData = cache(async (user: AuthUser) => {
   void user;
   const todayDow = new Date().getDay();
+  const weekStart = new Date(Date.now() - 28 * 864e5);
 
-  const [schedule, deadlines, attendanceForWeek, recentGradeItems, recentLessons, recentSessions, recentVerified] =
+  const [schedule, deadlines, attendanceSessionsForWeek, recentGradeItems, recentLessons, recentSessions, recentVerified] =
     await Promise.all([
       prisma.scheduleSlot.findMany({
         where: { dayOfWeek: todayDow, course: { deletedAt: null } },
@@ -59,11 +81,9 @@ export const getDashboardData = cache(async (user: AuthUser) => {
         take: 4,
         select: { id: true, title: true, dueAt: true, course: { select: { title: true } } },
       }),
-      prisma.attendanceRecord.findMany({
-        where: {
-          attendanceSession: { heldAt: { gte: new Date(Date.now() - 28 * 864e5) } },
-        },
-        select: { status: true, attendanceSession: { select: { heldAt: true } } },
+      prisma.attendanceSession.findMany({
+        where: { heldAt: { gte: weekStart }, course: { deletedAt: null } },
+        select: { heldAt: true, _count: { select: { records: true } } },
       }),
       prisma.gradeItem.findMany({
         orderBy: { createdAt: "desc" },
@@ -91,9 +111,9 @@ export const getDashboardData = cache(async (user: AuthUser) => {
 
   // Weekly activity buckets (Mon–Sat) from attendance.
   const buckets = new Map<number, number>();
-  for (const rec of attendanceForWeek) {
-    const dow = rec.attendanceSession.heldAt.getDay();
-    buckets.set(dow, (buckets.get(dow) ?? 0) + 1);
+  for (const session of attendanceSessionsForWeek) {
+    const dow = session.heldAt.getDay();
+    buckets.set(dow, (buckets.get(dow) ?? 0) + session._count.records);
   }
   const weekData = WEEK_BARS.map((dow) => ({ l: WEEKDAY_LABELS[dow], v: buckets.get(dow) ?? 0 }));
   const maxVal = Math.max(0, ...weekData.map((d) => d.v));
@@ -121,7 +141,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
       tag: "Absensi",
     })),
     ...recentVerified.map((u) => ({
-      who: "Admin",
+      who: "Administrasi",
       text: `memverifikasi akun ${u.name}`,
       at: u.verifiedAt as Date,
       tag: "Sistem",
@@ -139,7 +159,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
     done: number;
   }[] = [];
 
-  const [students, pending, courses, attendanceRecords] = await Promise.all([
+  const [students, pending, courses, attendanceGroups] = await Promise.all([
     prisma.studentProfile.count(),
     prisma.user.count({ where: { status: UserStatus.PENDING } }),
     prisma.course.findMany({
@@ -150,14 +170,26 @@ export const getDashboardData = cache(async (user: AuthUser) => {
         id: true,
         title: true,
         _count: { select: { lessons: true } },
-        enrollments: { select: { progress: true } },
       },
     }),
-    prisma.attendanceRecord.findMany({ select: { status: true } }),
+    prisma.attendanceRecord.groupBy({
+      by: ["status"],
+      _count: { status: true },
+    }),
   ]);
 
-  const present = attendanceRecords.filter((r) => r.status === AttendanceStatus.PRESENT).length;
-  const attRate = attendanceRecords.length ? Math.round((present / attendanceRecords.length) * 100) : 0;
+  const attendanceTotal = attendanceGroups.reduce((sum, group) => sum + group._count.status, 0);
+  const present = attendanceGroups.find((group) => group.status === AttendanceStatus.PRESENT)?._count.status ?? 0;
+  const attRate = attendanceTotal ? Math.round((present / attendanceTotal) * 100) : 0;
+  const courseIds = courses.map((course) => course.id);
+  const progressGroups = courseIds.length
+    ? await prisma.enrollment.groupBy({
+        by: ["courseId"],
+        where: { courseId: { in: courseIds }, status: EnrollmentStatus.ACTIVE },
+        _avg: { progress: true },
+      })
+    : [];
+  const avgProgressByCourse = new Map(progressGroups.map((group) => [group.courseId, Math.round(group._avg.progress ?? 0)]));
 
   stats = [
     { label: "Santri Aktif", value: String(students), tone: "var(--primary)", icon: "users", up: true },
@@ -166,7 +198,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
     { label: "Rata Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2", up: true },
   ];
   continueLearning = courses.map((c) => {
-    const avg = c.enrollments.length ? Math.round(c.enrollments.reduce((s, e) => s + e.progress, 0) / c.enrollments.length) : 0;
+    const avg = avgProgressByCourse.get(c.id) ?? 0;
     return { id: c.id, title: c.title, progress: avg, lessons: c._count.lessons, done: Math.round((avg / 100) * c._count.lessons) };
   });
 
@@ -205,10 +237,19 @@ export const getLearningOverview = cache(async (user: AuthUser) => {
       title: true,
       description: true,
       createdBy: { select: { name: true } },
-      enrollments: { select: { progress: true } },
       _count: { select: { lessons: true, enrollments: true } },
     },
   });
+  const courseIds = courses.map((course) => course.id);
+  const progressGroups = courseIds.length
+    ? await prisma.enrollment.groupBy({
+        by: ["courseId"],
+        where: { courseId: { in: courseIds }, status: EnrollmentStatus.ACTIVE },
+        _avg: { progress: true },
+      })
+    : [];
+  const avgProgressByCourse = new Map(progressGroups.map((group) => [group.courseId, Math.round(group._avg.progress ?? 0)]));
+
   return courses.map((c) => ({
     id: c.id,
     title: c.title,
@@ -216,7 +257,7 @@ export const getLearningOverview = cache(async (user: AuthUser) => {
     teacher: c.createdBy?.name ?? "Pengajar",
     lessons: c._count.lessons,
     students: c._count.enrollments,
-    progress: c.enrollments.length ? Math.round(c.enrollments.reduce((s, e) => s + e.progress, 0) / c.enrollments.length) : 0,
+    progress: avgProgressByCourse.get(c.id) ?? 0,
   }));
 });
 
@@ -252,7 +293,9 @@ export const getCourseManagement = cache(async (courseId: string) => {
       },
     }),
     prisma.studentProfile.findMany({
+      where: { enrollments: { none: { courseId, status: EnrollmentStatus.ACTIVE } } },
       orderBy: { name: "asc" },
+      take: 200,
       select: { id: true, name: true, studentNumber: true, className: true },
     }),
   ]);
@@ -270,7 +313,7 @@ async function courseTabsFor() {
 export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor();
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER;
+  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, columns: [], rows: [], canEdit };
@@ -289,10 +332,13 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
   });
 
   const columns = (course?.gradeItems ?? []).map((g) => ({ id: g.id, title: g.title, maxScore: g.maxScore }));
+  const recordsByGradeItem = new Map(
+    (course?.gradeItems ?? []).map((g) => [g.id, new Map(g.records.map((record) => [record.studentId, record.score]))]),
+  );
   const rows = (course?.enrollments ?? []).map((e) => {
     const scores = (course?.gradeItems ?? []).map((g) => {
-      const rec = g.records.find((r) => r.studentId === e.student.id);
-      return rec ? Math.round((rec.score / g.maxScore) * 100) : null;
+      const score = recordsByGradeItem.get(g.id)?.get(e.student.id);
+      return score === undefined ? null : Math.round((score / g.maxScore) * 100);
     });
     const present = scores.filter((s): s is number => s !== null);
     const avg = present.length ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : 0;
@@ -315,7 +361,7 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
 export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor();
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER;
+  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, sessions: [], rows: [], canEdit };
@@ -341,10 +387,12 @@ export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string
     title: s.title,
     date: new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(s.heldAt),
   }));
+  const recordsBySession = new Map(
+    (course?.attendanceSessions ?? []).map((s) => [s.id, new Map(s.records.map((record) => [record.studentId, record.status]))]),
+  );
   const rows = (course?.enrollments ?? []).map((e) => {
     const marks = (course?.attendanceSessions ?? []).map((s) => {
-      const rec = s.records.find((r) => r.studentId === e.student.id);
-      return rec ? rec.status : null;
+      return recordsBySession.get(s.id)?.get(e.student.id) ?? null;
     });
     return { studentId: e.student.id, name: e.student.name, studentNumber: e.student.studentNumber, marks };
   });
@@ -359,6 +407,7 @@ export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string
 export const getManagedUsers = cache(async () => {
   return prisma.user.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 200,
     select: {
       id: true,
       name: true,
@@ -405,19 +454,43 @@ export const getParentChildren = cache(async (parentId: string) => {
       level: true,
       className: true,
       studentNumber: true,
-      gradeRecords: { select: { score: true, gradeItem: { select: { maxScore: true } } } },
-      attendanceRecords: { select: { status: true } },
       _count: { select: { enrollments: true } },
     },
   });
+  const childIds = children.map((child) => child.id);
+  const [gradeRecords, attendanceGroups] = childIds.length
+    ? await Promise.all([
+        prisma.gradeRecord.findMany({
+          where: { studentId: { in: childIds } },
+          select: { studentId: true, score: true, gradeItem: { select: { maxScore: true } } },
+        }),
+        prisma.attendanceRecord.groupBy({
+          by: ["studentId", "status"],
+          where: { studentId: { in: childIds } },
+          _count: { status: true },
+        }),
+      ])
+    : [[], []];
+  const gradesByChild = new Map<string, typeof gradeRecords>();
+  for (const record of gradeRecords) {
+    const rows = gradesByChild.get(record.studentId) ?? [];
+    rows.push(record);
+    gradesByChild.set(record.studentId, rows);
+  }
+  const attendanceByChild = new Map<string, { present: number; total: number }>();
+  for (const group of attendanceGroups) {
+    const current = attendanceByChild.get(group.studentId) ?? { present: 0, total: 0 };
+    current.total += group._count.status;
+    if (group.status === AttendanceStatus.PRESENT) current.present += group._count.status;
+    attendanceByChild.set(group.studentId, current);
+  }
 
   return children.map((c) => {
-    const grades = c.gradeRecords;
+    const grades = gradesByChild.get(c.id) ?? [];
     const avg = grades.length
       ? Math.round(grades.reduce((s, r) => s + (r.score / r.gradeItem.maxScore) * 100, 0) / grades.length)
       : 0;
-    const att = c.attendanceRecords;
-    const present = att.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+    const att = attendanceByChild.get(c.id) ?? { present: 0, total: 0 };
     return {
       childId: c.id,
       name: c.name,
@@ -426,7 +499,7 @@ export const getParentChildren = cache(async (parentId: string) => {
       studentNumber: c.studentNumber,
       courses: c._count.enrollments,
       avg,
-      attRate: rate(present, att.length),
+      attRate: rate(att.present, att.total),
     };
   });
 });
@@ -522,6 +595,191 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
 });
 
 /* -------------------------------------------------------------------------- */
+/*                            schedule (penjadwalan)                          */
+/* -------------------------------------------------------------------------- */
+
+const DAY_NAMES = ["Ahad", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"] as const;
+
+/** Papan jadwal per hari (dayOfWeek 0 = Ahad, mengikuti Date.getDay()). */
+export const getScheduleBoard = cache(async (level?: EducationLevel) => {
+  const [slots, courses] = await Promise.all([
+    prisma.scheduleSlot.findMany({
+      where: { course: { deletedAt: null, ...(level ? { level } : {}) } },
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+      select: {
+        id: true,
+        dayOfWeek: true,
+        startTime: true,
+        room: true,
+        course: { select: { id: true, title: true, level: true, createdBy: { select: { name: true } } } },
+      },
+    }),
+    prisma.course.findMany({
+      where: { deletedAt: null },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, level: true },
+    }),
+  ]);
+
+  const days = DAY_NAMES.map((label, dayOfWeek) => ({
+    dayOfWeek,
+    label,
+    slots: slots
+      .filter((s) => s.dayOfWeek === dayOfWeek)
+      .map((s) => ({
+        id: s.id,
+        startTime: s.startTime,
+        room: s.room ?? "-",
+        courseId: s.course.id,
+        courseTitle: s.course.title,
+        level: s.course.level,
+        teacher: s.course.createdBy?.name ?? "-",
+      })),
+  }));
+
+  return { days, courses };
+});
+
+/* -------------------------------------------------------------------------- */
+/*                                rapor (staff)                               */
+/* -------------------------------------------------------------------------- */
+
+/** Rekap nilai + absensi per mapel untuk satu santri pada satu periode. */
+export async function computeReportEntries(studentId: string, period: Period) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId, course: { deletedAt: null } },
+    orderBy: { course: { title: "asc" } },
+    select: {
+      course: {
+        select: {
+          id: true,
+          title: true,
+          gradeItems: {
+            where: { semester: period.semester, academicYear: period.academicYear },
+            select: { maxScore: true, records: { where: { studentId }, select: { score: true } } },
+          },
+          attendanceSessions: {
+            where: { semester: period.semester, academicYear: period.academicYear },
+            select: { records: { where: { studentId }, select: { status: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  return enrollments.map(({ course }) => {
+    const values = course.gradeItems
+      .filter((g) => g.records.length > 0)
+      .map((g) => Math.round((g.records[0].score / g.maxScore) * 100));
+    const finalScore = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+
+    const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<AttendanceStatus, number>;
+    for (const session of course.attendanceSessions) {
+      const rec = session.records[0];
+      if (rec) marks[rec.status] += 1;
+    }
+
+    return {
+      courseId: course.id,
+      courseTitle: course.title,
+      finalScore,
+      present: marks.PRESENT,
+      late: marks.LATE,
+      absent: marks.ABSENT,
+      excused: marks.EXCUSED,
+    };
+  });
+}
+
+/** Daftar santri satu kelas + status rapor mereka pada periode itu. */
+export const getReportBoard = cache(async (period: Period, className?: string) => {
+  const classRows = await prisma.studentProfile.findMany({
+    distinct: ["className"],
+    orderBy: { className: "asc" },
+    select: { className: true },
+  });
+  const classes = classRows.map((row) => row.className);
+  const activeClass = className && classes.includes(className) ? className : classes[0] ?? null;
+
+  if (!activeClass) {
+    return { classes, activeClass: null, students: [] };
+  }
+
+  const students = await prisma.studentProfile.findMany({
+    where: { className: activeClass },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      studentNumber: true,
+      level: true,
+      reportCards: {
+        where: { semester: period.semester, academicYear: period.academicYear },
+        select: { id: true, status: true, publishedAt: true },
+      },
+    },
+  });
+
+  return {
+    classes,
+    activeClass,
+    students: students.map((s) => ({
+      studentId: s.id,
+      name: s.name,
+      studentNumber: s.studentNumber,
+      level: s.level,
+      reportCard: s.reportCards[0] ?? null,
+    })),
+  };
+});
+
+/** Detail satu rapor untuk staf (semua status) berikut barisnya. */
+export const getReportCardDetail = cache(async (reportCardId: string) => {
+  return prisma.reportCard.findUnique({
+    where: { id: reportCardId },
+    select: {
+      id: true,
+      semester: true,
+      academicYear: true,
+      homeroomNote: true,
+      status: true,
+      publishedAt: true,
+      createdBy: { select: { name: true } },
+      student: { select: { id: true, name: true, studentNumber: true, className: true, level: true } },
+      entries: {
+        orderBy: { courseTitle: "asc" },
+        select: { id: true, courseTitle: true, finalScore: true, present: true, late: true, absent: true, excused: true },
+      },
+    },
+  });
+});
+
+/** Rapor PUBLISHED milik satu anak, hanya jika anak itu milik wali peminta. */
+export const getChildReportCards = cache(async (parentId: string, childId: string) => {
+  const child = await prisma.studentProfile.findFirst({
+    where: { id: childId, parentId },
+    select: { id: true },
+  });
+  if (!child) return null;
+
+  return prisma.reportCard.findMany({
+    where: { studentId: childId, status: ReportCardStatus.PUBLISHED },
+    orderBy: [{ academicYear: "desc" }, { semester: "desc" }],
+    select: {
+      id: true,
+      semester: true,
+      academicYear: true,
+      homeroomNote: true,
+      publishedAt: true,
+      entries: {
+        orderBy: { courseTitle: "asc" },
+        select: { id: true, courseTitle: true, finalScore: true, present: true, late: true, absent: true, excused: true },
+      },
+    },
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /*                          announcements (informasi)                         */
 /* -------------------------------------------------------------------------- */
 
@@ -558,6 +816,7 @@ export const getParentLevels = cache(async (parentId: string) => {
 export const getAdmissions = cache(async () => {
   return prisma.admission.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 100,
     select: {
       id: true,
       childName: true,
@@ -571,6 +830,10 @@ export const getAdmissions = cache(async () => {
       parentEmail: true,
       address: true,
       note: true,
+      familyCardUrl: true,
+      birthCertificateUrl: true,
+      previousReportUrl: true,
+      photoUrl: true,
       status: true,
       createdAt: true,
     },
