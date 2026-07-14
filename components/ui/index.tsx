@@ -66,7 +66,7 @@ export function Card({
   return (
     <div
       className={`rounded-2xl border border-line bg-surface shadow-soft ${
-        hover ? "transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-pop" : ""
+        hover ? "transition hover:border-line-strong hover:shadow-pop" : ""
       } ${className}`}
       style={{ padding: pad, ...style }}
     >

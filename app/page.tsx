@@ -24,9 +24,9 @@ export default async function Home() {
           </Link>
           <Link
             href={user ? "/dashboard" : "/login"}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-600"
+            className="text-sm font-semibold text-ink-2 hover:text-primary transition"
           >
-            {user ? "Buka Dashboard" : "Login Wali"}
+            {user ? "Buka Dashboard" : "Login"}
           </Link>
         </nav>
 

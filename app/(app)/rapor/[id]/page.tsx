@@ -97,7 +97,7 @@ export default async function RaporDetailPage({ params }: { params: Promise<{ id
               <table className="w-full border-collapse" style={{ minWidth: 450 }}>
                 <thead>
                   <tr className="bg-surface-2/50 border-b border-line">
-                    <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-ink-2">Mata Pelajaran</th>
+                    <th className="sticky left-0 z-[2] min-w-[160px] bg-surface-2 px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wide text-ink-2">Mata Pelajaran</th>
                     <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-ink-2 w-24">Nilai Akhir</th>
                     <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wide text-ink-2 w-36">Kehadiran (H/I/T/A)</th>
                   </tr>
@@ -105,7 +105,7 @@ export default async function RaporDetailPage({ params }: { params: Promise<{ id
                 <tbody>
                   {entries.map((e) => (
                     <tr key={e.id} className="border-b border-line last:border-0 hover:bg-surface-2/20 transition-colors">
-                      <td className="px-4 py-3.5 text-sm font-semibold text-ink-1">{e.courseTitle}</td>
+                      <td className="sticky left-0 z-[1] bg-surface px-4 py-3.5 text-sm font-semibold text-ink-1 whitespace-nowrap">{e.courseTitle}</td>
                       <td className="px-4 py-3.5 text-center">
                         <span className="text-base font-extrabold" style={{ color: scoreColor(e.finalScore) }}>
                           {e.finalScore}
@@ -133,7 +133,7 @@ export default async function RaporDetailPage({ params }: { params: Promise<{ id
           {/* Attendance Summary */}
           <Card pad={18}>
             <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-ink-3">Rekap Kehadiran Semester</h2>
-            <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
               <div className="rounded-xl bg-success-soft p-2.5">
                 <div className="text-xs font-bold text-[oklch(0.42_0.13_150)]">Hadir</div>
                 <div className="mt-1 text-2xl font-extrabold text-[oklch(0.42_0.13_150)]">{totalAtt.present}</div>
