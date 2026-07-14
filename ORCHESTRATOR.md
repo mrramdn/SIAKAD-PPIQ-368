@@ -97,7 +97,9 @@ akses data baru. Setelah selesai jalankan pnpm lint dan pnpm build.
 - [x] Jadwal: slot ditampilkan sebagai baris datar (tidak ada card di dalam card), input waktu memakai `type="time"`, format jam dinormalisasi ke `HH:MM` di action, helper, dan seed.
 - [x] Pendaftaran anak dipindah ke dalam shell dashboard (`app/(app)/pendaftaran`), URL tetap `/pendaftaran`; non-wali diarahkan ke Penerimaan/Dashboard.
 
-## 7. Fase UX Refinement (Gemini)
+## 7. Fase UX Refinement (Gemini) — SELESAI (15 Juli 2026, PR #6)
+
+Keenam temuan sudah dieksekusi Gemini dan lolos QA Claude. Catatan QA: temuan #6 diselesaikan Claude (letaknya di UI kit `components/ui/index.tsx`); patch tambahan alias token `--color-ink-1` di `globals.css`; bonus Gemini di temuan #4: section "Rapor Semester Terbaru" di dashboard wali (ownership check aman via `getChildReportCards`). Temuan #3 untuk `anak/page.tsx` sengaja tidak diubah karena `grid-cols-3` berisi angka kecil masih lega di 360px.
 
 Fokus: pengalaman mobile (wali mengakses dari ponsel) dan mengurangi kebisingan visual. Kerjakan per halaman, uji setiap perubahan di viewport 360px.
 
