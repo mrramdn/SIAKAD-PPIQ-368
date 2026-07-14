@@ -65,25 +65,26 @@ export function ReportBoardTable({
   return (
     <Card pad={0} className="overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse" style={{ minWidth: 600 }}>
+        <table className="w-full border-collapse" style={{ minWidth: 620 }}>
           <thead>
             <tr className="bg-surface-2">
-              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2 w-12 text-center">No</th>
-              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2">Santri</th>
-              <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2 w-28">Status Rapor</th>
-              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-ink-2 w-72">Aksi</th>
+              <th className="sticky left-0 z-[2] min-w-[220px] bg-surface-2 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2">
+                Santri
+              </th>
+              <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2 w-28 whitespace-nowrap">Status Rapor</th>
+              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-ink-2 w-72 whitespace-nowrap">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {students.map((s, idx) => (
-              <tr key={s.studentId} className="border-t border-line hover:bg-surface-2 transition-colors">
-                <td className="px-4 py-3 text-center text-sm text-ink-3">{idx + 1}</td>
-                <td className="px-4 py-3">
+              <tr key={s.studentId} className="border-t border-line hover:bg-surface-2/20 transition-colors">
+                <td className="sticky left-0 z-[1] bg-surface px-4 py-3">
                   <div className="flex items-center gap-3">
+                    <span className="w-5 text-right text-xs font-semibold text-ink-3">{idx + 1}</span>
                     <Avatar initials={s.name.split(" ").map((w) => w[0]).slice(0, 2).join("")} color="var(--primary)" size={32} />
-                    <div>
-                      <div className="text-sm font-semibold text-ink-1">{s.name}</div>
-                      <div className="mono text-[11px] text-ink-3">{s.studentNumber} • {s.level}</div>
+                    <div className="min-w-0">
+                      <div className="whitespace-nowrap text-sm font-semibold text-ink-1">{s.name}</div>
+                      <div className="mono text-[11.5px] text-ink-3">{s.studentNumber} • {s.level}</div>
                     </div>
                   </div>
                 </td>
