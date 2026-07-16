@@ -91,7 +91,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
           className={`${inputClasses} ${isEdit ? "bg-surface-2 text-ink-3" : ""}`}
         />
       </Field>
-      <div className="grid grid-cols-2 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
         <Field label="Peran">
           <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClasses}>
             <option value="PARENT">Wali Santri</option>
@@ -265,7 +265,7 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
           <table className="w-full border-collapse" style={{ minWidth: 640 }}>
             <thead>
               <tr className="bg-surface-2 text-xs font-bold uppercase tracking-wide text-ink-2">
-                <th className="px-3.5 py-3 text-left">Nama</th>
+                <th className="sticky left-0 z-[2] min-w-[200px] bg-surface-2 px-3.5 py-3 text-left">Nama</th>
                 <th className="px-3.5 py-3 text-left">Peran</th>
                 <th className="px-3.5 py-3 text-left">Status</th>
                 <th className="px-3.5 py-3 text-right" />
@@ -273,8 +273,8 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
             </thead>
             <tbody>
               {list.map((u) => (
-                <tr key={u.id} className="border-t border-line hover:bg-surface-2">
-                  <td className="px-3.5 py-3">
+                <tr key={u.id} className="border-t border-line hover:bg-surface-2/20">
+                  <td className="sticky left-0 z-[1] bg-surface px-3.5 py-3">
                     <div className="flex items-center gap-2.5">
                       <Avatar initials={initialsFromName(u.name)} color="var(--primary)" size={36} />
                       <div className="min-w-0">
