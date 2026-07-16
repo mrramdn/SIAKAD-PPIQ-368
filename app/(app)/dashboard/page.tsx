@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireVerifiedUser } from "@/lib/auth";
-import { getAnnouncements, getDashboardData, getParentChildren, getParentLevels } from "@/lib/lms";
+import { getAnnouncements, getDashboardData, getParentChildren, getParentLevels, getChildReportCards } from "@/lib/lms";
 import {
   Avatar,
   BarChart,
@@ -10,7 +10,6 @@ import {
   Progress,
   Ring,
   SectionTitle,
-  StatCard,
   buttonClasses,
   courseAccent,
   initialsFromName,
@@ -27,11 +26,33 @@ export default async function DashboardPage() {
   if (user.role === "PARENT") {
     const levels = await getParentLevels(user.id);
     const [children, announcements] = await Promise.all([getParentChildren(user.id), getAnnouncements(levels)]);
+
+    // Fetch published report cards for each child
+    const reportCardsList = await Promise.all(
+      children.map(async (child) => {
+        const cards = await getChildReportCards(user.id, child.childId);
+        return (cards || []).map((c) => ({
+          ...c,
+          childName: child.name,
+          childId: child.childId,
+        }));
+      })
+    );
+    const publishedReportCards = reportCardsList.flat();
+
     return (
       <ParentDashboard
         name={user.name}
         kids={children}
         announcements={announcements.map((a) => ({ id: a.id, title: a.title, level: a.level, createdAt: annFmt.format(a.createdAt) }))}
+        publishedReportCards={publishedReportCards.map((rc) => ({
+          id: rc.id,
+          childName: rc.childName,
+          childId: rc.childId,
+          semester: rc.semester,
+          academicYear: rc.academicYear,
+          publishedAt: rc.publishedAt ? annFmt.format(rc.publishedAt) : "-",
+        }))}
       />
     );
   }
@@ -97,19 +118,41 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-        {data.stats.map((s) => (
-          <StatCard
-            key={s.label}
-            label={s.label}
-            value={s.value}
-            delta={s.delta}
-            up={s.up}
-            tone={s.tone}
-            icon={Icons[s.icon as IconKey]}
-          />
-        ))}
-      </div>
+      <Card pad={18}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-4" style={{ gap: "16px 20px" }}>
+          {data.stats.map((s, idx) => {
+            const Icon = Icons[s.icon as IconKey];
+            let borderClass = "";
+            if (idx === 0) {
+              borderClass = "";
+            } else if (idx === 1) {
+              borderClass = "border-l border-line pl-4 lg:pl-5";
+            } else if (idx === 2) {
+              borderClass = "border-t border-line pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-line lg:pl-5";
+            } else if (idx === 3) {
+              borderClass = "border-t border-l border-line pt-4 pl-4 lg:border-t-0 lg:pt-0 lg:pl-5";
+            }
+
+            return (
+              <div key={s.label} className={`flex flex-col justify-between ${borderClass}`}>
+                <div className="flex items-start justify-between">
+                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: s.tone }}>
+                    <Icon size={20} />
+                  </div>
+                  {s.delta ? (
+                    <Badge tone={s.up ? "success" : "warning"}>
+                      {s.up ? <Icons.arrowUp size={11} /> : null}
+                      {s.delta}
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-3.5 text-2xl font-extrabold tracking-tight">{s.value}</div>
+                <div className="mt-0.5 text-[12.5px] font-medium text-ink-3">{s.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       {/* Main grid */}
       <div className="grid items-start gap-4.5 lg:grid-cols-[1.55fr_1fr]" style={{ gap: 18 }}>

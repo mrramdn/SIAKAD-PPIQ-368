@@ -16,16 +16,36 @@ type Child = {
 
 type Announcement = { id: string; title: string; level: Level | null; createdAt: string };
 
+type PublishedReportCard = {
+  id: string;
+  childName: string;
+  childId: string;
+  semester: "GANJIL" | "GENAP";
+  academicYear: string;
+  publishedAt: string;
+};
+
 const LEVEL_TONE: Record<Level, Tone> = { SD: "accent", SMP: "primary", SMA: "success" };
 const dateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-export function ParentDashboard({ name, kids, announcements }: { name: string; kids: Child[]; announcements: Announcement[] }) {
+export function ParentDashboard({
+  name,
+  kids,
+  announcements,
+  publishedReportCards = [],
+}: {
+  name: string;
+  kids: Child[];
+  announcements: Announcement[];
+  publishedReportCards?: PublishedReportCard[];
+}) {
   const greet = name.split(" ")[0];
   const avgAll = kids.length ? Math.round(kids.reduce((s, c) => s + c.avg, 0) / kids.length) : 0;
   const attAll = kids.length ? Math.round(kids.reduce((s, c) => s + c.attRate, 0) / kids.length) : 0;
 
   return (
     <div className="view-enter flex flex-col" style={{ gap: 22 }}>
+      {/* Welcome Banner */}
       <div className="relative overflow-hidden rounded-[22px] p-6 text-white shadow-pop lg:p-8" style={{ background: "var(--primary-700)" }}>
         <div className="absolute -right-10 -top-10 h-52 w-52 rounded-full bg-white/10" />
         <div className="relative flex flex-wrap items-center justify-between gap-4">
@@ -55,57 +75,122 @@ export function ParentDashboard({ name, kids, announcements }: { name: string; k
         </div>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-        <Card hover pad={18}>
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2 text-primary">{Icons.users({ size: 21 })}</div>
-          <div className="mt-3.5 text-[28px] font-extrabold tabular-nums tracking-tight">{kids.length}</div>
-          <div className="mt-0.5 text-[13px] font-medium text-ink-3">Anak Terpantau</div>
-        </Card>
-        <Card hover pad={18}>
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--teal)" }}>{Icons.award({ size: 21 })}</div>
-          <div className="mt-3.5 text-[28px] font-extrabold tabular-nums tracking-tight">{avgAll || "-"}</div>
-          <div className="mt-0.5 text-[13px] font-medium text-ink-3">Rata Nilai</div>
-        </Card>
-        <Card hover pad={18}>
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--green)" }}>{Icons.check2({ size: 21 })}</div>
-          <div className="mt-3.5 text-[28px] font-extrabold tabular-nums tracking-tight">{attAll}%</div>
-          <div className="mt-0.5 text-[13px] font-medium text-ink-3">Rata Kehadiran</div>
-        </Card>
-        <Card hover pad={18}>
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--amber)" }}>{Icons.bell({ size: 21 })}</div>
-          <div className="mt-3.5 text-[28px] font-extrabold tabular-nums tracking-tight">{announcements.length}</div>
-          <div className="mt-0.5 text-[13px] font-medium text-ink-3">Informasi Terbaru</div>
-        </Card>
-      </div>
-
-      <div className="grid items-start gap-4.5 lg:grid-cols-[1.55fr_1fr]" style={{ gap: 18 }}>
-        <Card pad={20}>
-          <SectionTitle title="Anak Saya" sub="Ringkasan tiap santri" action={<Link href="/anak" className={buttonClasses("ghost", "sm")}>Semua</Link>} />
-          <div className="flex flex-col gap-3">
-            {kids.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-ink-3">Belum ada data anak terhubung dengan akun Anda.</p>
-            ) : (
-              kids.map((c) => (
-                <Link key={c.childId} href={`/anak/${c.childId}`} className="flex items-center gap-3.5 rounded-xl border border-line p-3.5 transition hover:bg-surface-2">
-                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary-soft text-sm font-bold text-primary-700">{c.level}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-[15px] font-bold">{c.name}</span>
-                      <Badge tone={LEVEL_TONE[c.level]}>{c.className}</Badge>
-                    </div>
-                    <div className="mt-1 flex gap-4 text-[12.5px] text-ink-3">
-                      <span>Nilai <strong className="tabular-nums" style={{ color: scoreColor(c.avg) }}>{c.avg || "-"}</strong></span>
-                      <span>Hadir <strong className="tabular-nums text-ink-2">{c.attRate}%</strong></span>
-                      <span className="hidden sm:inline">{c.courses} mapel</span>
-                    </div>
-                  </div>
-                  <Icons.chevR size={18} style={{ color: "var(--text-3)" }} />
-                </Link>
-              ))
-            )}
+      {/* Merged Stat Cards (Unified 2x2 grid on mobile, 4 columns on desktop) */}
+      <Card pad={18}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-4" style={{ gap: "16px 20px" }}>
+          {/* Stat 1: Anak Terpantau */}
+          <div className="flex flex-col justify-between">
+            <div className="flex items-start justify-between">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2 text-primary">
+                <Icons.users size={20} />
+              </div>
+            </div>
+            <div className="mt-3.5 text-2xl font-extrabold tracking-tight">{kids.length}</div>
+            <div className="mt-0.5 text-[12.5px] font-medium text-ink-3">Anak Terpantau</div>
           </div>
-        </Card>
 
+          {/* Stat 2: Rata Nilai */}
+          <div className="flex flex-col justify-between border-l border-line pl-4 lg:pl-5">
+            <div className="flex items-start justify-between">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--teal)" }}>
+                <Icons.award size={20} />
+              </div>
+            </div>
+            <div className="mt-3.5 text-2xl font-extrabold tracking-tight">{avgAll || "-"}</div>
+            <div className="mt-0.5 text-[12.5px] font-medium text-ink-3">Rata Nilai</div>
+          </div>
+
+          {/* Stat 3: Rata Kehadiran */}
+          <div className="flex flex-col justify-between border-t border-line pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-line lg:pl-5">
+            <div className="flex items-start justify-between">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--green)" }}>
+                <Icons.check2 size={20} />
+              </div>
+            </div>
+            <div className="mt-3.5 text-2xl font-extrabold tracking-tight">{attAll}%</div>
+            <div className="mt-0.5 text-[12.5px] font-medium text-ink-3">Rata Kehadiran</div>
+          </div>
+
+          {/* Stat 4: Informasi Terbaru */}
+          <div className="flex flex-col justify-between border-t border-l border-line pt-4 pl-4 lg:border-t-0 lg:pt-0 lg:pl-5">
+            <div className="flex items-start justify-between">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--amber)" }}>
+                <Icons.bell size={20} />
+              </div>
+            </div>
+            <div className="mt-3.5 text-2xl font-extrabold tracking-tight">{announcements.length}</div>
+            <div className="mt-0.5 text-[12.5px] font-medium text-ink-3">Informasi Terbaru</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Main content grid */}
+      <div className="grid items-start gap-4.5 lg:grid-cols-[1.55fr_1fr]" style={{ gap: 18 }}>
+        <div className="flex flex-col gap-4.5" style={{ gap: 18 }}>
+          {/* Children List */}
+          <Card pad={20}>
+            <SectionTitle title="Anak Saya" sub="Ringkasan tiap santri" action={<Link href="/anak" className={buttonClasses("ghost", "sm")}>Semua</Link>} />
+            <div className="flex flex-col gap-3">
+              {kids.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-ink-3">Belum ada data anak terhubung dengan akun Anda.</p>
+              ) : (
+                kids.map((c) => (
+                  <Link key={c.childId} href={`/anak/${c.childId}`} className="flex items-center gap-3.5 rounded-xl border border-line p-3.5 transition hover:bg-surface-2">
+                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary-soft text-sm font-bold text-primary-700">{c.level}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-[15px] font-bold">{c.name}</span>
+                        <Badge tone={LEVEL_TONE[c.level]}>{c.className}</Badge>
+                      </div>
+                      <div className="mt-1 flex gap-4 text-[12.5px] text-ink-3">
+                        <span>Nilai <strong className="tabular-nums" style={{ color: scoreColor(c.avg) }}>{c.avg || "-"}</strong></span>
+                        <span>Hadir <strong className="tabular-nums text-ink-2">{c.attRate}%</strong></span>
+                        <span className="hidden sm:inline">{c.courses} mapel</span>
+                      </div>
+                    </div>
+                    <Icons.chevR size={18} style={{ color: "var(--text-3)" }} />
+                  </Link>
+                ))
+              )}
+            </div>
+          </Card>
+
+          {/* Published Report Cards */}
+          {publishedReportCards.length > 0 && (
+            <Card pad={20}>
+              <SectionTitle title="Rapor Semester Terbaru" sub="Rapor hasil belajar yang telah terbit resmi" />
+              <div className="flex flex-col gap-3">
+                {publishedReportCards.map((rc) => (
+                  <Link
+                    key={rc.id}
+                    href={`/anak/${rc.childId}`}
+                    className="flex items-center justify-between gap-3.5 rounded-xl border border-line p-3.5 transition hover:bg-surface-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-success-soft text-success">
+                        <Icons.award size={20} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[14.5px] font-bold text-ink">
+                          Rapor {rc.childName}
+                        </div>
+                        <div className="text-[12.5px] text-ink-3">
+                          Semester {rc.semester === "GANJIL" ? "Ganjil" : "Genap"} · TA {rc.academicYear}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-ink-3">
+                      <span className="hidden sm:inline">Terbit: {rc.publishedAt}</span>
+                      <Icons.chevR size={16} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar Column: Announcements */}
         <Card pad={20}>
           <SectionTitle title="Informasi Terbaru" action={<Link href="/informasi" className={buttonClasses("ghost", "sm")}>Semua</Link>} />
           <div className="flex flex-col gap-3">
