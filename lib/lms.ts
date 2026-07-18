@@ -61,7 +61,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   const todayDow = new Date().getDay();
   const weekStart = new Date(Date.now() - 28 * 864e5);
 
-  const [schedule, deadlines, attendanceSessionsForWeek, recentGradeItems, recentLessons, recentSessions, recentVerified] =
+  const [schedule, deadlines, attendanceSessionsForWeek, recentGradeItems, recentSessions, recentVerified] =
     await Promise.all([
       prisma.scheduleSlot.findMany({
         where: { dayOfWeek: todayDow, course: { deletedAt: null } },
@@ -86,12 +86,6 @@ export const getDashboardData = cache(async (user: AuthUser) => {
         select: { heldAt: true, _count: { select: { records: true } } },
       }),
       prisma.gradeItem.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 4,
-        select: { title: true, createdAt: true, course: { select: { title: true, createdBy: { select: { name: true } } } } },
-      }),
-      prisma.lesson.findMany({
-        where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
         take: 4,
         select: { title: true, createdAt: true, course: { select: { title: true, createdBy: { select: { name: true } } } } },
@@ -128,12 +122,6 @@ export const getDashboardData = cache(async (user: AuthUser) => {
       at: g.createdAt,
       tag: "Nilai",
     })),
-    ...recentLessons.map((l) => ({
-      who: l.course.createdBy?.name ?? "Pengajar",
-      text: `mengunggah materi "${l.title}" di ${l.course.title}`,
-      at: l.createdAt,
-      tag: "Materi",
-    })),
     ...recentSessions.map((s) => ({
       who: "Operator",
       text: `membuat sesi absensi "${s.title}" di ${s.course.title}`,
@@ -149,15 +137,8 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   ];
   const activity = feedRaw.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 5);
 
-  // Role-specific stats + "continue learning".
+  // Role-specific stats + ringkasan mata pelajaran.
   let stats: { label: string; value: string; delta?: string; up?: boolean; tone: string; icon: string }[] = [];
-  let continueLearning: {
-    id: string;
-    title: string;
-    progress: number;
-    lessons: number;
-    done: number;
-  }[] = [];
 
   const [students, pending, courses, attendanceGroups] = await Promise.all([
     prisma.studentProfile.count(),
@@ -169,7 +150,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
       select: {
         id: true,
         title: true,
-        _count: { select: { lessons: true } },
+        _count: { select: { enrollments: true } },
       },
     }),
     prisma.attendanceRecord.groupBy({
@@ -181,30 +162,17 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   const attendanceTotal = attendanceGroups.reduce((sum, group) => sum + group._count.status, 0);
   const present = attendanceGroups.find((group) => group.status === AttendanceStatus.PRESENT)?._count.status ?? 0;
   const attRate = attendanceTotal ? Math.round((present / attendanceTotal) * 100) : 0;
-  const courseIds = courses.map((course) => course.id);
-  const progressGroups = courseIds.length
-    ? await prisma.enrollment.groupBy({
-        by: ["courseId"],
-        where: { courseId: { in: courseIds }, status: EnrollmentStatus.ACTIVE },
-        _avg: { progress: true },
-      })
-    : [];
-  const avgProgressByCourse = new Map(progressGroups.map((group) => [group.courseId, Math.round(group._avg.progress ?? 0)]));
-
   stats = [
     { label: "Santri Aktif", value: String(students), tone: "var(--primary)", icon: "users", up: true },
     { label: "Menunggu Verifikasi", value: String(pending), tone: "var(--amber)", icon: "award", up: false, delta: pending ? "perlu tinjauan" : undefined },
     { label: "Kelas Berjalan", value: String(courses.length), tone: "var(--teal)", icon: "book", up: true },
     { label: "Rata Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2", up: true },
   ];
-  continueLearning = courses.map((c) => {
-    const avg = avgProgressByCourse.get(c.id) ?? 0;
-    return { id: c.id, title: c.title, progress: avg, lessons: c._count.lessons, done: Math.round((avg / 100) * c._count.lessons) };
-  });
+  const courseSummaries = courses.map((c) => ({ id: c.id, title: c.title, students: c._count.enrollments }));
 
   return {
     stats,
-    continueLearning,
+    courses: courseSummaries,
     weeklyActivity,
     schedule: schedule.map((s) => ({
       id: s.id,
@@ -224,11 +192,10 @@ export const getDashboardData = cache(async (user: AuthUser) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/*                              learning (courses)                            */
+/*                          mata pelajaran (courses)                          */
 /* -------------------------------------------------------------------------- */
 
-export const getLearningOverview = cache(async (user: AuthUser) => {
-  void user;
+export const getCourseOverview = cache(async () => {
   const courses = await prisma.course.findMany({
     where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
@@ -236,28 +203,20 @@ export const getLearningOverview = cache(async (user: AuthUser) => {
       id: true,
       title: true,
       description: true,
+      level: true,
       createdBy: { select: { name: true } },
-      _count: { select: { lessons: true, enrollments: true } },
+      _count: { select: { enrollments: true, scheduleSlots: true } },
     },
   });
-  const courseIds = courses.map((course) => course.id);
-  const progressGroups = courseIds.length
-    ? await prisma.enrollment.groupBy({
-        by: ["courseId"],
-        where: { courseId: { in: courseIds }, status: EnrollmentStatus.ACTIVE },
-        _avg: { progress: true },
-      })
-    : [];
-  const avgProgressByCourse = new Map(progressGroups.map((group) => [group.courseId, Math.round(group._avg.progress ?? 0)]));
 
   return courses.map((c) => ({
     id: c.id,
     title: c.title,
     description: c.description,
+    level: c.level,
     teacher: c.createdBy?.name ?? "Pengajar",
-    lessons: c._count.lessons,
     students: c._count.enrollments,
-    progress: avgProgressByCourse.get(c.id) ?? 0,
+    scheduleSlots: c._count.scheduleSlots,
   }));
 });
 
@@ -276,17 +235,11 @@ export const getCourseManagement = cache(async (courseId: string) => {
         description: true,
         status: true,
         createdBy: { select: { name: true } },
-        lessons: {
-          where: { deletedAt: null },
-          orderBy: { order: "asc" },
-          select: { id: true, title: true, description: true, type: true, duration: true, order: true },
-        },
         enrollments: {
           where: { status: EnrollmentStatus.ACTIVE },
           orderBy: { student: { name: "asc" } },
           select: {
             id: true,
-            progress: true,
             student: { select: { id: true, name: true, studentNumber: true, className: true } },
           },
         },
