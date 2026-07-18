@@ -5,18 +5,20 @@ Backend dan skema dikerjakan lewat Claude Code. Frontend dikerjakan lewat Gemini
 
 ## 1. Scope Final
 
-Fitur inti aplikasi ada 5:
+Fitur inti aplikasi ada 6 (mengikuti use case diagram arahan pembimbing, 18 Juli 2026):
 
 1. Pendaftaran (PPDB)
-2. Absensi
+2. Absensi Santri
 3. Penjadwalan
 4. Pengelolaan Nilai
 5. Pengelolaan Rapor
+6. Absensi Ustadz dan BKKH
 
 Catatan keputusan:
 
 - Pengelolaan Nilai dan Pengelolaan Rapor tetap ditulis sebagai 2 use case di dokumen skripsi, tetapi diimplementasikan sebagai 1 modul. Rapor adalah rekap nilai dan absensi per semester yang difinalkan oleh wali kelas atau admin, lalu dibaca oleh wali santri.
 - Fitur pendukung tetap ada tetapi bukan fokus skripsi: login/auth, pengelolaan pengguna, pengumuman (informasi), portal wali (anak saya).
+- Absensi Ustadz (18 Juli 2026): model `StaffAttendance` (unik per ustadz per tanggal, enum status sama dengan absensi santri), halaman `/absen-ustadz`. Aturan: ustadz/wali kelas menandai kehadiran sendiri untuk hari ini, administrasi mencatat siapa pun di tanggal mana pun, mudir memantau read-only, wali santri tidak punya akses. Bagian **laporan BKKH belum diimplementasikan** karena kepanjangan/format BKKH masih ditanyakan ke pembimbing; kolom `note` di `StaffAttendance` disiapkan untuk itu.
 - Modul learning (Course + Lesson) direposisi. Course dipakai sebagai "Mata Pelajaran" untuk keperluan jadwal, absensi, nilai, dan rapor. Konten Lesson (materi, video, kuis) tidak dikembangkan lebih lanjut dan tidak diklaim di skripsi.
 
 ## 2. Status Saat Ini (per Juli 2026)

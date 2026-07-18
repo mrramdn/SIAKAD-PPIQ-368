@@ -9,6 +9,7 @@ Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tail
 3. **Penjadwalan**: jadwal pelajaran per pekan per jenjang; wali hanya melihat jadwal anaknya.
 4. **Pengelolaan Nilai**: komponen nilai per mata pelajaran per periode (semester + tahun ajaran).
 5. **Pengelolaan Rapor**: rekap nilai + absensi per semester di-snapshot menjadi rapor, diberi catatan wali kelas, lalu diterbitkan ke wali.
+6. **Absensi Ustadz**: kehadiran harian pengajar dan wali kelas; ustadz menandai kehadiran sendiri, administrasi mencatat semua, mudir memantau. (Laporan BKKH menyusul.)
 
 Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **PWA** (installable, halaman terakhir bisa dibuka saat offline).
 
@@ -78,6 +79,7 @@ Buka `http://localhost:3000`.
   - `penerimaan`: tinjauan pendaftaran (administrasi); menerima menautkan data santri ke akun wali
   - `jadwal`: jadwal pelajaran per pekan (staf kelola per jenjang; wali melihat jadwal anaknya)
   - `nilai`, `absen`: pengelolaan nilai dan absensi per mapel
+  - `absen-ustadz`: absensi harian pengajar/wali kelas + rekap bulanan
   - `rapor` & `rapor/[id]`: papan rapor per kelas, detail, catatan wali kelas, penerbitan
   - `informasi`: pengumuman (wali baca, guru/admin kelola)
   - `learning`, `pengguna`, `pengaturan`
