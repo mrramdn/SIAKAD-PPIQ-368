@@ -4,7 +4,7 @@
 
 Pesantren Digital is an Islamic boarding school (pondok pesantren) information system built as a Next.js monolith. Its primary audience is **wali santri**: wali create an account, register one or more children, then monitor grades, attendance, and announcements. **Students (santri) do not log in** — their data is only viewed. Wali kelas and pengajar manage learning, grades, attendance, and announcements. Administrasi review new-student admissions (PPDB). Mudir supervises read-only data. The system supports three levels: **SD, SMP, and SMA**.
 
-Current scope is **5 core features** (see `ORCHESTRATOR.md`): (1) admissions/PPDB — parent account registration + in-dashboard child admission form with document URLs ready for Cloudinary, reviewed by admin; (2) attendance per course session; (3) scheduling — weekly schedule per level managed by staff, parents see only their own children's schedule; (4) grade management per course/period; (5) report cards — per-student per-semester snapshot of grades + attendance with homeroom note, published to parents. Supporting features: announcements, user management, parent portal, mudir read-only supervision, installable PWA. The learning/lesson module is legacy: `Course` now mainly represents a subject (mata pelajaran); lesson content is not developed further.
+Current scope is **6 core features** (see `ORCHESTRATOR.md`): (1) admissions/PPDB — parent account registration + in-dashboard child admission form with document URLs ready for Cloudinary, reviewed by admin; (2) attendance per course session; (3) scheduling — weekly schedule per level managed by staff, parents see only their own children's schedule; (4) grade management per course/period; (5) report cards — per-student per-semester snapshot of grades + attendance with homeroom note, published to parents; (6) staff attendance (absensi ustadz) — daily attendance for teachers/homeroom, self check-in for today, admin records anyone, mudir monitors (BKKH report pending advisor clarification, `note` column reserved). Supporting features: announcements, user management, parent portal, mudir read-only supervision, installable PWA. The learning/lesson module is legacy: `Course` now mainly represents a subject (mata pelajaran); lesson content is not developed further.
 
 Deployment: Vercel is used for **preview only**. Production will run on the user's own server via Docker (planned; user reports Vercel + Prisma performing slowly).
 
@@ -57,6 +57,7 @@ app/
     jadwal/             weekly schedule (staff manage per level; parents see own children only)
     nilai/              gradebook per course
     absen/              attendance per course session
+    absen-ustadz/       daily staff attendance board + monthly recap
     rapor/  rapor/[id]/ report cards: per-class board, detail, homeroom note, publish
     informasi/          announcements (parents read, staff manage)
     learning/ pengguna/ pengaturan/
@@ -73,7 +74,8 @@ prisma/
   migrations/
   schema.prisma         User roles, EducationLevel, Semester, Admission, Announcement,
                         Course/ScheduleSlot, GradeItem/GradeRecord (per period),
-                        AttendanceSession/Record (per period), ReportCard/ReportCardEntry
+                        AttendanceSession/Record (per period), StaffAttendance,
+                        ReportCard/ReportCardEntry
   seed.ts               demo users + data; report card demo (SMA published, SMP draft)
 public/
   sw.js                 service worker (offline fallback + page/static caching)

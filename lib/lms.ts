@@ -893,3 +893,78 @@ export const getAdmissions = cache(async () => {
     },
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/*                          absensi ustadz (staff)                            */
+/* -------------------------------------------------------------------------- */
+
+const STAFF_ROLES = [UserRole.TEACHER, UserRole.HOMEROOM] as const;
+
+/** Kunci tanggal lokal "YYYY-MM-DD". */
+export function toDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** Kolom bertipe DATE disimpan sebagai tengah malam UTC oleh Prisma. */
+export function dateKeyToDb(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`);
+}
+
+/** Daftar ustadz (pengajar + wali kelas) beserta status kehadiran pada satu tanggal. */
+export const getStaffAttendanceBoard = cache(async (dateKey: string) => {
+  const date = dateKeyToDb(dateKey);
+  const [teachers, records] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: { in: [...STAFF_ROLES] }, status: UserStatus.VERIFIED },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, role: true },
+    }),
+    prisma.staffAttendance.findMany({
+      where: { date },
+      select: { teacherId: true, status: true, note: true },
+    }),
+  ]);
+  const byTeacher = new Map(records.map((r) => [r.teacherId, r]));
+  return teachers.map((t) => ({
+    id: t.id,
+    name: t.name,
+    role: t.role,
+    status: byTeacher.get(t.id)?.status ?? null,
+    note: byTeacher.get(t.id)?.note ?? null,
+  }));
+});
+
+/** Rekap kehadiran ustadz sebulan penuh (bulan diambil dari dateKey). */
+export const getStaffAttendanceRecap = cache(async (dateKey: string) => {
+  const base = dateKeyToDb(dateKey);
+  const start = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1));
+
+  const [teachers, records] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: { in: [...STAFF_ROLES] }, status: UserStatus.VERIFIED },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, role: true },
+    }),
+    prisma.staffAttendance.findMany({
+      where: { date: { gte: start, lt: end } },
+      select: { teacherId: true, status: true },
+    }),
+  ]);
+
+  const empty = () => ({ present: 0, late: 0, absent: 0, excused: 0 });
+  const byTeacher = new Map(teachers.map((t) => [t.id, empty()]));
+  for (const r of records) {
+    const c = byTeacher.get(r.teacherId);
+    if (!c) continue;
+    if (r.status === AttendanceStatus.PRESENT) c.present += 1;
+    else if (r.status === AttendanceStatus.LATE) c.late += 1;
+    else if (r.status === AttendanceStatus.ABSENT) c.absent += 1;
+    else c.excused += 1;
+  }
+
+  return teachers.map((t) => ({ id: t.id, name: t.name, role: t.role, ...byTeacher.get(t.id)! }));
+});
