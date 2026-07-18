@@ -86,6 +86,8 @@ model User {
   courses      Course[]     @relation("CourseCreator")
   announcements Announcement[] @relation("AnnouncementAuthor")
   reportCards  ReportCard[] @relation("ReportCardCreator")
+  staffAttendances StaffAttendance[] @relation("StaffAttendanceTeacher")
+  recordedStaffAttendances StaffAttendance[] @relation("StaffAttendanceRecorder")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -362,4 +364,23 @@ model Admission {
   @@index([level])
   @@index([submitterId])
   @@index([createdAt])
+}
+
+// Absensi harian ustadz (pengajar & wali kelas). Kolom note disiapkan untuk
+// laporan BKKH (menunggu kepastian format dari pembimbing).
+model StaffAttendance {
+  id           String           @id @default(uuid())
+  teacherId    String
+  teacher      User             @relation("StaffAttendanceTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  date         DateTime         @db.Date
+  status       AttendanceStatus @default(PRESENT)
+  note         String?
+  recordedById String?
+  recordedBy   User?            @relation("StaffAttendanceRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([teacherId, date])
+  @@index([date])
+  @@index([status])
 }

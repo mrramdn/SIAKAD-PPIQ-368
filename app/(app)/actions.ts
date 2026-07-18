@@ -16,7 +16,7 @@ import {
   UserStatus,
 } from "@/generated/prisma/client";
 import { requireAdmin, requireTeacherOrAdmin, requireVerifiedUser } from "@/lib/auth";
-import { computeReportEntries, getCurrentPeriod } from "@/lib/lms";
+import { computeReportEntries, dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
 import { prisma } from "@/lib/prisma";
 
 type ActionResult = { ok: boolean; message?: string };
@@ -553,4 +553,42 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
   revalidatePath("/pengguna");
   revalidatePath("/dashboard");
   return { ok: true };
+}
+
+/* --------------------------- absensi ustadz -------------------------------- */
+
+export async function saveStaffAttendanceAction(formData: FormData) {
+  const user = await requireVerifiedUser();
+  const teacherId = String(formData.get("teacherId") ?? "");
+  const dateKey = String(formData.get("date") ?? "");
+  const statusRaw = String(formData.get("status") ?? "");
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !Object.values(AttendanceStatus).includes(statusRaw as AttendanceStatus)) {
+    redirect("/absen-ustadz?error=invalid");
+  }
+
+  const isSelfToday =
+    (user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM) &&
+    teacherId === user.id &&
+    dateKey === toDateKey(new Date());
+  if (user.role !== UserRole.ADMIN && !isSelfToday) {
+    redirect("/absen-ustadz?error=forbidden");
+  }
+
+  const teacher = await prisma.user.findFirst({
+    where: { id: teacherId, role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] } },
+    select: { id: true },
+  });
+  if (!teacher) redirect("/absen-ustadz?error=invalid");
+
+  const status = statusRaw as AttendanceStatus;
+  const date = dateKeyToDb(dateKey);
+  await prisma.staffAttendance.upsert({
+    where: { teacherId_date: { teacherId, date } },
+    update: { status, recordedById: user.id },
+    create: { teacherId, date, status, recordedById: user.id },
+  });
+
+  revalidatePath("/absen-ustadz");
+  redirect(`/absen-ustadz?tanggal=${dateKey}`);
 }

@@ -211,7 +211,7 @@ async function main() {
 
   const admin = await upsertUser("admin@pesantren.id", "Administrasi Pesantren", UserRole.ADMIN, passwordHash);
   await upsertUser("mudir@pesantren.id", "Mudir Ma'had", UserRole.MUDIR, passwordHash);
-  await upsertUser("walikelas@pesantren.id", "Ustadzah Nur Wali Kelas", UserRole.HOMEROOM, passwordHash);
+  const homeroom = await upsertUser("walikelas@pesantren.id", "Ustadzah Nur Wali Kelas", UserRole.HOMEROOM, passwordHash);
 
   const teachers = [
     { email: "guru@pesantren.id", name: "Ustadz Ahmad" },
@@ -450,7 +450,27 @@ async function main() {
     ],
   });
 
-  console.log(`Seeded ${teachers.length} teachers, ${studentCounter} students across ${LEVELS.length} levels, with parents, announcements, and admissions.`);
+  // Absensi ustadz: seminggu terakhir (kecuali Ahad), mayoritas hadir.
+  const staffIds = [homeroom.id, ...teacherIds.values()];
+  const staffAttendanceRows: { teacherId: string; date: Date; status: AttendanceStatus; recordedById: string }[] = [];
+  const now = new Date();
+  for (let back = 0; back < 7; back++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - back);
+    if (d.getDay() === 0) continue;
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    staffIds.forEach((teacherId, idx) => {
+      let status: AttendanceStatus = AttendanceStatus.PRESENT;
+      if (back === 2 && idx === 1) status = AttendanceStatus.EXCUSED;
+      if (back === 4 && idx === 2) status = AttendanceStatus.LATE;
+      if (back === 5 && idx === 3) status = AttendanceStatus.ABSENT;
+      staffAttendanceRows.push({ teacherId, date, status, recordedById: admin.id });
+    });
+  }
+  await prisma.staffAttendance.deleteMany({});
+  await prisma.staffAttendance.createMany({ data: staffAttendanceRows });
+
+  console.log(`Seeded ${teachers.length} teachers, ${studentCounter} students across ${LEVELS.length} levels, with parents, announcements, admissions, and ${staffAttendanceRows.length} staff attendance rows.`);
 }
 
 main()
