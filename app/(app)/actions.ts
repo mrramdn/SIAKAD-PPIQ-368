@@ -565,3 +565,62 @@ export async function saveStaffAttendanceAction(formData: FormData) {
   revalidatePath("/absen-ustadz");
   redirect(`/absen-ustadz?tanggal=${dateKey}`);
 }
+
+/* ------------------------- BKKH (kegiatan harian) --------------------------- */
+
+export async function createBkkhActivityAction(formData: FormData) {
+  await requireAdmin();
+  const title = String(formData.get("title") ?? "").trim();
+  if (!title) redirect("/absen-ustadz?error=invalid");
+
+  const count = await prisma.bkkhActivity.count();
+  await prisma.bkkhActivity.create({ data: { title, order: count + 1 } });
+  revalidatePath("/absen-ustadz");
+}
+
+export async function deleteBkkhActivityAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("activityId") ?? "");
+  if (!id) redirect("/absen-ustadz?error=invalid");
+  await prisma.bkkhActivity.delete({ where: { id } });
+  revalidatePath("/absen-ustadz");
+}
+
+export async function toggleBkkhRecordAction(formData: FormData) {
+  const user = await requireVerifiedUser();
+  const teacherId = String(formData.get("teacherId") ?? "");
+  const activityId = String(formData.get("activityId") ?? "");
+  const dateKey = String(formData.get("date") ?? "");
+
+  if (!activityId || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    redirect("/absen-ustadz?error=invalid");
+  }
+
+  const isSelfToday =
+    (user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM) &&
+    teacherId === user.id &&
+    dateKey === toDateKey(new Date());
+  if (user.role !== UserRole.ADMIN && !isSelfToday) {
+    redirect("/absen-ustadz?error=forbidden");
+  }
+
+  const [teacher, activity] = await Promise.all([
+    prisma.user.findFirst({ where: { id: teacherId, role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] } }, select: { id: true } }),
+    prisma.bkkhActivity.findFirst({ where: { id: activityId, active: true }, select: { id: true } }),
+  ]);
+  if (!teacher || !activity) redirect("/absen-ustadz?error=invalid");
+
+  const date = dateKeyToDb(dateKey);
+  const existing = await prisma.bkkhRecord.findUnique({
+    where: { activityId_teacherId_date: { activityId, teacherId, date } },
+    select: { id: true },
+  });
+  if (existing) {
+    await prisma.bkkhRecord.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.bkkhRecord.create({ data: { activityId, teacherId, date } });
+  }
+
+  revalidatePath("/absen-ustadz");
+  redirect(`/absen-ustadz?tanggal=${dateKey}`);
+}

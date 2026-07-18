@@ -81,6 +81,7 @@ model User {
   reportCards  ReportCard[] @relation("ReportCardCreator")
   staffAttendances StaffAttendance[] @relation("StaffAttendanceTeacher")
   recordedStaffAttendances StaffAttendance[] @relation("StaffAttendanceRecorder")
+  bkkhRecords  BkkhRecord[] @relation("BkkhTeacher")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -353,4 +354,32 @@ model StaffAttendance {
   @@unique([teacherId, date])
   @@index([date])
   @@index([status])
+}
+
+// BKKH: daftar kegiatan harian yang wajib dikerjakan ustadz.
+// Master kegiatan dikelola administrasi; centang harian per ustadz.
+model BkkhActivity {
+  id        String       @id @default(uuid())
+  title     String
+  order     Int          @default(0)
+  active    Boolean      @default(true)
+  records   BkkhRecord[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([active, order])
+}
+
+model BkkhRecord {
+  id         String       @id @default(uuid())
+  activityId String
+  activity   BkkhActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  teacherId  String
+  teacher    User         @relation("BkkhTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  date       DateTime     @db.Date
+  createdAt  DateTime     @default(now())
+
+  @@unique([activityId, teacherId, date])
+  @@index([teacherId, date])
+  @@index([date])
 }

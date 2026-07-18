@@ -921,3 +921,42 @@ export const getStaffAttendanceRecap = cache(async (dateKey: string) => {
 
   return teachers.map((t) => ({ id: t.id, name: t.name, role: t.role, ...byTeacher.get(t.id)! }));
 });
+
+/* -------------------------------------------------------------------------- */
+/*                       BKKH (kegiatan harian ustadz)                        */
+/* -------------------------------------------------------------------------- */
+
+/** Master kegiatan aktif + centang per ustadz pada satu tanggal. */
+export const getBkkhBoard = cache(async (dateKey: string) => {
+  const date = dateKeyToDb(dateKey);
+  const [activities, records] = await Promise.all([
+    prisma.bkkhActivity.findMany({
+      where: { active: true },
+      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      select: { id: true, title: true },
+    }),
+    prisma.bkkhRecord.findMany({
+      where: { date },
+      select: { activityId: true, teacherId: true },
+    }),
+  ]);
+
+  const checkedByTeacher: Record<string, string[]> = {};
+  for (const r of records) {
+    (checkedByTeacher[r.teacherId] ??= []).push(r.activityId);
+  }
+  return { activities, checkedByTeacher };
+});
+
+/** Total centang BKKH per ustadz dalam bulan dari dateKey. */
+export const getBkkhMonthlyCounts = cache(async (dateKey: string) => {
+  const base = dateKeyToDb(dateKey);
+  const start = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1));
+  const end = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1));
+  const groups = await prisma.bkkhRecord.groupBy({
+    by: ["teacherId"],
+    where: { date: { gte: start, lt: end } },
+    _count: { _all: true },
+  });
+  return new Map(groups.map((g) => [g.teacherId, g._count._all]));
+});

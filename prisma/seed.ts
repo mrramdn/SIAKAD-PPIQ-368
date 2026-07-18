@@ -406,6 +406,36 @@ async function main() {
   await prisma.staffAttendance.deleteMany({});
   await prisma.staffAttendance.createMany({ data: staffAttendanceRows });
 
+  // BKKH: master kegiatan harian + centang beberapa hari terakhir.
+  const bkkhTitles = [
+    "Mengimami atau mendampingi sholat berjamaah",
+    "Mengisi halaqah pagi",
+    "Mengisi jurnal mengajar",
+    "Pendampingan santri di asrama",
+  ];
+  await prisma.bkkhRecord.deleteMany({});
+  await prisma.bkkhActivity.deleteMany({});
+  const bkkhActivities: { id: string }[] = [];
+  for (let i = 0; i < bkkhTitles.length; i++) {
+    const a = await prisma.bkkhActivity.create({ data: { title: bkkhTitles[i], order: i + 1 }, select: { id: true } });
+    bkkhActivities.push(a);
+  }
+  const bkkhRows: { activityId: string; teacherId: string; date: Date }[] = [];
+  for (let back = 0; back < 7; back++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - back);
+    if (d.getDay() === 0) continue;
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    staffIds.forEach((teacherId, idx) => {
+      bkkhActivities.forEach((a, ai) => {
+        // Mayoritas dicentang; sebagian dilewati supaya rekap bervariasi.
+        if ((back + idx + ai) % 5 === 4) return;
+        bkkhRows.push({ activityId: a.id, teacherId, date });
+      });
+    });
+  }
+  await prisma.bkkhRecord.createMany({ data: bkkhRows });
+
   console.log(`Seeded ${teachers.length} teachers, ${studentCounter} students across ${LEVELS.length} levels, with parents, announcements, admissions, and ${staffAttendanceRows.length} staff attendance rows.`);
 }
 

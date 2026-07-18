@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireVerifiedUser } from "@/lib/auth";
-import { getStaffAttendanceBoard, getStaffAttendanceRecap, toDateKey, dateKeyToDb } from "@/lib/lms";
-import { Badge, Card, Icons, buttonClasses, inputClasses } from "@/components/ui";
-import { saveStaffAttendanceAction } from "../actions";
+import { getBkkhBoard, getBkkhMonthlyCounts, getStaffAttendanceBoard, getStaffAttendanceRecap, toDateKey, dateKeyToDb } from "@/lib/lms";
+import { Badge, Card, Field, Icons, buttonClasses, inputClasses } from "@/components/ui";
+import { createBkkhActivityAction, deleteBkkhActivityAction, saveStaffAttendanceAction, toggleBkkhRecordAction } from "../actions";
 
 const STATUS_META = [
   { key: "PRESENT", label: "Hadir", color: "var(--green)" },
@@ -29,10 +29,17 @@ export default async function AbsenUstadzPage({ searchParams }: { searchParams: 
 
   const todayKey = toDateKey(new Date());
   const dateKey = tanggal && /^\d{4}-\d{2}-\d{2}$/.test(tanggal) ? tanggal : todayKey;
-  const [board, recap] = await Promise.all([getStaffAttendanceBoard(dateKey), getStaffAttendanceRecap(dateKey)]);
+  const [board, recap, bkkh, bkkhMonthly] = await Promise.all([
+    getStaffAttendanceBoard(dateKey),
+    getStaffAttendanceRecap(dateKey),
+    getBkkhBoard(dateKey),
+    getBkkhMonthlyCounts(dateKey),
+  ]);
 
   const isAdmin = user.role === "ADMIN";
+  const isStaffSelf = user.role === "TEACHER" || user.role === "HOMEROOM";
   const isToday = dateKey === todayKey;
+  const myChecked = new Set(bkkh.checkedByTeacher[user.id] ?? []);
   const marked = board.filter((r) => r.status !== null).length;
 
   return (
@@ -98,7 +105,12 @@ export default async function AbsenUstadzPage({ searchParams }: { searchParams: 
                       <span className="truncate text-sm font-bold">{row.name}</span>
                       {row.id === user.id ? <Badge tone="primary">Anda</Badge> : null}
                     </div>
-                    <div className="mt-0.5 text-[12.5px] text-ink-3">{ROLE_LABEL[row.role] ?? row.role}</div>
+                    <div className="mt-0.5 text-[12.5px] text-ink-3">
+                      {ROLE_LABEL[row.role] ?? row.role}
+                      {bkkh.activities.length > 0
+                        ? ` · BKKH ${(bkkh.checkedByTeacher[row.id] ?? []).length}/${bkkh.activities.length}`
+                        : ""}
+                    </div>
                   </div>
                   {canEdit ? (
                     <div className="flex flex-wrap gap-1.5">
@@ -143,6 +155,78 @@ export default async function AbsenUstadzPage({ searchParams }: { searchParams: 
         )}
       </Card>
 
+      {isStaffSelf ? (
+        <Card pad={20}>
+          <h2 className="text-base font-bold tracking-tight">Kegiatan Harian (BKKH)</h2>
+          <p className="mt-0.5 text-[12.5px] text-ink-3">
+            {isToday
+              ? "Centang kegiatan yang sudah Anda kerjakan hari ini."
+              : "Kegiatan Anda pada tanggal ini. Centang hanya bisa diubah untuk hari ini."}
+          </p>
+          {bkkh.activities.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-3">Belum ada daftar kegiatan dari administrasi.</p>
+          ) : (
+            <div className="mt-4 divide-y divide-line">
+              {bkkh.activities.map((a) => {
+                const done = myChecked.has(a.id);
+                return (
+                  <form key={a.id} action={toggleBkkhRecordAction} className="flex items-center justify-between gap-3 py-2.5">
+                    <input type="hidden" name="teacherId" value={user.id} />
+                    <input type="hidden" name="activityId" value={a.id} />
+                    <input type="hidden" name="date" value={dateKey} />
+                    <span className={`text-sm font-semibold ${done ? "text-ink" : "text-ink-2"}`}>{a.title}</span>
+                    <button
+                      type="submit"
+                      disabled={!isToday}
+                      aria-label={done ? `Batalkan ${a.title}` : `Tandai ${a.title} selesai`}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full border transition disabled:opacity-40"
+                      style={
+                        done
+                          ? { background: "var(--green)", borderColor: "var(--green)", color: "#fff" }
+                          : { borderColor: "var(--border)", color: "var(--text-3)" }
+                      }
+                    >
+                      <Icons.check2 size={16} />
+                    </button>
+                  </form>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      ) : null}
+
+      {isAdmin ? (
+        <Card pad={20}>
+          <h2 className="text-base font-bold tracking-tight">Kelola Kegiatan BKKH</h2>
+          <p className="mt-0.5 text-[12.5px] text-ink-3">Daftar kegiatan harian yang wajib dikerjakan setiap ustadz.</p>
+          <form action={createBkkhActivityAction} className="mt-4 flex flex-wrap items-end gap-2">
+            <div className="min-w-[220px] flex-1">
+              <Field label="Nama kegiatan">
+                <input name="title" required placeholder="cth. Mengisi halaqah pagi" className={inputClasses} />
+              </Field>
+            </div>
+            <button type="submit" className={buttonClasses("primary", "md")}>Tambah</button>
+          </form>
+          {bkkh.activities.length === 0 ? (
+            <p className="mt-4 text-sm text-ink-3">Belum ada kegiatan.</p>
+          ) : (
+            <div className="mt-4 divide-y divide-line">
+              {bkkh.activities.map((a, idx) => (
+                <form key={a.id} action={deleteBkkhActivityAction} className="flex items-center justify-between gap-3 py-2.5">
+                  <input type="hidden" name="activityId" value={a.id} />
+                  <span className="text-sm font-semibold">
+                    <span className="mr-2 text-[12px] font-bold text-ink-3">{idx + 1}.</span>
+                    {a.title}
+                  </span>
+                  <button type="submit" className={buttonClasses("danger", "sm")}>Hapus</button>
+                </form>
+              ))}
+            </div>
+          )}
+        </Card>
+      ) : null}
+
       <Card pad={0} className="overflow-hidden">
         <div className="px-5 pt-5">
           <h2 className="text-base font-bold tracking-tight">Rekap {monthFmt.format(dateKeyToDb(dateKey))}</h2>
@@ -158,6 +242,7 @@ export default async function AbsenUstadzPage({ searchParams }: { searchParams: 
                     {s.label}
                   </th>
                 ))}
+                <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2">BKKH</th>
               </tr>
             </thead>
             <tbody>
@@ -171,6 +256,7 @@ export default async function AbsenUstadzPage({ searchParams }: { searchParams: 
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--primary)" }}>{r.excused}</td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--amber)" }}>{r.late}</td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--red)" }}>{r.absent}</td>
+                  <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums text-ink-2">{bkkhMonthly.get(r.id) ?? 0}</td>
                 </tr>
               ))}
             </tbody>
