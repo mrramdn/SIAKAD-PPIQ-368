@@ -9,7 +9,6 @@ import {
   CourseStatus,
   EducationLevel,
   EnrollmentStatus,
-  LessonType,
   ReportCardStatus,
   Semester,
   UserRole,
@@ -36,10 +35,10 @@ function toNullableString(value: FormDataEntryValue | null) {
 
 function revalidateCourseAreas(courseId?: string) {
   revalidatePath("/dashboard");
-  revalidatePath("/learning");
+  revalidatePath("/mapel");
   revalidatePath("/nilai");
   revalidatePath("/absen");
-  if (courseId) revalidatePath(`/learning/${courseId}`);
+  if (courseId) revalidatePath(`/mapel/${courseId}`);
 }
 
 /* ----------------------------- course (admin) ------------------------------ */
@@ -51,7 +50,7 @@ export async function createCourseAction(formData: FormData) {
   const status = String(formData.get("status") ?? CourseStatus.PUBLISHED) as CourseStatus;
 
   if (!title || !description || !Object.values(CourseStatus).includes(status)) {
-    redirect("/learning?error=invalid");
+    redirect("/mapel?error=invalid");
   }
 
   const baseSlug = slugify(title) || `course-${Date.now()}`;
@@ -72,37 +71,11 @@ export async function updateCourseAction(formData: FormData) {
   const status = String(formData.get("status") ?? CourseStatus.PUBLISHED) as CourseStatus;
 
   if (!courseId || !title || !description || !Object.values(CourseStatus).includes(status)) {
-    redirect(`/learning/${courseId}?error=invalid`);
+    redirect(`/mapel/${courseId}?error=invalid`);
   }
 
   await prisma.course.update({ where: { id: courseId }, data: { title, description, status } });
   revalidateCourseAreas(courseId);
-}
-
-/* -------------------------- lesson (teacher/admin) ------------------------- */
-
-export async function createLessonAction(formData: FormData) {
-  await requireTeacherOrAdmin();
-  const courseId = String(formData.get("courseId") ?? "");
-  const title = String(formData.get("title") ?? "").trim();
-  const description = toNullableString(formData.get("description"));
-  const duration = toNullableString(formData.get("duration"));
-  const content = toNullableString(formData.get("content"));
-  const typeValue = String(formData.get("type") ?? LessonType.TEXT) as LessonType;
-  const type = Object.values(LessonType).includes(typeValue) ? typeValue : LessonType.TEXT;
-  const order = Number(formData.get("order") ?? 0);
-
-  if (!courseId || !title || !Number.isFinite(order) || order < 1) {
-    redirect(`/learning/${courseId}?error=lesson`);
-  }
-
-  await prisma.lesson.upsert({
-    where: { courseId_order: { courseId, order } },
-    update: { title, description, content, duration, type },
-    create: { courseId, title, description, content, duration, type, order },
-  });
-
-  revalidatePath(`/learning/${courseId}`);
 }
 
 /* --------------------------- enrollment (admin) ---------------------------- */
@@ -113,7 +86,7 @@ export async function enrollStudentAction(formData: FormData) {
   const studentId = String(formData.get("studentId") ?? "");
 
   if (!courseId || !studentId) {
-    redirect(`/learning/${courseId}?error=enrollment`);
+    redirect(`/mapel/${courseId}?error=enrollment`);
   }
 
   await prisma.enrollment.upsert({

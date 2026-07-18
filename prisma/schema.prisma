@@ -40,13 +40,6 @@ enum CourseStatus {
   ARCHIVED
 }
 
-enum LessonType {
-  TEXT
-  VIDEO
-  QUIZ
-  ASSIGNMENT
-}
-
 enum EnrollmentStatus {
   ACTIVE
   COMPLETED
@@ -140,7 +133,6 @@ model Course {
   status      CourseStatus   @default(PUBLISHED)
   createdById String?
   createdBy   User?        @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  lessons     Lesson[]
   enrollments Enrollment[]
   attendanceSessions AttendanceSession[]
   gradeItems GradeItem[]
@@ -152,27 +144,6 @@ model Course {
   @@index([status])
   @@index([level])
   @@index([createdById])
-}
-
-model Lesson {
-  id          String     @id @default(uuid())
-  courseId    String
-  course      Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  content     String?
-  type        LessonType @default(TEXT)
-  duration    String?
-  order       Int        @default(0)
-  isPreview   Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  deletedAt   DateTime?
-
-  @@unique([courseId, order])
-  @@index([courseId])
-  @@index([createdAt])
-  @@index([deletedAt, createdAt])
 }
 
 model ScheduleSlot {
@@ -196,7 +167,6 @@ model Enrollment {
   courseId    String
   course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
   status      EnrollmentStatus @default(ACTIVE)
-  progress    Int              @default(0)
   enrolledAt  DateTime         @default(now())
   completedAt DateTime?
   updatedAt   DateTime         @updatedAt

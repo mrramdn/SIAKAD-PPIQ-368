@@ -82,12 +82,13 @@ Buka `http://localhost:3000`.
   - `absen-ustadz`: absensi harian pengajar/wali kelas + rekap bulanan
   - `rapor` & `rapor/[id]`: papan rapor per kelas, detail, catatan wali kelas, penerbitan
   - `informasi`: pengumuman (wali baca, guru/admin kelola)
-  - `learning`, `pengguna`, `pengaturan`
+  - `mapel`: daftar mata pelajaran + pendaftaran peserta (admin)
+  - `pengguna`, `pengaturan`
   - `actions.ts`: server actions dengan guard per peran
 - `components/ui`: komponen UI bersama dan ikon
 - `lib/auth.ts`: session auth HTTP-only cookie (termasuk `requireParent`)
 - `lib/lms.ts`: data access (dashboard, jadwal, rapor, parent portal, informasi, pendaftaran, helper periode)
 - `lib/brand.ts`: nama aplikasi dan label jenjang
-- `prisma/schema.prisma`: schema (User + role, EducationLevel, Semester, Admission, Announcement, Course/ScheduleSlot, GradeItem/GradeRecord, AttendanceSession/Record, ReportCard/ReportCardEntry)
+- `prisma/schema.prisma`: schema (User + role, EducationLevel, Semester, Admission, Announcement, Course/ScheduleSlot, GradeItem/GradeRecord, AttendanceSession/Record, StaffAttendance, ReportCard/ReportCardEntry)
 - `prisma/seed.ts`: seed akun demo, santri 3 jenjang, mapel + jadwal, nilai + absensi per periode, dan rapor demo
 - `app/manifest.ts`, `public/sw.js`, `components/PWARegister.tsx`: PWA

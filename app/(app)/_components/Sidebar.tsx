@@ -46,7 +46,7 @@ export function Sidebar({ role, open, onClose }: { role: Role; open: boolean; on
           <div className="flex flex-col gap-0.5">
             {items.map((it) => {
               const Icon = Icons[it.icon];
-              const active = pathname === it.href || (it.href === "/learning" && pathname.startsWith("/learning"));
+              const active = pathname === it.href || (it.href === "/mapel" && pathname.startsWith("/mapel"));
               return (
                 <Link
                   key={it.href}
