@@ -26,12 +26,13 @@ Catatan keputusan:
 | Fitur | Skema DB | Backend/Action | UI | Status |
 |---|---|---|---|---|
 | Pendaftaran | `Admission` | `reviewAdmissionAction` | `/pendaftaran`, `/penerimaan` | Selesai |
-| Absensi | `AttendanceSession`, `AttendanceRecord` | create session, set status, mark all present | `/absen` | Selesai |
-| Penjadwalan | `ScheduleSlot` (sudah ada) | Belum ada action kelola | Hanya tampil di dashboard | Setengah jadi |
+| Absensi Santri | `AttendanceSession`, `AttendanceRecord` | create session, set status, mark all present | `/absen` | Selesai |
+| Penjadwalan | `ScheduleSlot` | create/delete slot | `/jadwal` | Selesai |
 | Pengelolaan Nilai | `GradeItem`, `GradeRecord` | create item, save grade | `/nilai` | Selesai |
-| Pengelolaan Rapor | Belum ada model | Belum ada | Belum ada | Belum ada |
+| Pengelolaan Rapor | `ReportCard`, `ReportCardEntry` | generate, note, publish | `/rapor`, `/rapor/[id]` | Selesai |
+| Absensi Ustadz dan BKKH | `StaffAttendance`, `BkkhReport` | save attendance, save daily report | `/absen-ustadz` | Selesai |
 
-Kesimpulan: pekerjaan tersisa adalah melengkapi Penjadwalan (action + halaman) dan membangun Rapor dari nol (model + action + halaman).
+Kesimpulan: seluruh fitur inti sudah tersedia. Pekerjaan tersisa berada pada deployment produksi, uji instalasi PWA di ponsel, serta penyusunan artefak skripsi seperti ERD dan flowchart.
 
 ## 3. Keputusan Desain Rapor
 
@@ -70,8 +71,8 @@ Hasil QA 13 Juli 2026 (Claude): semua halaman dites runtime per role, guard bena
 
 ### Fase 3 — Penyelarasan Dokumen
 
-- [ ] Update `USE_CASE_REVISI.md` dan `PRODUCT.md`: hapus klaim modul pembelajaran/lesson, tambahkan Penjadwalan dan alur Rapor (buat, catatan, terbitkan, lihat oleh wali).
-- [ ] Verifikasi menyeluruh: `pnpm prisma db push`, `pnpm prisma db seed`, `pnpm build`, uji manual per role.
+- [x] `USE_CASE_REVISI.md` dan `PRODUCT.md` sudah mengikuti 6 fitur inti, termasuk Penjadwalan, alur Rapor, serta Absensi Ustadz dan BKKH yang telah dikoreksi formatnya.
+- [x] Migrasi database dev mutakhir; lint dan build lulus; guard serta tampilan telah diuji per peran, termasuk alur BKKH guru/admin/mudir pada 21 Juli 2026.
 
 ## 5. Aturan untuk Agen FE (Gemini)
 
@@ -130,6 +131,13 @@ temuan nomor <N> saja. Jangan menyentuh lib/, actions.ts, atau prisma/.
 Uji di viewport 360px, lalu jalankan pnpm lint dan pnpm build.
 ```
 
+### Refinement lanjutan (21 Juli 2026)
+
+- [x] Menghapus CTA landing yang menuju tujuan sama, pencarian global dan indikator notifikasi yang belum memiliki fungsi, serta preferensi tampilan/notifikasi yang hanya berupa demo.
+- [x] Menggabungkan kartu statistik yang padat pada halaman Nilai, Absensi Santri, Pengguna, dan Penerimaan menjadi klaster ringkas yang responsif.
+- [x] Menyamakan copy antarmuka dan dokumen dengan scope 6 fitur, termasuk perubahan modul lama menjadi Mata Pelajaran dan koreksi format laporan BKKH.
+- [x] Memperbesar target sentuh pada tab, tautan dokumen, dan aksi ikon utama hingga minimal 44px.
+
 ## 8. Backlog
 
 - [x] PWA (13 Juli 2026): manifest dilengkapi `id` + shortcuts (Anak Saya, Jadwal, Informasi); service worker di-upgrade — navigation preload, halaman yang pernah dibuka tersimpan sehingga bisa dibuka ulang saat offline, cache-first untuk aset `_next/static` (hashed), stale-while-revalidate untuk ikon/manifest. Sisa: uji install langsung di ponsel.
@@ -137,4 +145,4 @@ Uji di viewport 360px, lalu jalankan pnpm lint dan pnpm build.
 
 ## 9. Definisi Selesai
 
-Skripsi bisa mendemokan alur penuh: wali daftar akun dan mendaftarkan anak, admin menerima pendaftaran, staf menyusun jadwal, mengisi absensi dan nilai per semester, membuat lalu menerbitkan rapor, dan wali melihat jadwal, absensi, nilai, serta rapor anaknya dari ponsel.
+Skripsi bisa mendemokan alur penuh: wali daftar akun dan mendaftarkan anak, admin menerima pendaftaran, staf menyusun jadwal, mengisi absensi santri dan nilai per semester, membuat lalu menerbitkan rapor, serta wali melihat jadwal, absensi, nilai, dan rapor anaknya dari ponsel. Pengajar dan wali kelas juga bisa mencatat kehadiran pribadi serta laporan BKKH harian, sementara administrasi dan mudir memantaunya sesuai kewenangan.

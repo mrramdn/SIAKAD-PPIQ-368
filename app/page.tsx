@@ -42,18 +42,12 @@ export default async function Home() {
               Wali santri memantau nilai, kehadiran, dan informasi anak. Wali kelas dan pengajar mengelola kelas. Administrasi
               meninjau pendaftaran santri baru dari satu panel.
             </p>
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7">
               <Link
                 href={user ? "/pendaftaran" : "/register"}
-                className="rounded-xl bg-primary px-6 py-3 text-center font-semibold text-white transition hover:bg-primary-600"
+                className="inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-6 py-3 text-center font-semibold text-white transition hover:bg-primary-600"
               >
                 {user ? "Daftarkan Anak" : "Buat Akun Wali"}
-              </Link>
-              <Link
-                href={user ? "/dashboard" : "/login"}
-                className="rounded-xl border border-line-strong px-6 py-3 text-center font-semibold text-ink-2 transition hover:bg-surface-2"
-              >
-                {user ? "Buka Dashboard" : "Login"}
               </Link>
             </div>
             <div className="mt-7 flex flex-wrap gap-2.5">

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireVerifiedUser } from "@/lib/auth";
 import { getGradebook } from "@/lib/lms";
-import { Avatar, Badge, Card, Field, inputClasses, scoreColor, PASS_THRESHOLD } from "@/components/ui";
+import { Avatar, Badge, Card, Field, buttonClasses, inputClasses, scoreColor, PASS_THRESHOLD } from "@/components/ui";
 import { createGradeItemAction } from "../actions";
 import { Gradebook } from "./Gradebook";
 
@@ -31,44 +31,46 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           {/* summary */}
-          <div className="mb-5 grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
-            <Card pad={18}>
-              <div className="text-[13px] font-semibold text-ink-3">Rata-rata Kelas</div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold tracking-tight" style={{ color: scoreColor(classAvg) }}>
-                  {classAvg}
-                </span>
-                <Badge tone={classAvg >= PASS_THRESHOLD ? "success" : "warning"}>{classAvg >= PASS_THRESHOLD ? "Tuntas" : "Perlu perhatian"}</Badge>
-              </div>
-            </Card>
-            <Card pad={18}>
-              <div className="text-[13px] font-semibold text-ink-3">Tuntas (≥{PASS_THRESHOLD})</div>
-              <div className="mt-2 text-3xl font-extrabold tracking-tight">
-                {passing}
-                <span className="text-[17px] text-ink-3">/{rows.length}</span>
-              </div>
-            </Card>
-            <Card pad={18}>
-              <div className="text-[13px] font-semibold text-ink-3">Nilai Tertinggi</div>
-              {top ? (
-                <div className="mt-2.5 flex items-center gap-2.5">
-                  <Avatar initials={top.name.split(" ").map((w) => w[0]).slice(0, 2).join("")} color="var(--green)" size={32} />
-                  <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-bold">{top.name.split(" ")[0]}</div>
-                    <div className="text-[12px] font-bold text-success">{top.avg}</div>
-                  </div>
+          <Card pad={18} className="mb-5">
+            <div className="grid grid-cols-2 gap-y-4 lg:grid-cols-4" style={{ gap: "16px 20px" }}>
+              <div>
+                <div className="text-[13px] font-semibold text-ink-3">Rata-rata Kelas</div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-3xl font-extrabold tracking-tight" style={{ color: scoreColor(classAvg) }}>
+                    {classAvg}
+                  </span>
+                  <Badge tone={classAvg >= PASS_THRESHOLD ? "success" : "warning"}>{classAvg >= PASS_THRESHOLD ? "Tuntas" : "Perlu perhatian"}</Badge>
                 </div>
-              ) : (
-                <div className="mt-2 text-sm text-ink-3">—</div>
-              )}
-            </Card>
-            <Card pad={18}>
-              <div className="text-[13px] font-semibold text-ink-3">Komponen</div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {columns.length ? columns.map((c) => <Badge key={c.id} tone="neutral">{c.title}</Badge>) : <span className="text-sm text-ink-3">—</span>}
               </div>
-            </Card>
-          </div>
+              <div className="border-l border-line pl-4 lg:pl-5">
+                <div className="text-[13px] font-semibold text-ink-3">Tuntas (≥{PASS_THRESHOLD})</div>
+                <div className="mt-2 text-3xl font-extrabold tracking-tight">
+                  {passing}
+                  <span className="text-[17px] text-ink-3">/{rows.length}</span>
+                </div>
+              </div>
+              <div className="border-t border-line pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+                <div className="text-[13px] font-semibold text-ink-3">Nilai Tertinggi</div>
+                {top ? (
+                  <div className="mt-2.5 flex items-center gap-2.5">
+                    <Avatar initials={top.name.split(" ").map((w) => w[0]).slice(0, 2).join("")} color="var(--green)" size={32} />
+                    <div className="min-w-0">
+                      <div className="truncate text-[13.5px] font-bold">{top.name.split(" ")[0]}</div>
+                      <div className="text-[12px] font-bold text-success">{top.avg}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-sm text-ink-3">-</div>
+                )}
+              </div>
+              <div className="min-w-0 border-l border-t border-line pl-4 pt-4 lg:pl-5 lg:pt-0 lg:border-t-0">
+                <div className="text-[13px] font-semibold text-ink-3">Komponen</div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {columns.length ? columns.map((c) => <Badge key={c.id} tone="neutral">{c.title}</Badge>) : <span className="text-sm text-ink-3">-</span>}
+                </div>
+              </div>
+            </div>
+          </Card>
 
           {/* course tabs */}
           <div className="mb-3.5 flex gap-2 overflow-x-auto pb-1">
@@ -103,7 +105,7 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
                   <input name="dueAt" type="date" className={inputClasses} />
                 </Field>
                 <div className="flex items-end">
-                  <button type="submit" className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-600">
+                  <button type="submit" className={buttonClasses("primary", "md")}>
                     Tambah
                   </button>
                 </div>
