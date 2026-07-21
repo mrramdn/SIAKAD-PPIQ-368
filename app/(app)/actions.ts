@@ -15,6 +15,7 @@ import {
   UserStatus,
 } from "@/generated/prisma/client";
 import { requireAdmin, requireTeacherOrAdmin, requireVerifiedUser } from "@/lib/auth";
+import { BKKH_TIME_SLOTS, type BkkhActivityField } from "@/lib/bkkh";
 import { computeReportEntries, dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
 import { prisma } from "@/lib/prisma";
 
@@ -566,33 +567,14 @@ export async function saveStaffAttendanceAction(formData: FormData) {
   redirect(`/absen-ustadz?tanggal=${dateKey}`);
 }
 
-/* ------------------------- BKKH (kegiatan harian) --------------------------- */
+/* ------------------------- BKKH (laporan harian) ---------------------------- */
 
-export async function createBkkhActivityAction(formData: FormData) {
-  await requireAdmin();
-  const title = String(formData.get("title") ?? "").trim();
-  if (!title) redirect("/absen-ustadz?error=invalid");
-
-  const count = await prisma.bkkhActivity.count();
-  await prisma.bkkhActivity.create({ data: { title, order: count + 1 } });
-  revalidatePath("/absen-ustadz");
-}
-
-export async function deleteBkkhActivityAction(formData: FormData) {
-  await requireAdmin();
-  const id = String(formData.get("activityId") ?? "");
-  if (!id) redirect("/absen-ustadz?error=invalid");
-  await prisma.bkkhActivity.delete({ where: { id } });
-  revalidatePath("/absen-ustadz");
-}
-
-export async function toggleBkkhRecordAction(formData: FormData) {
+export async function saveBkkhReportAction(formData: FormData) {
   const user = await requireVerifiedUser();
   const teacherId = String(formData.get("teacherId") ?? "");
-  const activityId = String(formData.get("activityId") ?? "");
   const dateKey = String(formData.get("date") ?? "");
 
-  if (!activityId || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     redirect("/absen-ustadz?error=invalid");
   }
 
@@ -604,23 +586,34 @@ export async function toggleBkkhRecordAction(formData: FormData) {
     redirect("/absen-ustadz?error=forbidden");
   }
 
-  const [teacher, activity] = await Promise.all([
-    prisma.user.findFirst({ where: { id: teacherId, role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] } }, select: { id: true } }),
-    prisma.bkkhActivity.findFirst({ where: { id: activityId, active: true }, select: { id: true } }),
-  ]);
-  if (!teacher || !activity) redirect("/absen-ustadz?error=invalid");
+  const assignment = String(formData.get("assignment") ?? "").trim();
+  const activities = Object.fromEntries(
+    BKKH_TIME_SLOTS.map(({ field }) => [field, String(formData.get(field) ?? "").trim() || null]),
+  ) as Record<BkkhActivityField, string | null>;
 
-  const date = dateKeyToDb(dateKey);
-  const existing = await prisma.bkkhRecord.findUnique({
-    where: { activityId_teacherId_date: { activityId, teacherId, date } },
-    select: { id: true },
-  });
-  if (existing) {
-    await prisma.bkkhRecord.delete({ where: { id: existing.id } });
-  } else {
-    await prisma.bkkhRecord.create({ data: { activityId, teacherId, date } });
+  if (!assignment || assignment.length > 120) {
+    redirect(`/absen-ustadz?tanggal=${dateKey}&error=assignment`);
+  }
+  if (Object.values(activities).every((value) => value === null)) {
+    redirect(`/absen-ustadz?tanggal=${dateKey}&error=activity`);
+  }
+  if (Object.values(activities).some((value) => (value?.length ?? 0) > 2000)) {
+    redirect(`/absen-ustadz?tanggal=${dateKey}&error=invalid`);
   }
 
+  const teacher = await prisma.user.findFirst({
+    where: { id: teacherId, role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] } },
+    select: { id: true },
+  });
+  if (!teacher) redirect("/absen-ustadz?error=invalid");
+
+  const date = dateKeyToDb(dateKey);
+  await prisma.bkkhReport.upsert({
+    where: { teacherId_date: { teacherId, date } },
+    update: { assignment, ...activities },
+    create: { teacherId, date, assignment, ...activities },
+  });
+
   revalidatePath("/absen-ustadz");
-  redirect(`/absen-ustadz?tanggal=${dateKey}`);
+  redirect(`/absen-ustadz?tanggal=${dateKey}&success=bkkh`);
 }

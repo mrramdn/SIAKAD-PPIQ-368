@@ -923,37 +923,36 @@ export const getStaffAttendanceRecap = cache(async (dateKey: string) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/*                       BKKH (kegiatan harian ustadz)                        */
+/*                         BKKH (laporan harian ustadz)                       */
 /* -------------------------------------------------------------------------- */
 
-/** Master kegiatan aktif + centang per ustadz pada satu tanggal. */
-export const getBkkhBoard = cache(async (dateKey: string) => {
+/** Laporan kegiatan manual per ustadz pada satu tanggal. */
+export const getBkkhDailyReports = cache(async (dateKey: string) => {
   const date = dateKeyToDb(dateKey);
-  const [activities, records] = await Promise.all([
-    prisma.bkkhActivity.findMany({
-      where: { active: true },
-      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-      select: { id: true, title: true },
-    }),
-    prisma.bkkhRecord.findMany({
-      where: { date },
-      select: { activityId: true, teacherId: true },
-    }),
-  ]);
-
-  const checkedByTeacher: Record<string, string[]> = {};
-  for (const r of records) {
-    (checkedByTeacher[r.teacherId] ??= []).push(r.activityId);
-  }
-  return { activities, checkedByTeacher };
+  const reports = await prisma.bkkhReport.findMany({
+    where: { date },
+    select: {
+      id: true,
+      teacherId: true,
+      assignment: true,
+      activity03000715: true,
+      activity07150900: true,
+      activity09301200: true,
+      activity12301430: true,
+      activity15301700: true,
+      activity18002100: true,
+      updatedAt: true,
+    },
+  });
+  return new Map(reports.map((report) => [report.teacherId, report]));
 });
 
-/** Total centang BKKH per ustadz dalam bulan dari dateKey. */
+/** Total hari dengan laporan BKKH per ustadz dalam bulan dari dateKey. */
 export const getBkkhMonthlyCounts = cache(async (dateKey: string) => {
   const base = dateKeyToDb(dateKey);
   const start = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1));
   const end = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1));
-  const groups = await prisma.bkkhRecord.groupBy({
+  const groups = await prisma.bkkhReport.groupBy({
     by: ["teacherId"],
     where: { date: { gte: start, lt: end } },
     _count: { _all: true },
