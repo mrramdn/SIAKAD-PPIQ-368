@@ -19,7 +19,7 @@ Catatan keputusan:
 - Pengelolaan Nilai dan Pengelolaan Rapor tetap ditulis sebagai 2 use case di dokumen skripsi, tetapi diimplementasikan sebagai 1 modul. Rapor adalah rekap nilai dan absensi per semester yang difinalkan oleh wali kelas atau admin, lalu dibaca oleh wali santri.
 - Fitur pendukung tetap ada tetapi bukan fokus skripsi: login/auth, pengelolaan pengguna, pengumuman (informasi), portal wali (anak saya).
 - Absensi Ustadz (18 Juli 2026): model `StaffAttendance` (unik per ustadz per tanggal, enum status sama dengan absensi santri), halaman `/absen-ustadz`. Aturan: ustadz/wali kelas menandai kehadiran sendiri untuk hari ini, administrasi mencatat siapa pun di tanggal mana pun, mudir memantau read-only, wali santri tidak punya akses. Bagian **laporan BKKH belum diimplementasikan** karena kepanjangan/format BKKH masih ditanyakan ke pembimbing; kolom `note` di `StaffAttendance` disiapkan untuk itu.
-- Modul learning (Course + Lesson) direposisi. Course dipakai sebagai "Mata Pelajaran" untuk keperluan jadwal, absensi, nilai, dan rapor. Konten Lesson (materi, video, kuis) tidak dikembangkan lebih lanjut dan tidak diklaim di skripsi.
+- Modul learning lama sudah **dihapus** (18 Juli 2026): model `Lesson`, enum `LessonType`, dan kolom `Enrollment.progress` di-drop; route `/learning` diganti `/mapel` (kelola mata pelajaran + daftarkan peserta). Course murni berperan sebagai "Mata Pelajaran" untuk jadwal, absensi, nilai, dan rapor.
 
 ## 2. Status Saat Ini (per Juli 2026)
 

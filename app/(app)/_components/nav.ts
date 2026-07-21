@@ -15,7 +15,7 @@ const PARENT_NAV: NavItem[] = [
 
 const TEACHER_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid" },
-  { href: "/learning", label: "Pembelajaran", icon: "book" },
+  { href: "/mapel", label: "Mata Pelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
   { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users" },
@@ -27,7 +27,7 @@ const TEACHER_NAV: NavItem[] = [
 
 const HOMEROOM_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid" },
-  { href: "/learning", label: "Pembelajaran", icon: "book" },
+  { href: "/mapel", label: "Mata Pelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
   { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users" },
@@ -41,7 +41,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid" },
   { href: "/penerimaan", label: "Pendaftaran", icon: "doc" },
   { href: "/pengguna", label: "Pengguna", icon: "users" },
-  { href: "/learning", label: "Pembelajaran", icon: "book" },
+  { href: "/mapel", label: "Mata Pelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
   { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users" },
@@ -54,7 +54,7 @@ const ADMIN_NAV: NavItem[] = [
 const MUDIR_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid" },
   { href: "/pengguna", label: "Pengguna", icon: "users" },
-  { href: "/learning", label: "Pembelajaran", icon: "book" },
+  { href: "/mapel", label: "Mata Pelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
   { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users" },
@@ -82,10 +82,10 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const ROLE_BLURB: Record<Role, string> = {
-  ADMIN: "Kelola pendaftaran, pengguna, kelas, dan informasi pesantren.",
-  TEACHER: "Kelola materi, nilai, absensi, dan informasi pembelajaran.",
+  ADMIN: "Kelola pendaftaran, pengguna, mata pelajaran, dan informasi pesantren.",
+  TEACHER: "Kelola nilai, absensi, jadwal, dan informasi untuk mapel Anda.",
   HOMEROOM: "Pantau kelas binaan dan bantu pengelolaan nilai, absensi, dan informasi.",
-  MUDIR: "Pantau data pengguna, pembelajaran, nilai, absensi, dan informasi.",
+  MUDIR: "Pantau data pengguna, mapel, nilai, absensi, dan informasi.",
   PARENT: "Pantau nilai, kehadiran, dan informasi terbaru anak Anda.",
 };
 
@@ -96,7 +96,7 @@ export const PAGE_TITLE: Record<string, string> = {
   "/anak": "Anak Saya",
   "/pendaftaran": "Pendaftaran Anak",
   "/informasi": "Informasi",
-  "/learning": "Pembelajaran",
+  "/mapel": "Mata Pelajaran",
   "/nilai": "Nilai",
   "/absen": "Absensi",
   "/absen-ustadz": "Absensi Ustadz",

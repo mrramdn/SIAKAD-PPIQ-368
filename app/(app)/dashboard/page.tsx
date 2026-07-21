@@ -7,7 +7,6 @@ import {
   Badge,
   Card,
   Icons,
-  Progress,
   Ring,
   SectionTitle,
   buttonClasses,
@@ -157,43 +156,37 @@ export default async function DashboardPage() {
       {/* Main grid */}
       <div className="grid items-start gap-4.5 lg:grid-cols-[1.55fr_1fr]" style={{ gap: 18 }}>
         <div className="flex flex-col gap-4.5" style={{ gap: 18 }}>
-          {/* Continue learning */}
+          {/* Mata pelajaran */}
           <Card pad={20}>
             <SectionTitle
-              title="Kelas Anda"
-              sub="Materi yang sedang berjalan"
+              title="Mata Pelajaran"
+              sub="Mapel terbaru dan jumlah pesertanya"
               action={
-                <Link href="/learning" className={buttonClasses("ghost", "sm")}>
-                  Semua kelas
+                <Link href="/mapel" className={buttonClasses("ghost", "sm")}>
+                  Semua mapel
                 </Link>
               }
             />
             <div className="flex flex-col gap-3">
-              {data.continueLearning.length === 0 ? (
+              {data.courses.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-ink-3">
-                  Belum ada kelas berjalan.
+                  Belum ada mata pelajaran.
                 </p>
               ) : (
-                data.continueLearning.slice(0, 3).map((c) => {
+                data.courses.slice(0, 3).map((c) => {
                   const accent = courseAccent(c.id);
                   return (
                     <Link
                       key={c.id}
-                      href={`/learning/${c.id}`}
+                      href={`/mapel/${c.id}`}
                       className="flex items-center gap-3.5 rounded-xl border border-line p-3 transition hover:bg-surface-2"
                     >
                       <div className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-xl" style={{ background: accent.soft, color: accent.color }}>
                         <Icons.book size={22} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex justify-between gap-2.5">
-                          <div className="truncate text-[14.5px] font-bold">{c.title}</div>
-                          <div className="shrink-0 text-[12.5px] font-semibold text-ink-3">{c.progress}%</div>
-                        </div>
-                        <div className="mb-2 mt-0.5 text-[12.5px] text-ink-3">
-                          {c.done}/{c.lessons} materi
-                        </div>
-                        <Progress value={c.progress} color={accent.color} h={6} />
+                        <div className="truncate text-[14.5px] font-bold">{c.title}</div>
+                        <div className="mt-0.5 text-[12.5px] text-ink-3">{c.students} santri terdaftar</div>
                       </div>
                       <Icons.chevR size={18} style={{ color: "var(--text-3)" }} />
                     </Link>

@@ -7,7 +7,6 @@ import {
   CourseStatus,
   EducationLevel,
   EnrollmentStatus,
-  LessonType,
   PrismaClient,
   ReportCardStatus,
   Semester,
@@ -53,7 +52,6 @@ type CourseDef = {
   teacher: string;
   className: string;
   schedule: { dayOfWeek: number; startTime: string; room: string }[];
-  lessons: { title: string; type: LessonType; duration: string }[];
 };
 
 const COURSES: Record<EducationLevel, CourseDef[]> = {
@@ -65,12 +63,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru2@pesantren.id",
       className: "5A",
       schedule: [{ dayOfWeek: 1, startTime: "07:30", room: "Kelas 5A" }, { dayOfWeek: 3, startTime: "07:30", room: "Kelas 5A" }],
-      lessons: [
-        { title: "Lingkungan Sekitar", type: LessonType.TEXT, duration: "20 mnt" },
-        { title: "Hidup Sehat", type: LessonType.VIDEO, duration: "12 mnt" },
-        { title: "Latihan Tema 1", type: LessonType.QUIZ, duration: "10 soal" },
-        { title: "Kerja Sama", type: LessonType.TEXT, duration: "15 mnt" },
-      ],
     },
     {
       title: "Tahfidz Juz 30",
@@ -79,11 +71,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru@pesantren.id",
       className: "5A",
       schedule: [{ dayOfWeek: 2, startTime: "09:00", room: "Aula" }],
-      lessons: [
-        { title: "An-Naba", type: LessonType.TEXT, duration: "Setoran" },
-        { title: "An-Nazi'at", type: LessonType.TEXT, duration: "Setoran" },
-        { title: "Murojaah Pekanan", type: LessonType.ASSIGNMENT, duration: "Tenggat" },
-      ],
     },
     {
       title: "Matematika SD",
@@ -92,11 +79,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru3@pesantren.id",
       className: "5A",
       schedule: [{ dayOfWeek: 4, startTime: "08:15", room: "Kelas 5A" }],
-      lessons: [
-        { title: "Pecahan", type: LessonType.VIDEO, duration: "14 mnt" },
-        { title: "Bangun Datar", type: LessonType.TEXT, duration: "10 mnt" },
-        { title: "Kuis Pengukuran", type: LessonType.QUIZ, duration: "12 soal" },
-      ],
     },
   ],
   SMP: [
@@ -107,13 +89,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru3@pesantren.id",
       className: "8A",
       schedule: [{ dayOfWeek: 1, startTime: "07:30", room: "Ruang 8A" }, { dayOfWeek: 3, startTime: "07:30", room: "Ruang 8A" }],
-      lessons: [
-        { title: "Persamaan Linear", type: LessonType.VIDEO, duration: "16 mnt" },
-        { title: "Teorema Pythagoras", type: LessonType.VIDEO, duration: "15 mnt" },
-        { title: "Latihan Pythagoras", type: LessonType.QUIZ, duration: "20 soal" },
-        { title: "Statistika Dasar", type: LessonType.TEXT, duration: "12 mnt" },
-        { title: "Proyek Data Kelas", type: LessonType.ASSIGNMENT, duration: "Tenggat" },
-      ],
     },
     {
       title: "Bahasa Arab",
@@ -122,11 +97,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru@pesantren.id",
       className: "8A",
       schedule: [{ dayOfWeek: 2, startTime: "10:00", room: "Ruang 8A" }],
-      lessons: [
-        { title: "Mufrodat Sehari-hari", type: LessonType.TEXT, duration: "10 mnt" },
-        { title: "Percakapan", type: LessonType.VIDEO, duration: "13 mnt" },
-        { title: "Kuis Mufrodat", type: LessonType.QUIZ, duration: "15 soal" },
-      ],
     },
     {
       title: "IPA Terpadu",
@@ -135,12 +105,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru2@pesantren.id",
       className: "8A",
       schedule: [{ dayOfWeek: 4, startTime: "09:15", room: "Lab IPA" }],
-      lessons: [
-        { title: "Sistem Gerak", type: LessonType.VIDEO, duration: "17 mnt" },
-        { title: "Zat dan Perubahan", type: LessonType.TEXT, duration: "11 mnt" },
-        { title: "Praktikum Energi", type: LessonType.ASSIGNMENT, duration: "Tenggat" },
-        { title: "Kuis IPA", type: LessonType.QUIZ, duration: "18 soal" },
-      ],
     },
   ],
   SMA: [
@@ -151,13 +115,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru3@pesantren.id",
       className: "11 IPA",
       schedule: [{ dayOfWeek: 1, startTime: "08:00", room: "Ruang 11 IPA" }, { dayOfWeek: 3, startTime: "08:00", room: "Ruang 11 IPA" }],
-      lessons: [
-        { title: "Trigonometri", type: LessonType.VIDEO, duration: "18 mnt" },
-        { title: "Identitas Trigonometri", type: LessonType.TEXT, duration: "10 mnt" },
-        { title: "Konsep Limit", type: LessonType.VIDEO, duration: "16 mnt" },
-        { title: "Turunan Fungsi", type: LessonType.VIDEO, duration: "15 mnt" },
-        { title: "Ulangan Harian", type: LessonType.QUIZ, duration: "25 soal" },
-      ],
     },
     {
       title: "Fisika",
@@ -166,12 +123,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru2@pesantren.id",
       className: "11 IPA",
       schedule: [{ dayOfWeek: 2, startTime: "09:15", room: "Lab Fisika" }, { dayOfWeek: 4, startTime: "09:15", room: "Lab Fisika" }],
-      lessons: [
-        { title: "Hukum Newton", type: LessonType.VIDEO, duration: "20 mnt" },
-        { title: "Usaha dan Energi", type: LessonType.VIDEO, duration: "17 mnt" },
-        { title: "Laporan Praktikum", type: LessonType.ASSIGNMENT, duration: "Tenggat" },
-        { title: "Kuis Dinamika", type: LessonType.QUIZ, duration: "15 soal" },
-      ],
     },
     {
       title: "Tafsir & Hadits",
@@ -180,11 +131,6 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       teacher: "guru@pesantren.id",
       className: "11 IPA",
       schedule: [{ dayOfWeek: 5, startTime: "07:30", room: "Aula" }],
-      lessons: [
-        { title: "Tafsir Surat Al-Hujurat", type: LessonType.TEXT, duration: "20 mnt" },
-        { title: "Hadits Arba'in 1-5", type: LessonType.TEXT, duration: "18 mnt" },
-        { title: "Diskusi Kelompok", type: LessonType.ASSIGNMENT, duration: "Tenggat" },
-      ],
     },
   ],
 };
@@ -227,7 +173,7 @@ async function main() {
   // Demo parent owns two children across levels.
   const demoParent = await upsertUser("wali@pesantren.id", "Bapak Hadi Santoso", UserRole.PARENT, passwordHash, "0812-0000-1111");
 
-  // Courses + lessons + schedule + grade items, grouped by level.
+  // Courses + schedule + grade items, grouped by level.
   const coursesByLevel = new Map<EducationLevel, { id: string; gradeItemIds: string[] }[]>();
   for (const level of LEVELS) {
     const list: { id: string; gradeItemIds: string[] }[] = [];
@@ -239,15 +185,6 @@ async function main() {
         create: { title: def.title, slug: def.slug, description: def.description, level, status: CourseStatus.PUBLISHED, createdById: teacherId },
         select: { id: true },
       });
-
-      for (let li = 0; li < def.lessons.length; li++) {
-        const l = def.lessons[li];
-        await prisma.lesson.upsert({
-          where: { courseId_order: { courseId: course.id, order: li + 1 } },
-          update: { title: l.title, type: l.type, duration: l.duration },
-          create: { courseId: course.id, title: l.title, type: l.type, duration: l.duration, order: li + 1, content: `Materi: ${l.title}.` },
-        });
-      }
 
       await prisma.scheduleSlot.deleteMany({ where: { courseId: course.id } });
       await prisma.scheduleSlot.createMany({
@@ -307,11 +244,10 @@ async function main() {
       const course = courses[ci];
 
       for (let si = 0; si < students.length; si++) {
-        const progress = Math.max(20, Math.min(100, det(ci + si, si) - 25));
         await prisma.enrollment.upsert({
           where: { studentId_courseId: { studentId: students[si], courseId: course.id } },
-          update: { progress, status: EnrollmentStatus.ACTIVE },
-          create: { studentId: students[si], courseId: course.id, progress, status: EnrollmentStatus.ACTIVE },
+          update: { status: EnrollmentStatus.ACTIVE },
+          create: { studentId: students[si], courseId: course.id, status: EnrollmentStatus.ACTIVE },
         });
       }
 
