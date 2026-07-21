@@ -94,7 +94,7 @@ async function main() {
     return entry[0];
   };
 
-  const [admin, homeroom] = await Promise.all([
+  const [admin, homeroom, mudir] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { email: "admin@pesantren.id" },
       select: { id: true },
@@ -102,6 +102,10 @@ async function main() {
     prisma.user.findUniqueOrThrow({
       where: { email: "walikelas@pesantren.id" },
       select: { id: true, name: true },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { email: "mudir@pesantren.id" },
+      select: { id: true },
     }),
   ]);
 
@@ -144,15 +148,26 @@ async function main() {
       select: { id: true },
     }),
   ]);
-  const [adminSession, homeroomSession] = await Promise.all([
+  const [adminSession, homeroomSession, mudirSession] = await Promise.all([
     createQaSession(admin.id),
     createQaSession(homeroom.id),
+    createQaSession(mudir.id),
   ]);
 
   try {
     const gradeAction = actionId("saveGradeAction");
     const attendanceAction = actionId("setAttendanceStatusAction");
     const updateUserAction = actionId("updateUserAction");
+
+    const mudirDashboard = await fetch(`${baseUrl}/dashboard`, {
+      headers: { Cookie: mudirSession.cookie },
+      redirect: "manual",
+    });
+    const mudirDashboardHtml = await mudirDashboard.text();
+    assert.equal(mudirDashboard.status, 200);
+    assert.ok(mudirDashboardHtml.includes("Pengawasan ustadz hari ini"));
+    assert.ok(mudirDashboardHtml.includes("Perlu ditindaklanjuti"));
+    assert.ok(mudirDashboardHtml.includes("Pengawasan akademik"));
 
     const nilaiPage = await fetch(`${baseUrl}/nilai`, {
       headers: { Cookie: homeroomSession.cookie },
@@ -229,7 +244,7 @@ async function main() {
     assert.equal(homeroomAfter.status, UserStatus.VERIFIED);
 
     console.log(
-      "Role QA passed: assigned-course scope, report access, cross-course and unenrolled writes, and assignee account protection.",
+      "Role QA passed: Mudir dashboard, assigned-course scope, report access, forged writes, and assignee account protection.",
     );
   } finally {
     await prisma.user.update({
@@ -237,7 +252,7 @@ async function main() {
       data: { role: UserRole.HOMEROOM, status: UserStatus.VERIFIED },
     });
     await prisma.session.deleteMany({
-      where: { id: { in: [adminSession.id, homeroomSession.id] } },
+      where: { id: { in: [adminSession.id, homeroomSession.id, mudirSession.id] } },
     });
     await prisma.studentProfile.deleteMany({
       where: { id: { in: [unenrolledStudent.id, foreignStudent.id] } },
