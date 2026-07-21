@@ -2,20 +2,21 @@
 
 ## Product
 
-Pesantren Digital adalah sistem informasi manajemen terintegrasi yang menghubungkan pondok pesantren dengan wali santri. Sistem ini berfokus pada **5 Fitur Inti**:
+Pesantren Digital adalah sistem informasi manajemen terintegrasi yang menghubungkan pondok pesantren dengan wali santri. Sistem ini berfokus pada **6 Fitur Inti**:
 1. **Pendaftaran (PPDB)**: Pengelolaan calon santri baru secara online.
 2. **Absensi**: Pencatatan kehadiran santri per sesi pelajaran.
 3. **Penjadwalan**: Penyusunan jadwal pelajaran per jenjang.
 4. **Pengelolaan Nilai**: Pencatatan nilai harian dan komponen nilai pelajaran.
 5. **Pengelolaan Rapor**: Penyusunan dan penerbitan rapor semester yang di-snapshot secara permanen.
+6. **Absensi Ustadz dan BKKH**: Pencatatan kehadiran ustadz serta laporan manual kegiatan harian berdasarkan rentang waktu.
 
 Wali santri dapat memantau jadwal pelajaran, nilai harian, rekap absensi, dan rapor semester anaknya dari ponsel. Pengajar dan Wali Kelas mengelola nilai, kehadiran, jadwal, dan menerbitkan rapor. Administrasi meninjau pendaftaran baru dan mengelola status pengguna. Mudir Ma'had melakukan pengawasan read-only pada seluruh data akademik. Mendukung jenjang SD, SMP, dan SMA.
 
 ## Users
 
 - **Wali santri**: Pengguna utama yang membuat akun, mendaftarkan anak, memantau jadwal, absensi harian, nilai harian, dan rapor semester anak.
-- **Wali kelas**: Memantau kelas binaan, mengelola nilai, absensi, serta mengisi catatan wali kelas dan menerbitkan rapor semester.
-- **Pengajar**: Mencatat kehadiran santri, mengelola slot jadwal, dan mengisi komponen nilai pelajaran.
+- **Wali kelas**: Memantau kelas binaan, mengelola nilai dan absensi, mengisi BKKH, serta mengisi catatan wali kelas dan menerbitkan rapor semester.
+- **Pengajar**: Mencatat kehadiran santri, mengisi absensi dan BKKH pribadi, mengelola slot jadwal, dan mengisi komponen nilai pelajaran.
 - **Administrasi**: Meninjau pendaftaran PPDB, mengelola verifikasi status pengguna, serta mengelola jadwal, absensi, nilai, dan rapor.
 - **Mudir Ma'had**: Melakukan pengawasan (read-only) terhadap data pengguna, jadwal, absensi, nilai, rapor, dan informasi pesantren.
 - **Santri**: Data profil santri yang dipantau. Tidak berinteraksi dengan aplikasi secara langsung.
@@ -45,4 +46,3 @@ Jelas, tenang, dan terpercaya. Nuansa hijau pesantren. UI ringkas, responsif, mu
 - Hindari penggunaan tanda em dash (—) dalam salinan bahasa Indonesia.
 - Pesan error formulir wajib menjelaskan solusi atau tindakan perbaikan.
 - Label formulir harus selalu terlihat di atas input.
-

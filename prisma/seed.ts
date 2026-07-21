@@ -406,6 +406,40 @@ async function main() {
   await prisma.staffAttendance.deleteMany({});
   await prisma.staffAttendance.createMany({ data: staffAttendanceRows });
 
+  // BKKH: laporan kegiatan manual berdasarkan enam rentang waktu tetap.
+  const bkkhReportRows: Array<{
+    teacherId: string;
+    date: Date;
+    assignment: string;
+    activity03000715: string | null;
+    activity07150900: string | null;
+    activity09301200: string | null;
+    activity12301430: string | null;
+    activity15301700: string | null;
+    activity18002100: string | null;
+  }> = [];
+  for (let back = 0; back < 7; back++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - back);
+    if (d.getDay() === 0) continue;
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    staffIds.forEach((teacherId, idx) => {
+      bkkhReportRows.push({
+        teacherId,
+        date,
+        assignment: idx === 0 ? "Wali kelas dan pendamping santri" : "Pengajar dan pembina asrama",
+        activity03000715: "Mendampingi qiyamul lail, salat Subuh berjamaah, dan halaqah pagi.",
+        activity07150900: "Persiapan pembelajaran dan pengarahan kebersihan kamar santri.",
+        activity09301200: "Mengajar sesuai jadwal dan mencatat perkembangan belajar santri.",
+        activity12301430: "Mendampingi salat Zuhur, makan siang, dan istirahat santri.",
+        activity15301700: "Pendampingan kegiatan sore dan evaluasi hafalan.",
+        activity18002100: (back + idx) % 4 === 0 ? null : "Mendampingi salat Magrib, kajian malam, dan persiapan istirahat.",
+      });
+    });
+  }
+  await prisma.bkkhReport.deleteMany({});
+  await prisma.bkkhReport.createMany({ data: bkkhReportRows });
+
   console.log(`Seeded ${teachers.length} teachers, ${studentCounter} students across ${LEVELS.length} levels, with parents, announcements, admissions, and ${staffAttendanceRows.length} staff attendance rows.`);
 }
 

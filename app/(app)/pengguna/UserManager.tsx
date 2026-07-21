@@ -53,7 +53,7 @@ function Modal({ title, sub, onClose, children, width = 460 }: { title: string; 
             <h3 className="text-lg font-bold tracking-tight">{title}</h3>
             {sub ? <p className="mt-0.5 text-[13px] text-ink-3">{sub}</p> : null}
           </div>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-surface-2">
+          <button onClick={onClose} className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-surface-2" aria-label="Tutup dialog">
             <Icons.x size={18} />
           </button>
         </div>
@@ -216,30 +216,32 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
       </div>
 
       {/* summary */}
-      <div className="mb-5 grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))" }}>
-        {summary.map((s) => (
-          <Card key={s.label} pad={18} hover>
-            <div className="flex items-center gap-3">
-              <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-surface-2" style={{ color: s.tone }}>
-                {s.icon({ size: 21 })}
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold leading-none tracking-tight">{s.value}</div>
-                <div className="mt-1 text-[12.5px] text-ink-3">{s.label}</div>
+      <Card pad={0} className="mb-5 overflow-hidden">
+        <div className="grid grid-cols-2 gap-px bg-line lg:grid-cols-5">
+          {summary.map((s, index) => (
+            <div key={s.label} className={`bg-surface p-4 ${index === summary.length - 1 ? "col-span-2 lg:col-span-1" : ""}`}>
+              <div className="flex items-center gap-3">
+                <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-surface-2" style={{ color: s.tone }}>
+                  {s.icon({ size: 21 })}
+                </div>
+                <div>
+                  <div className="text-2xl font-extrabold leading-none tracking-tight">{s.value}</div>
+                  <div className="mt-1 text-[12.5px] text-ink-3">{s.label}</div>
+                </div>
               </div>
             </div>
-          </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Card>
 
       {/* controls */}
       <div className="mb-3.5 flex flex-wrap justify-between gap-3">
-        <div className="flex gap-1.5 rounded-full border border-line bg-surface p-1">
+        <div className="flex max-w-full gap-1.5 overflow-x-auto rounded-xl border border-line bg-surface p-1">
           {TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition ${
+              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-semibold transition ${
                 tab === t ? "bg-primary text-white" : "text-ink-2"
               }`}
             >
@@ -253,6 +255,7 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            aria-label="Cari pengguna"
             placeholder="Cari nama atau email…"
             className="w-full bg-transparent py-2.5 text-[13.5px] outline-none"
           />
@@ -300,8 +303,9 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
                       {!readOnly && u.status === "PENDING" ? (
                         <button
                           title="Verifikasi"
+                          aria-label={`Verifikasi ${u.name}`}
                           onClick={() => run(setUserStatusAction(u.id, "VERIFIED"), `${u.name} diverifikasi`)}
-                          className="grid h-8 w-8 place-items-center rounded-lg text-success hover:bg-success-soft"
+                          className="grid h-11 w-11 place-items-center rounded-lg text-success hover:bg-success-soft"
                         >
                           <Icons.check2 size={16} />
                         </button>
@@ -310,15 +314,17 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
                         <>
                           <button
                             title="Edit"
+                            aria-label={`Edit ${u.name}`}
                             onClick={() => setModal({ type: "edit", user: u })}
-                            className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-primary-soft hover:text-primary-700"
+                            className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-primary-soft hover:text-primary-700"
                           >
                             <Icons.edit size={16} />
                           </button>
                           <button
                             title="Hapus"
+                            aria-label={`Hapus ${u.name}`}
                             onClick={() => setModal({ type: "delete", user: u })}
-                            className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-danger-soft hover:text-danger"
+                            className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-danger-soft hover:text-danger"
                           >
                             <Icons.trash size={16} />
                           </button>

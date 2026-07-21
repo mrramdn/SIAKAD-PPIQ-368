@@ -29,27 +29,9 @@ export function Topbar({
         <Icons.menu size={20} />
       </button>
 
-      <h1 className="text-[17px] font-bold tracking-tight">{title}</h1>
-
-      <div className="ml-3 hidden w-[280px] items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 md:flex">
-        <Icons.search size={17} style={{ color: "var(--text-3)" }} />
-        <input
-          placeholder="Cari santri, mapel, informasi..."
-          className="w-full bg-transparent py-2.5 text-[13.5px] text-ink outline-none"
-        />
-      </div>
+      <h1 className="truncate text-[17px] font-bold tracking-tight">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2 lg:gap-3">
-        <button
-          className="relative grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-ink-2 hover:bg-surface-2"
-          aria-label="Notifikasi"
-        >
-          <Icons.bell size={19} />
-          <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full border-[1.5px] border-surface bg-danger" />
-        </button>
-
-        <div className="hidden h-7 w-px bg-line lg:block" />
-
         <div className="relative">
           <button
             onClick={() => setMenuOpen((v) => !v)}

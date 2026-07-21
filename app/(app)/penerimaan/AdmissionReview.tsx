@@ -31,6 +31,7 @@ type Admission = {
 
 const STATUS_LABEL: Record<Status, string> = { PENDING: "Menunggu", ACCEPTED: "Diterima", REJECTED: "Ditolak" };
 const STATUS_TONE: Record<Status, Tone> = { PENDING: "warning", ACCEPTED: "success", REJECTED: "danger" };
+const STATUS_COLOR: Record<Status, string> = { PENDING: "var(--amber)", ACCEPTED: "var(--green)", REJECTED: "var(--red)" };
 const LEVEL_TONE: Record<Level, Tone> = { SD: "accent", SMP: "primary", SMA: "success" };
 const TABS: (Status | "ALL")[] = ["PENDING", "ACCEPTED", "REJECTED", "ALL"];
 const TAB_LABEL: Record<Status | "ALL", string> = { PENDING: "Menunggu", ACCEPTED: "Diterima", REJECTED: "Ditolak", ALL: "Semua" };
@@ -48,7 +49,7 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
 function DocumentLink({ label, href }: { label: string; href: string | null }) {
   if (!href) return null;
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12.5px] font-semibold text-ink-2 transition hover:bg-surface-2">
+    <a href={href} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12.5px] font-semibold text-ink-2 transition hover:bg-surface-2">
       <Icons.doc size={14} />
       {label}
     </a>
@@ -102,26 +103,25 @@ export function AdmissionReview({ admissions }: { admissions: Admission[] }) {
         </p>
       </div>
 
-      <div className="mb-4 grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))" }}>
-        {(["PENDING", "ACCEPTED", "REJECTED"] as Status[]).map((s) => (
-          <Card key={s} pad={18} hover>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-extrabold tabular-nums leading-none tracking-tight">{counts[s]}</div>
-                <div className="mt-1 text-[12.5px] text-ink-3">{STATUS_LABEL[s]}</div>
+      <Card pad={0} className="mb-4 overflow-hidden">
+        <div className="grid grid-cols-3 divide-x divide-line">
+          {(["PENDING", "ACCEPTED", "REJECTED"] as Status[]).map((status) => (
+            <div key={status} className="p-4 text-center sm:p-5">
+              <div className="text-2xl font-extrabold tabular-nums leading-none tracking-tight" style={{ color: STATUS_COLOR[status] }}>
+                {counts[status]}
               </div>
-              <Badge tone={STATUS_TONE[s]}>{STATUS_LABEL[s]}</Badge>
+              <div className="mt-1.5 text-[12px] font-semibold text-ink-3 sm:text-[12.5px]">{STATUS_LABEL[status]}</div>
             </div>
-          </Card>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Card>
 
-      <div className="mb-3.5 flex gap-1.5 rounded-full border border-line bg-surface p-1">
+      <div className="mb-3.5 flex max-w-full gap-1.5 overflow-x-auto rounded-xl border border-line bg-surface p-1">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition ${tab === t ? "bg-primary text-white" : "text-ink-2"}`}
+            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-semibold transition ${tab === t ? "bg-primary text-white" : "text-ink-2"}`}
           >
             {TAB_LABEL[t]}
             <span className={`rounded-full px-1.5 text-[11px] tabular-nums ${tab === t ? "bg-white/25" : "bg-surface-2"}`}>{counts[t]}</span>

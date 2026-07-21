@@ -70,13 +70,20 @@ export default async function DashboardPage() {
           ? { href: "/absen", label: "Pantau Kelas" }
           : { href: "/nilai", label: "Mulai Menilai" };
 
+  const secondaryCta =
+    user.role === "ADMIN"
+      ? { href: "/penerimaan", label: "Tinjau Pendaftaran" }
+      : user.role === "HOMEROOM"
+        ? { href: "/rapor", label: "Kelola Rapor" }
+        : { href: "/absen", label: "Lihat Absensi" };
+
   const heroBlurb =
     user.role === "TEACHER"
-      ? "Kelola materi, catat kehadiran, dan isi nilai kelas yang kamu ampu hari ini."
+      ? "Kelola mata pelajaran, catat kehadiran, dan isi nilai kelas yang kamu ampu hari ini."
       : user.role === "HOMEROOM"
         ? "Pantau kelas binaan, absensi santri, nilai, dan informasi untuk wali."
       : user.role === "MUDIR"
-        ? "Pantau data pengguna, pembelajaran, nilai, absensi, dan informasi pesantren."
+        ? "Pantau data pengguna, mata pelajaran, nilai, absensi, dan informasi pesantren."
       : "Pantau verifikasi akun, kelas aktif, dan kehadiran santri.";
 
   return (
@@ -102,10 +109,10 @@ export default async function DashboardPage() {
                 <Icons.chevR size={17} />
               </Link>
               <Link
-                href="/absen"
+                href={secondaryCta.href}
                 className="inline-flex items-center rounded-xl border border-white/25 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white"
               >
-                Lihat Absensi
+                {secondaryCta.label}
               </Link>
             </div>
           </div>

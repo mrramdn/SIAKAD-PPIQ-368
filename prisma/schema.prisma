@@ -81,6 +81,7 @@ model User {
   reportCards  ReportCard[] @relation("ReportCardCreator")
   staffAttendances StaffAttendance[] @relation("StaffAttendanceTeacher")
   recordedStaffAttendances StaffAttendance[] @relation("StaffAttendanceRecorder")
+  bkkhReports  BkkhReport[] @relation("BkkhTeacher")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -336,8 +337,7 @@ model Admission {
   @@index([createdAt])
 }
 
-// Absensi harian ustadz (pengajar & wali kelas). Kolom note disiapkan untuk
-// laporan BKKH (menunggu kepastian format dari pembimbing).
+// Absensi harian ustadz (pengajar & wali kelas).
 model StaffAttendance {
   id           String           @id @default(uuid())
   teacherId    String
@@ -353,4 +353,25 @@ model StaffAttendance {
   @@unique([teacherId, date])
   @@index([date])
   @@index([status])
+}
+
+// BKKH: laporan kegiatan manual per ustadz dan tanggal. Rentang waktu mengikuti
+// formulir BKKH pondok yang digunakan sebelum aplikasi dibuat.
+model BkkhReport {
+  id                 String   @id @default(uuid())
+  teacherId          String
+  teacher            User     @relation("BkkhTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  date               DateTime @db.Date
+  assignment         String
+  activity03000715   String?  @db.Text
+  activity07150900   String?  @db.Text
+  activity09301200   String?  @db.Text
+  activity12301430   String?  @db.Text
+  activity15301700   String?  @db.Text
+  activity18002100   String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([teacherId, date])
+  @@index([date])
 }
