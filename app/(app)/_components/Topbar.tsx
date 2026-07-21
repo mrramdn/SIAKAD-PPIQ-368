@@ -16,7 +16,7 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const title = pathname.startsWith("/learning/") ? "Detail Kelas" : PAGE_TITLE[pathname] ?? APP_NAME;
+  const title = pathname.startsWith("/mapel/") ? "Detail Mata Pelajaran" : PAGE_TITLE[pathname] ?? APP_NAME;
   const initials = initialsFromName(user.name);
 
   return (
@@ -34,7 +34,7 @@ export function Topbar({
       <div className="ml-3 hidden w-[280px] items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 md:flex">
         <Icons.search size={17} style={{ color: "var(--text-3)" }} />
         <input
-          placeholder="Cari materi, santri, tugas..."
+          placeholder="Cari santri, mapel, informasi..."
           className="w-full bg-transparent py-2.5 text-[13.5px] text-ink outline-none"
         />
       </div>
