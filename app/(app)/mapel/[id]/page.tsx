@@ -1,21 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireVerifiedUser } from "@/lib/auth";
+import { CourseStatus, UserRole } from "@/generated/prisma/client";
+import { requireStaffViewer } from "@/lib/auth";
 import { getCourseManagement } from "@/lib/lms";
-import { Avatar, Card, Icons, inputClasses, buttonClasses, courseAccent, courseCode, initialsFromName } from "@/components/ui";
-import { enrollStudentAction } from "../../actions";
+import { Avatar, Card, Field, Icons, inputClasses, buttonClasses, courseAccent, courseCode, initialsFromName } from "@/components/ui";
+import { enrollStudentAction, updateCourseAction } from "../../actions";
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireVerifiedUser();
+  const user = await requireStaffViewer();
   const { id } = await params;
 
-  // Staff view; Mudir can supervise without write controls.
-  const { course, verifiedStudents } = await getCourseManagement(id);
+  const { course, verifiedStudents, teachingStaff } = await getCourseManagement(id, user);
   if (!course) notFound();
   const accent = courseAccent(course.id);
   const enrolledIds = new Set(course.enrollments.map((e) => e.student.id));
   const availableStudents = verifiedStudents.filter((s) => !enrolledIds.has(s.id));
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user.role === UserRole.ADMIN;
+  const canEditAcademic = user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+  const canViewAcademic = canEditAcademic || user.role === UserRole.MUDIR;
 
   return (
     <div className="view-enter">
@@ -33,23 +35,61 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
           <span className="mono rounded-md bg-black/20 px-2.5 py-1 text-[12.5px] font-semibold">{courseCode(course.title)}</span>
           <h1 className="my-3 text-2xl font-extrabold tracking-tight lg:text-3xl">{course.title}</h1>
           <p className="max-w-[560px] text-[14.5px] leading-relaxed opacity-90">{course.description}</p>
-          <div className="mt-4 text-[13.5px]">
-            <strong>{course.enrollments.length}</strong> santri terdaftar
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-[13.5px]">
+            <span><strong>{course.enrollments.length}</strong> santri terdaftar</span>
+            <span>Pengampu: <strong>{course.teacher?.name ?? "Belum ditugaskan"}</strong></span>
           </div>
         </div>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2.5">
-        <Link href={`/nilai?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
-          <Icons.chart size={15} /> Kelola Nilai
-        </Link>
-        <Link href={`/absen?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
-          <Icons.check2 size={15} /> Kelola Absensi
-        </Link>
+        {canViewAcademic ? (
+          <>
+            <Link href={`/nilai?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
+              <Icons.chart size={15} /> {canEditAcademic ? "Kelola Nilai" : "Lihat Nilai"}
+            </Link>
+            <Link href={`/absen?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
+              <Icons.check2 size={15} /> {canEditAcademic ? "Kelola Absensi" : "Lihat Absensi"}
+            </Link>
+          </>
+        ) : null}
         <Link href="/jadwal" className={buttonClasses("ghost", "sm")}>
-          <Icons.calendar size={15} /> Kelola Jadwal
+          <Icons.calendar size={15} /> {isAdmin ? "Kelola Jadwal" : "Lihat Jadwal"}
         </Link>
       </div>
+
+      {isAdmin ? (
+        <Card pad={20} className="mb-5">
+          <h2 className="mb-4 text-base font-bold">Pengaturan Mata Pelajaran</h2>
+          <form action={updateCourseAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.8fr_0.7fr_auto]">
+            <input type="hidden" name="courseId" value={course.id} />
+            <Field label="Nama mata pelajaran">
+              <input name="title" required defaultValue={course.title} className={inputClasses} />
+            </Field>
+            <Field label="Deskripsi singkat">
+              <input name="description" required defaultValue={course.description} className={inputClasses} />
+            </Field>
+            <Field label="Ustadz pengampu">
+              <select name="teacherId" required defaultValue={course.teacherId ?? ""} className={inputClasses}>
+                <option value="" disabled>Pilih ustadz</option>
+                {teachingStaff.map((staff) => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Status">
+              <select name="status" defaultValue={course.status} className={inputClasses}>
+                <option value={CourseStatus.DRAFT}>Draft</option>
+                <option value={CourseStatus.PUBLISHED}>Aktif</option>
+                <option value={CourseStatus.ARCHIVED}>Arsip</option>
+              </select>
+            </Field>
+            <div className="flex items-end">
+              <button type="submit" className={buttonClasses("primary", "md")}>Simpan</button>
+            </div>
+          </form>
+        </Card>
+      ) : null}
 
       <Card pad={20} className="max-w-2xl">
         <h2 className="mb-4 text-base font-bold">Peserta ({course.enrollments.length})</h2>

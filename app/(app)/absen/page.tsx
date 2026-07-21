@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireVerifiedUser } from "@/lib/auth";
+import { requireAcademicViewer } from "@/lib/auth";
 import { getAttendanceBoard } from "@/lib/lms";
 import { Card, Field, Ring, buttonClasses, inputClasses } from "@/components/ui";
 import { createAttendanceSessionAction } from "../actions";
@@ -12,8 +12,8 @@ const STATUS_META = [
   { key: "ABSENT", label: "Alpa", color: "var(--red)" },
 ] as const;
 
-export default async function AbsenPage({ searchParams }: { searchParams: Promise<{ course?: string }> }) {
-  const [{ course }, user] = await Promise.all([searchParams, requireVerifiedUser()]);
+export default async function AbsenPage({ searchParams }: { searchParams: Promise<{ course?: string; error?: string }> }) {
+  const [{ course, error }, user] = await Promise.all([searchParams, requireAcademicViewer()]);
   const { courses, activeCourseId, sessions, rows, canEdit } = await getAttendanceBoard(user, course);
 
   const todayCol = sessions.length - 1;
@@ -32,9 +32,15 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Absensi</h1>
-          <p className="mt-1 text-sm text-ink-3">{canEdit ? "Ketuk sel untuk mengubah status kehadiran." : "Rekap kehadiran kamu per sesi."}</p>
+          <p className="mt-1 text-sm text-ink-3">{canEdit ? "Ketuk sel untuk mengubah status kehadiran." : "Pantau rekap kehadiran santri sebagai bahan pengawasan akademik."}</p>
         </div>
       </div>
+
+      {error ? (
+        <div className="mb-4 rounded-xl border border-line bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+          {error === "forbidden" ? "Anda tidak ditugaskan pada mata pelajaran ini." : "Sesi absensi gagal dibuat. Periksa kembali isian Anda."}
+        </div>
+      ) : null}
 
       {courses.length === 0 ? (
         <Card pad={40}>

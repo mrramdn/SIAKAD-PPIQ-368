@@ -15,9 +15,9 @@ Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 
 1. **Pendaftaran (PPDB)**: Wali mendaftarkan anak, Administrasi meninjau dan menerima pendaftaran.
 2. **Absensi**: Pengajar/Wali Kelas mencatat absensi santri per sesi pelajaran.
-3. **Penjadwalan**: Staff (Admin/Teacher/Homeroom) menyusun jadwal pelajaran per jenjang.
+3. **Penjadwalan**: Administrasi menyusun jadwal pelajaran per jenjang; pengajar, wali kelas, Mudir, dan wali santri melihat sesuai konteksnya.
 4. **Pengelolaan Nilai**: Pengajar mengisi nilai komponen per mata pelajaran.
-5. **Pengelolaan Rapor**: Wali kelas/Staff membuat rapor semester (rekap nilai + absensi), menambahkan catatan wali kelas, menerbitkan rapor, dan Wali Santri memantau rapor anaknya.
+5. **Pengelolaan Rapor**: Wali Kelas membuat rapor semester (rekap nilai + absensi), menambahkan catatan, menerbitkan rapor, dan Wali Santri memantau rapor anaknya.
 6. **Absensi Ustadz dan BKKH**: Pengajar/Wali Kelas mencatat kehadiran pribadi dan mengisi laporan kegiatan harian berdasarkan enam rentang waktu; Administrasi mencatat kehadiran dan Mudir memantau laporan.
 
 ## Use Case per Peran
@@ -35,11 +35,11 @@ Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 ### 2. Wali Kelas
 - Login
 - Memantau Kelas Binaan
-- Menyusun Jadwal Pelajaran (Mengelola Slot)
-- Mencatat Kehadiran Sesi Pelajaran
+- Memantau Jadwal Pelajaran
+- Mencatat Kehadiran Sesi Pelajaran pada Mapel yang Ditugaskan
 - Mencatat Kehadiran Pribadi
 - Mengisi Laporan BKKH Harian
-- Mengisi dan Mengelola Nilai Komponen
+- Mengisi dan Mengelola Nilai Komponen pada Mapel yang Ditugaskan
 - Membuat Rapor Semester Santri (Generate & Hitung Rata-rata)
 - Mengisi Catatan Wali Kelas (Homeroom Note) pada Rapor
 - Menerbitkan Rapor Semester (Publish)
@@ -47,37 +47,33 @@ Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 
 ### 3. Pengajar
 - Login
-- Menyusun Jadwal Pelajaran (Mengelola Slot)
-- Mencatat Kehadiran Sesi Pelajaran
+- Memantau Jadwal Mengajar Pribadi
+- Mencatat Kehadiran Sesi Pelajaran pada Mapel yang Ditugaskan
 - Mencatat Kehadiran Pribadi
 - Mengisi Laporan BKKH Harian
-- Mengisi dan Mengelola Nilai Komponen
-- Membuat Rapor Semester Santri
-- Mengisi Catatan Wali Kelas pada Rapor
-- Menerbitkan Rapor Semester
+- Mengisi dan Mengelola Nilai Komponen pada Mapel yang Ditugaskan
 - Mengelola Pengumuman / Informasi Pesantren
 
 ### 4. Administrasi
 - Login
 - Meninjau dan Memverifikasi Pendaftaran Anak (PPDB)
-- Mengelola Status Pengguna (Verifikasi Akun Wali)
+- Mengelola Akun, Role, dan Status Pengguna
+- Mengelola Mata Pelajaran, Peserta, dan Ustadz Pengampu
 - Menyusun Jadwal Pelajaran (Mengelola Slot)
-- Mencatat Kehadiran Sesi Pelajaran
 - Mencatat Kehadiran Ustadz
 - Memantau Laporan BKKH Harian
-- Mengisi dan Mengelola Nilai Komponen
-- Membuat, Menulis Catatan, dan Menerbitkan Rapor Semester
 - Mengelola Pengumuman / Informasi Pesantren
 
 ### 5. Mudir Ma'had (Pengawasan - Read-Only)
 - Login
-- Memantau Pengguna
-- Memantau Jadwal Pelajaran
+- Memantau Jadwal Mengajar Ustadz
 - Memantau Rekap Absensi Santri
 - Memantau Absensi Ustadz dan Laporan BKKH
 - Memantau Rekap Nilai Santri
 - Memantau Rapor Semester Santri (Semua Status)
 - Memantau Pengumuman / Informasi Pesantren
+
+Catatan: Mudir tidak memiliki akses ke manajemen akun atau PPDB dan tidak memiliki aksi perubahan data.
 
 ### 6. Santri (Aktor Pasif)
 - Terdaftar di sistem dan memiliki profil
@@ -89,3 +85,5 @@ Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 - Saat pendaftaran diterima, sistem secara otomatis menautkan data profil Santri ke akun Wali Santri pengaju.
 - Pengelolaan Nilai dan Kehadiran merupakan basis data utama untuk menyusun Rapor Semester. Rapor semester di-snapshot dari rata-rata nilai dan total kehadiran pada periode berjalan sebelum diterbitkan.
 - Absensi Ustadz dan BKKH berada dalam satu halaman operasional, tetapi disimpan terpisah: status kehadiran harian dan laporan kegiatan per rentang waktu.
+- Administrasi mencatat status kehadiran ustadz, tetapi laporan BKKH hanya dapat diisi sendiri oleh Pengajar atau Wali Kelas pada hari yang sama.
+- Setiap mata pelajaran memiliki ustadz pengampu. Pengajar maupun Wali Kelas hanya dapat mengubah nilai dan absensi pada mata pelajaran yang ditugaskan kepadanya.
