@@ -121,16 +121,6 @@ export async function requireAdmin() {
   return user;
 }
 
-export async function requireAdminOrMudir() {
-  const user = await requireVerifiedUser();
-
-  if (user.role !== UserRole.ADMIN && user.role !== UserRole.MUDIR) {
-    redirect("/dashboard");
-  }
-
-  return user;
-}
-
 export async function requireVerifiedUser() {
   const user = await requireUser();
 
@@ -141,10 +131,60 @@ export async function requireVerifiedUser() {
   return user;
 }
 
-export async function requireTeacherOrAdmin() {
+export async function requireAcademicStaff() {
+  const user = await requireVerifiedUser();
+
+  if (user.role !== UserRole.TEACHER && user.role !== UserRole.HOMEROOM) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
+export async function requireAcademicViewer() {
+  const user = await requireVerifiedUser();
+
+  if (user.role !== UserRole.TEACHER && user.role !== UserRole.HOMEROOM && user.role !== UserRole.MUDIR) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
+export async function requireHomeroom() {
+  const user = await requireVerifiedUser();
+
+  if (user.role !== UserRole.HOMEROOM) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
+export async function requireReportViewer() {
+  const user = await requireVerifiedUser();
+
+  if (user.role !== UserRole.HOMEROOM && user.role !== UserRole.MUDIR) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
+export async function requireAnnouncementManager() {
   const user = await requireVerifiedUser();
 
   if (user.role !== UserRole.ADMIN && user.role !== UserRole.TEACHER && user.role !== UserRole.HOMEROOM) {
+    redirect("/dashboard");
+  }
+
+  return user;
+}
+
+export async function requireStaffViewer() {
+  const user = await requireVerifiedUser();
+
+  if (user.role === UserRole.PARENT) {
     redirect("/dashboard");
   }
 

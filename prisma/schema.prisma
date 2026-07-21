@@ -77,6 +77,7 @@ model User {
   submittedAdmissions Admission[] @relation("AdmissionSubmitter")
   sessions     Session[]
   courses      Course[]     @relation("CourseCreator")
+  teachingCourses Course[]  @relation("CourseTeacher")
   announcements Announcement[] @relation("AnnouncementAuthor")
   reportCards  ReportCard[] @relation("ReportCardCreator")
   staffAttendances StaffAttendance[] @relation("StaffAttendanceTeacher")
@@ -134,6 +135,8 @@ model Course {
   status      CourseStatus   @default(PUBLISHED)
   createdById String?
   createdBy   User?        @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  teacherId   String?
+  teacher     User?        @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
   enrollments Enrollment[]
   attendanceSessions AttendanceSession[]
   gradeItems GradeItem[]
@@ -145,6 +148,7 @@ model Course {
   @@index([status])
   @@index([level])
   @@index([createdById])
+  @@index([teacherId])
 }
 
 model ScheduleSlot {

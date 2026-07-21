@@ -16,10 +16,11 @@ Fitur inti aplikasi ada 6 (mengikuti use case diagram arahan pembimbing, 18 Juli
 
 Catatan keputusan:
 
-- Pengelolaan Nilai dan Pengelolaan Rapor tetap ditulis sebagai 2 use case di dokumen skripsi, tetapi diimplementasikan sebagai 1 modul. Rapor adalah rekap nilai dan absensi per semester yang difinalkan oleh wali kelas atau admin, lalu dibaca oleh wali santri.
+- Pengelolaan Nilai dan Pengelolaan Rapor tetap ditulis sebagai 2 use case di dokumen skripsi, tetapi diimplementasikan sebagai 1 modul. Rapor adalah rekap nilai dan absensi per semester yang difinalkan oleh Wali Kelas, lalu dibaca oleh wali santri dan dipantau Mudir secara read-only.
 - Fitur pendukung tetap ada tetapi bukan fokus skripsi: login/auth, pengelolaan pengguna, pengumuman (informasi), portal wali (anak saya).
 - Absensi Ustadz (18 Juli 2026): model `StaffAttendance` (unik per ustadz per tanggal, enum status sama dengan absensi santri), halaman `/absen-ustadz`. Aturan: ustadz/wali kelas menandai kehadiran sendiri untuk hari ini, administrasi mencatat siapa pun di tanggal mana pun, mudir memantau read-only, wali santri tidak punya akses. Format BKKH dikoreksi pada 21 Juli 2026 berdasarkan formulir operasional pondok: BKKH adalah laporan keterangan kegiatan manual per hari, bukan checklist. Model `BkkhReport` menyimpan amanah dan keterangan untuk slot 03.00-07.15, 07.15-09.00, 09.30-12.00, 12.30-14.30, 15.30-17.00, dan 18.00-21.00. Nama dan tanggal berasal dari akun/konteks aplikasi; ustadz mengisi laporannya sendiri, admin dan mudir memantau.
 - Modul learning lama sudah **dihapus** (18 Juli 2026): model `Lesson`, enum `LessonType`, dan kolom `Enrollment.progress` di-drop; route `/learning` diganti `/mapel` (kelola mata pelajaran + daftarkan peserta). Course murni berperan sebagai "Mata Pelajaran" untuk jadwal, absensi, nilai, dan rapor.
+- Batas role dikoreksi pada 21 Juli 2026: Administrasi fokus pada PPDB, akun, data dasar, penugasan ustadz, jadwal, informasi, dan pencatatan absensi ustadz. Mudir fokus mengawasi ustadz melalui absensi, BKKH, jadwal mengajar, dan hasil akademik tanpa akses mutasi atau manajemen akun. Pengajar dan Wali Kelas hanya mengubah nilai serta absensi mapel yang ditugaskan melalui `Course.teacherId`; Wali Kelas juga mengelola rapor.
 
 ## 2. Status Saat Ini (per Juli 2026)
 
@@ -28,8 +29,8 @@ Catatan keputusan:
 | Pendaftaran | `Admission` | `reviewAdmissionAction` | `/pendaftaran`, `/penerimaan` | Selesai |
 | Absensi Santri | `AttendanceSession`, `AttendanceRecord` | create session, set status, mark all present | `/absen` | Selesai |
 | Penjadwalan | `ScheduleSlot` | create/delete slot | `/jadwal` | Selesai |
-| Pengelolaan Nilai | `GradeItem`, `GradeRecord` | create item, save grade | `/nilai` | Selesai |
-| Pengelolaan Rapor | `ReportCard`, `ReportCardEntry` | generate, note, publish | `/rapor`, `/rapor/[id]` | Selesai |
+| Pengelolaan Nilai | `GradeItem`, `GradeRecord`, `Course.teacherId` | pengajar mapel membuat komponen dan menyimpan nilai | `/nilai` | Selesai |
+| Pengelolaan Rapor | `ReportCard`, `ReportCardEntry` | Wali Kelas generate, note, publish; Mudir read-only | `/rapor`, `/rapor/[id]` | Selesai |
 | Absensi Ustadz dan BKKH | `StaffAttendance`, `BkkhReport` | save attendance, save daily report | `/absen-ustadz` | Selesai |
 
 Kesimpulan: seluruh fitur inti sudah tersedia. Pekerjaan tersisa berada pada deployment produksi, uji instalasi PWA di ponsel, serta penyusunan artefak skripsi seperti ERD dan flowchart.
@@ -49,7 +50,7 @@ Kesimpulan: seluruh fitur inti sudah tersedia. Pekerjaan tersisa berada pada dep
 - [x] Migrasi skema: enum `Semester` + `ReportCardStatus`, field `semester` + `academicYear` di `GradeItem` dan `AttendanceSession`, model `ReportCard` + `ReportCardEntry` (migrasi `20260713090000_add_period_and_report_card`).
 - [x] `lib/lms.ts`: `getCurrentPeriod()`, `formatPeriod()`, `getScheduleBoard(level?)`, `computeReportEntries(studentId, period)`, `getReportBoard(period, className?)`, `getReportCardDetail(reportCardId)`, `getChildReportCards(parentId, childId)` dengan guard kepemilikan wali.
 - [x] Server actions di `app/(app)/actions.ts`:
-  - `createScheduleSlotAction(formData)` dan `deleteScheduleSlotAction(id)` (guard: TeacherOrAdmin)
+  - `createScheduleSlotAction(formData)` dan `deleteScheduleSlotAction(id)` (guard: Administrasi)
   - `generateReportCardAction({ studentId, semester, academicYear })` (hitung + snapshot, tolak jika sudah PUBLISHED)
   - `saveHomeroomNoteAction({ reportCardId, note })` (hanya saat DRAFT)
   - `publishReportCardAction(reportCardId)` (set PUBLISHED + publishedAt)
@@ -65,7 +66,7 @@ Kerjakan setelah Fase 1 selesai. Semua data lewat helper `lib/lms.ts` dan server
 - [x] Halaman `/jadwal`: grid jadwal per hari difilter per jenjang; staf bisa tambah dan hapus slot, wali dan mudir hanya melihat.
 - [x] Halaman `/rapor` + `/rapor/[id]`: daftar santri per kelas + periode, buat rapor, detail, catatan wali kelas, terbitkan. Wali di-redirect ke dashboard (diverifikasi).
 - [x] Portal wali: tab "Rapor Semester" di `/anak/[childId]` menampilkan rapor PUBLISHED per periode.
-- [x] Sidebar: link Jadwal (semua role) dan Rapor (staf + mudir) sudah ditambahkan di `nav.ts`.
+- [x] Sidebar: Jadwal tersedia sesuai konteks; Rapor hanya untuk Wali Kelas dan Mudir.
 
 Hasil QA 13 Juli 2026 (Claude): semua halaman dites runtime per role, guard benar, konten benar. Dua bug validasi query param (`/jadwal?level=` dan `/rapor?semester=`) menyebabkan 500, sudah diperbaiki dan dites ulang.
 
@@ -81,7 +82,7 @@ Ringkasan dari `AGENTS.md`, wajib dipatuhi:
 - Next.js 16 App Router, React 19, TypeScript, Tailwind v4. `params` dan `searchParams` adalah async (harus di-await).
 - Pakai `pnpm`, bukan npm/yarn.
 - Server component secara default; `"use client"` hanya jika perlu state/event/browser API.
-- Semua fungsi yang dibatasi role dijaga di server (`lib/auth.ts`: `requireParent`, `requireAdmin`, `requireTeacherOrAdmin`, dst). Wali hanya boleh melihat anaknya sendiri.
+- Semua fungsi yang dibatasi role dijaga di server (`lib/auth.ts`: `requireParent`, `requireAdmin`, `requireAcademicStaff`, `requireHomeroom`, `requireAcademicViewer`, dst). Menyembunyikan menu tidak dianggap sebagai guard.
 - Jangan query Prisma dari komponen UI; akses data lewat `lib/lms.ts`.
 - Copy berbahasa Indonesia, kalimat langsung, tanpa em dash, label form selalu terlihat di atas input, pesan error menjelaskan solusinya.
 - Ikuti pola UI yang sudah ada di `components/ui/` dan halaman `/nilai` serta `/absen`.
@@ -138,6 +139,17 @@ Uji di viewport 360px, lalu jalankan pnpm lint dan pnpm build.
 - [x] Menyamakan copy antarmuka dan dokumen dengan scope 6 fitur, termasuk perubahan modul lama menjadi Mata Pelajaran dan koreksi format laporan BKKH.
 - [x] Memperbesar target sentuh pada tab, tautan dokumen, dan aksi ikon utama hingga minimal 44px.
 
+### Pemisahan kewenangan role (21 Juli 2026)
+
+- [x] Administrasi tidak lagi mengubah nilai, absensi santri, atau rapor; fokus pada PPDB, akun, mapel, peserta, jadwal, informasi, dan absensi ustadz.
+- [x] Mudir tidak lagi melihat manajemen akun atau PPDB; dashboard dan navigasi berfokus pada pengawasan ustadz dengan data akademik read-only.
+- [x] `Course.teacherId` memisahkan ustadz pengampu dari akun pembuat data. Pengajar dan Wali Kelas hanya mengubah nilai serta absensi mapel yang ditugaskan.
+- [x] Action nilai dan absensi memvalidasi bahwa santri masih berstatus peserta aktif pada mapel terkait sebelum membuat atau mengubah record.
+- [x] Mapel lama tanpa pengampu tetap terlihat oleh Administrasi dengan peringatan penugasan ulang; role, status, atau akun pengampu tidak dapat diubah sebelum mapelnya dialihkan.
+- [x] Laporan BKKH hanya dapat ditulis sendiri oleh Pengajar/Wali Kelas pada hari yang sama. Administrasi dan Mudir hanya memantau isinya.
+- [x] Pembuatan, catatan, dan penerbitan rapor dibatasi untuk Wali Kelas; Mudir dapat memantau tanpa mengubah.
+- [x] Runtime QA lulus untuk direct URL semua role, scope mapel Pengajar/Wali Kelas, forged action nilai dan absensi lintas mapel/peserta, proteksi akun pengampu, serta forged action BKKH atas nama ustadz.
+
 ## 8. Backlog
 
 - [x] PWA (13 Juli 2026): manifest dilengkapi `id` + shortcuts (Anak Saya, Jadwal, Informasi); service worker di-upgrade — navigation preload, halaman yang pernah dibuka tersimpan sehingga bisa dibuka ulang saat offline, cache-first untuk aset `_next/static` (hashed), stale-while-revalidate untuk ikon/manifest. Sisa: uji install langsung di ponsel.
@@ -145,4 +157,4 @@ Uji di viewport 360px, lalu jalankan pnpm lint dan pnpm build.
 
 ## 9. Definisi Selesai
 
-Skripsi bisa mendemokan alur penuh: wali daftar akun dan mendaftarkan anak, admin menerima pendaftaran, staf menyusun jadwal, mengisi absensi santri dan nilai per semester, membuat lalu menerbitkan rapor, serta wali melihat jadwal, absensi, nilai, dan rapor anaknya dari ponsel. Pengajar dan wali kelas juga bisa mencatat kehadiran pribadi serta laporan BKKH harian, sementara administrasi dan mudir memantaunya sesuai kewenangan.
+Skripsi bisa mendemokan alur penuh: wali membuat akun dan mendaftarkan anak; Administrasi menerima PPDB, mengelola akun, menugaskan ustadz, dan menyusun jadwal; Pengajar mengisi nilai dan absensi mapel yang diampu; Wali Kelas menerbitkan rapor; wali melihat perkembangan anak dari ponsel. Pengajar dan Wali Kelas mencatat kehadiran serta BKKH pribadi, Administrasi mencatat absensi ustadz, dan Mudir mengawasi aktivitas ustadz secara read-only.

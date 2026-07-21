@@ -108,9 +108,9 @@ export default async function JadwalPage({
   const activeLevel = Object.values(EducationLevel).includes(level as EducationLevel)
     ? (level as EducationLevel)
     : EducationLevel.SMP;
-  const { days, courses } = await getScheduleBoard(activeLevel);
+  const { days, courses } = await getScheduleBoard(user, activeLevel);
 
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+  const canEdit = user.role === UserRole.ADMIN;
   const filteredCourses = courses.filter((c) => c.level === activeLevel);
 
   return (

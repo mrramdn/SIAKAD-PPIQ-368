@@ -2,9 +2,9 @@
 
 ## Project Context
 
-Pesantren Digital is an Islamic boarding school (pondok pesantren) information system built as a Next.js monolith. Its primary audience is **wali santri**: wali create an account, register one or more children, then monitor grades, attendance, and announcements. **Students (santri) do not log in** — their data is only viewed. Wali kelas and pengajar manage subjects, grades, attendance, and announcements. Administrasi review new-student admissions (PPDB). Mudir supervises read-only data. The system supports three levels: **SD, SMP, and SMA**.
+Pesantren Digital is an Islamic boarding school (pondok pesantren) information system built as a Next.js monolith. Its primary audience is **wali santri**: wali create an account, register one or more children, then monitor grades, attendance, and announcements. **Students (santri) do not log in**; their data is only viewed. Pengajar and Wali Kelas manage grades and attendance only for assigned courses, while Wali Kelas additionally manage report cards. Administrasi handle PPDB, accounts, course assignments, enrollment, schedules, announcements, and staff attendance. Mudir supervises teachers through read-only attendance, BKKH, teaching schedules, and academic results. The system supports three levels: **SD, SMP, and SMA**.
 
-Current scope is **6 core features** (see `ORCHESTRATOR.md`): (1) admissions/PPDB — parent account registration + in-dashboard child admission form with document URLs ready for Cloudinary, reviewed by admin; (2) attendance per course session; (3) scheduling — weekly schedule per level managed by staff, parents see only their own children's schedule; (4) grade management per course/period; (5) report cards — per-student per-semester snapshot of grades + attendance with homeroom note, published to parents; (6) staff attendance & BKKH (absensi ustadz) — daily attendance for teachers/homeroom (self check-in today, admin records anyone, mudir monitors) plus a manual daily activity report with an assignment field and six fixed time ranges (`BkkhReport`). Teachers/homeroom staff fill their own report for today; admin and mudir can review reports. Supporting features: announcements, user management, parent portal, mudir read-only supervision, installable PWA. The old learning/lesson module has been removed (18 Jul 2026): `Course` is now purely a subject (mata pelajaran) managed at `/mapel` (create subject + enroll students); the `Lesson` model and lesson content no longer exist.
+Current scope is **6 core features** (see `ORCHESTRATOR.md`): (1) admissions/PPDB, managed by Administrasi; (2) student attendance per course session, edited by assigned academic staff; (3) scheduling, managed by Administrasi; (4) grade management per assigned course/period; (5) report cards, created and published by Wali Kelas; (6) staff attendance and BKKH, where Administrasi records attendance, each ustadz writes their own daily report, and Mudir supervises read-only. `Course.teacherId` is the assigned ustadz and is separate from `createdById`. Mudir never manages accounts or PPDB. Supporting features include announcements, user management, parent portal, and installable PWA.
 
 Deployment: Vercel is used for **preview only**. Production will run on the user's own server via Docker (planned; user reports Vercel + Prisma performing slowly).
 
@@ -64,7 +64,7 @@ app/
     pengguna/ pengaturan/
     actions.ts          server actions with per-role guards
 lib/
-  auth.ts               session cookie auth (requireParent/Admin/AdminOrMudir/TeacherOrAdmin)
+  auth.ts               session cookie auth with admin, academic, homeroom, viewer, and parent guards
   lms.ts                data access (dashboard, schedule, report cards, parent portal, informasi, admissions, period helpers)
   brand.ts              app name + level labels (SD/SMP/SMA)
   prisma.ts
@@ -74,7 +74,7 @@ components/
 prisma/
   migrations/
   schema.prisma         User roles, EducationLevel, Semester, Admission, Announcement,
-                        Course/ScheduleSlot, GradeItem/GradeRecord (per period),
+                        Course with assigned teacher, ScheduleSlot, GradeItem/GradeRecord (per period),
                         AttendanceSession/Record (per period), StaffAttendance,
                         ReportCard/ReportCardEntry
   seed.ts               demo users + data; report card demo (SMA published, SMP draft)

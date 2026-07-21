@@ -19,7 +19,6 @@ const TEACHER_NAV: NavItem[] = [
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
   { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users" },
-  { href: "/rapor", label: "Rapor", icon: "award" },
   { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
@@ -42,10 +41,7 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/penerimaan", label: "Pendaftaran", icon: "doc" },
   { href: "/pengguna", label: "Pengguna", icon: "users" },
   { href: "/mapel", label: "Mata Pelajaran", icon: "book" },
-  { href: "/nilai", label: "Nilai", icon: "chart" },
-  { href: "/absen", label: "Absensi", icon: "check2" },
   { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users" },
-  { href: "/rapor", label: "Rapor", icon: "award" },
   { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings" },
@@ -53,11 +49,10 @@ const ADMIN_NAV: NavItem[] = [
 
 const MUDIR_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid" },
-  { href: "/pengguna", label: "Pengguna", icon: "users" },
+  { href: "/absen-ustadz", label: "Pengawasan Ustadz", icon: "users" },
   { href: "/mapel", label: "Mata Pelajaran", icon: "book" },
   { href: "/nilai", label: "Nilai", icon: "chart" },
   { href: "/absen", label: "Absensi", icon: "check2" },
-  { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users" },
   { href: "/rapor", label: "Rapor", icon: "award" },
   { href: "/jadwal", label: "Jadwal", icon: "calendar" },
   { href: "/informasi", label: "Informasi", icon: "bell" },
@@ -82,10 +77,10 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const ROLE_BLURB: Record<Role, string> = {
-  ADMIN: "Kelola pendaftaran, pengguna, mata pelajaran, dan informasi pesantren.",
-  TEACHER: "Kelola nilai, absensi, jadwal, dan informasi untuk mapel Anda.",
-  HOMEROOM: "Pantau kelas binaan dan bantu pengelolaan nilai, absensi, dan informasi.",
-  MUDIR: "Pantau data pengguna, mapel, nilai, absensi, dan informasi.",
+  ADMIN: "Kelola pendaftaran, akun, data dasar, jadwal, dan operasional pesantren.",
+  TEACHER: "Kelola nilai dan absensi mapel yang Anda ampu, serta isi laporan harian.",
+  HOMEROOM: "Kelola kelas binaan, rapor, nilai, absensi, dan laporan harian.",
+  MUDIR: "Awasi kehadiran, BKKH, jadwal mengajar, dan hasil akademik ustadz.",
   PARENT: "Pantau nilai, kehadiran, dan informasi terbaru anak Anda.",
 };
 

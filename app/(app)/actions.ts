@@ -14,7 +14,14 @@ import {
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client";
-import { requireAdmin, requireTeacherOrAdmin, requireVerifiedUser } from "@/lib/auth";
+import {
+  requireAcademicStaff,
+  requireAdmin,
+  requireAnnouncementManager,
+  requireHomeroom,
+  requireVerifiedUser,
+  type AuthUser,
+} from "@/lib/auth";
 import { BKKH_TIME_SLOTS, type BkkhActivityField } from "@/lib/bkkh";
 import { computeReportEntries, dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
 import { prisma } from "@/lib/prisma";
@@ -34,6 +41,29 @@ function toNullableString(value: FormDataEntryValue | null) {
   return stringValue || null;
 }
 
+function canEditAssignedCourse(user: AuthUser, teacherId: string | null) {
+  return teacherId === user.id;
+}
+
+async function isValidTeachingStaff(userId: string) {
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] },
+      status: UserStatus.VERIFIED,
+    },
+    select: { id: true },
+  });
+  return Boolean(user);
+}
+
+async function hasAssignedCourses(userId: string) {
+  const assignedCourses = await prisma.course.count({
+    where: { teacherId: userId, deletedAt: null },
+  });
+  return assignedCourses > 0;
+}
+
 function revalidateCourseAreas(courseId?: string) {
   revalidatePath("/dashboard");
   revalidatePath("/mapel");
@@ -48,9 +78,10 @@ export async function createCourseAction(formData: FormData) {
   const admin = await requireAdmin();
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const teacherId = String(formData.get("teacherId") ?? "");
   const status = String(formData.get("status") ?? CourseStatus.PUBLISHED) as CourseStatus;
 
-  if (!title || !description || !Object.values(CourseStatus).includes(status)) {
+  if (!title || !description || !teacherId || !Object.values(CourseStatus).includes(status) || !(await isValidTeachingStaff(teacherId))) {
     redirect("/mapel?error=invalid");
   }
 
@@ -58,7 +89,7 @@ export async function createCourseAction(formData: FormData) {
   const existing = await prisma.course.findUnique({ where: { slug: baseSlug }, select: { id: true } });
 
   await prisma.course.create({
-    data: { title, slug: existing ? `${baseSlug}-${Date.now()}` : baseSlug, description, status, createdById: admin.id },
+    data: { title, slug: existing ? `${baseSlug}-${Date.now()}` : baseSlug, description, status, createdById: admin.id, teacherId },
   });
 
   revalidateCourseAreas();
@@ -69,13 +100,14 @@ export async function updateCourseAction(formData: FormData) {
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const teacherId = String(formData.get("teacherId") ?? "");
   const status = String(formData.get("status") ?? CourseStatus.PUBLISHED) as CourseStatus;
 
-  if (!courseId || !title || !description || !Object.values(CourseStatus).includes(status)) {
+  if (!courseId || !title || !description || !teacherId || !Object.values(CourseStatus).includes(status) || !(await isValidTeachingStaff(teacherId))) {
     redirect(`/mapel/${courseId}?error=invalid`);
   }
 
-  await prisma.course.update({ where: { id: courseId }, data: { title, description, status } });
+  await prisma.course.update({ where: { id: courseId }, data: { title, description, status, teacherId } });
   revalidateCourseAreas(courseId);
 }
 
@@ -99,16 +131,21 @@ export async function enrollStudentAction(formData: FormData) {
   revalidateCourseAreas(courseId);
 }
 
-/* ----------------------- attendance (teacher/admin) ------------------------ */
+/* ---------------------- attendance (academic staff) ------------------------ */
 
 export async function createAttendanceSessionAction(formData: FormData) {
-  await requireTeacherOrAdmin();
+  const user = await requireAcademicStaff();
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const heldAtValue = String(formData.get("heldAt") ?? "");
 
   if (!courseId || !title || !heldAtValue) {
     redirect(`/absen?course=${courseId}&error=attendance`);
+  }
+
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true } });
+  if (!course || !canEditAssignedCourse(user, course.teacherId)) {
+    redirect(`/absen?course=${courseId}&error=forbidden`);
   }
 
   const period = getCurrentPeriod(new Date(heldAtValue));
@@ -137,9 +174,30 @@ export async function setAttendanceStatusAction(input: {
   studentId: string;
   status: AttendanceStatus;
 }): Promise<ActionResult> {
-  await requireTeacherOrAdmin();
+  const user = await requireAcademicStaff();
   if (!input.sessionId || !input.studentId || !Object.values(AttendanceStatus).includes(input.status)) {
     return { ok: false, message: "Data absensi tidak valid." };
+  }
+  const session = await prisma.attendanceSession.findUnique({
+    where: { id: input.sessionId },
+    select: {
+      course: {
+        select: {
+          teacherId: true,
+          enrollments: {
+            where: { studentId: input.studentId, status: EnrollmentStatus.ACTIVE },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+  if (!session || !canEditAssignedCourse(user, session.course.teacherId)) {
+    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  }
+  if (session.course.enrollments.length === 0) {
+    return { ok: false, message: "Santri tidak terdaftar pada mata pelajaran ini." };
   }
   await prisma.attendanceRecord.upsert({
     where: { attendanceSessionId_studentId: { attendanceSessionId: input.sessionId, studentId: input.studentId } },
@@ -151,8 +209,15 @@ export async function setAttendanceStatusAction(input: {
 }
 
 export async function markAllPresentAction(sessionId: string): Promise<ActionResult> {
-  await requireTeacherOrAdmin();
+  const user = await requireAcademicStaff();
   if (!sessionId) return { ok: false, message: "Sesi tidak ditemukan." };
+  const session = await prisma.attendanceSession.findUnique({
+    where: { id: sessionId },
+    select: { course: { select: { teacherId: true } } },
+  });
+  if (!session || !canEditAssignedCourse(user, session.course.teacherId)) {
+    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  }
   await prisma.attendanceRecord.updateMany({
     where: { attendanceSessionId: sessionId },
     data: { status: AttendanceStatus.PRESENT },
@@ -161,10 +226,10 @@ export async function markAllPresentAction(sessionId: string): Promise<ActionRes
   return { ok: true };
 }
 
-/* -------------------------- grades (teacher/admin) ------------------------- */
+/* ------------------------- grades (academic staff) ------------------------- */
 
 export async function createGradeItemAction(formData: FormData) {
-  await requireTeacherOrAdmin();
+  const user = await requireAcademicStaff();
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const description = toNullableString(formData.get("description"));
@@ -173,6 +238,11 @@ export async function createGradeItemAction(formData: FormData) {
 
   if (!courseId || !title || !Number.isFinite(maxScore) || maxScore < 1) {
     redirect(`/nilai?course=${courseId}&error=grade`);
+  }
+
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true } });
+  if (!course || !canEditAssignedCourse(user, course.teacherId)) {
+    redirect(`/nilai?course=${courseId}&error=forbidden`);
   }
 
   const period = getCurrentPeriod();
@@ -196,10 +266,31 @@ export async function saveGradeAction(input: {
   studentId: string;
   value: number; // 0-100 display value
 }): Promise<ActionResult> {
-  await requireTeacherOrAdmin();
-  const item = await prisma.gradeItem.findUnique({ where: { id: input.gradeItemId }, select: { maxScore: true } });
+  const user = await requireAcademicStaff();
+  const item = await prisma.gradeItem.findUnique({
+    where: { id: input.gradeItemId },
+    select: {
+      maxScore: true,
+      course: {
+        select: {
+          teacherId: true,
+          enrollments: {
+            where: { studentId: input.studentId, status: EnrollmentStatus.ACTIVE },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
   if (!item || !input.studentId || !Number.isFinite(input.value)) {
     return { ok: false, message: "Data nilai tidak valid." };
+  }
+  if (!canEditAssignedCourse(user, item.course.teacherId)) {
+    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  }
+  if (item.course.enrollments.length === 0) {
+    return { ok: false, message: "Santri tidak terdaftar pada mata pelajaran ini." };
   }
   const clamped = Math.max(0, Math.min(100, Math.round(input.value)));
   const score = Math.round((clamped / 100) * item.maxScore);
@@ -215,7 +306,7 @@ export async function saveGradeAction(input: {
 /* ----------------------- schedule (teacher/admin) -------------------------- */
 
 export async function createScheduleSlotAction(formData: FormData) {
-  await requireTeacherOrAdmin();
+  await requireAdmin();
   const courseId = String(formData.get("courseId") ?? "");
   const dayOfWeek = Number(formData.get("dayOfWeek") ?? -1);
   const startTime = String(formData.get("startTime") ?? "").trim().replace(".", ":");
@@ -231,7 +322,7 @@ export async function createScheduleSlotAction(formData: FormData) {
 }
 
 export async function deleteScheduleSlotAction(id: string): Promise<ActionResult> {
-  await requireTeacherOrAdmin();
+  await requireAdmin();
   if (!id) return { ok: false, message: "Jadwal tidak ditemukan." };
   await prisma.scheduleSlot.delete({ where: { id } });
   revalidatePath("/jadwal");
@@ -246,7 +337,7 @@ export async function generateReportCardAction(input: {
   semester: Semester;
   academicYear: string;
 }): Promise<ActionResult> {
-  const user = await requireTeacherOrAdmin();
+  const user = await requireHomeroom();
   const academicYear = input.academicYear.trim();
   if (!input.studentId || !Object.values(Semester).includes(input.semester) || !/^\d{4}\/\d{4}$/.test(academicYear)) {
     return { ok: false, message: "Data rapor tidak valid." };
@@ -293,7 +384,7 @@ export async function generateReportCardAction(input: {
 }
 
 export async function saveHomeroomNoteAction(input: { reportCardId: string; note: string }): Promise<ActionResult> {
-  await requireTeacherOrAdmin();
+  await requireHomeroom();
   if (!input.reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
 
   const card = await prisma.reportCard.findUnique({ where: { id: input.reportCardId }, select: { status: true } });
@@ -311,7 +402,7 @@ export async function saveHomeroomNoteAction(input: { reportCardId: string; note
 }
 
 export async function publishReportCardAction(reportCardId: string): Promise<ActionResult> {
-  await requireTeacherOrAdmin();
+  await requireHomeroom();
   if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
 
   const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
@@ -346,6 +437,9 @@ export async function setUserStatusAction(userId: string, status: UserStatus): P
   const admin = await requireAdmin();
   if (!userId || !Object.values(UserStatus).includes(status)) {
     return { ok: false, message: "Status tidak valid." };
+  }
+  if (status !== UserStatus.VERIFIED && (await hasAssignedCourses(userId))) {
+    return { ok: false, message: "Alihkan seluruh mata pelajaran yang diampu sebelum mengubah status akun." };
   }
   await prisma.user.update({
     where: { id: userId },
@@ -401,7 +495,21 @@ export async function updateUserAction(input: {
 }): Promise<ActionResult> {
   await requireAdmin();
   const name = input.name.trim();
-  if (!input.userId || !name) return { ok: false, message: "Nama wajib diisi." };
+  if (
+    !input.userId ||
+    !name ||
+    !Object.values(UserRole).includes(input.role) ||
+    !Object.values(UserStatus).includes(input.status)
+  ) {
+    return { ok: false, message: "Data pengguna tidak valid." };
+  }
+
+  const remainsVerifiedTeachingStaff =
+    input.status === UserStatus.VERIFIED &&
+    (input.role === UserRole.TEACHER || input.role === UserRole.HOMEROOM);
+  if (!remainsVerifiedTeachingStaff && (await hasAssignedCourses(input.userId))) {
+    return { ok: false, message: "Alihkan seluruh mata pelajaran yang diampu sebelum mengubah role atau status akun." };
+  }
 
   await prisma.user.update({
     where: { id: input.userId },
@@ -414,7 +522,7 @@ export async function updateUserAction(input: {
 /* ---------------------- announcements (teacher/admin) ---------------------- */
 
 export async function createAnnouncementAction(formData: FormData) {
-  const user = await requireTeacherOrAdmin();
+  const user = await requireAnnouncementManager();
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   const levelRaw = String(formData.get("level") ?? "");
@@ -431,7 +539,7 @@ export async function createAnnouncementAction(formData: FormData) {
 }
 
 export async function deleteAnnouncementAction(id: string): Promise<ActionResult> {
-  await requireTeacherOrAdmin();
+  await requireAnnouncementManager();
   if (!id) return { ok: false, message: "Informasi tidak ditemukan." };
   await prisma.announcement.delete({ where: { id } });
   revalidatePath("/informasi");
@@ -523,6 +631,9 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
   const admin = await requireAdmin();
   if (!userId) return { ok: false, message: "Pengguna tidak ditemukan." };
   if (userId === admin.id) return { ok: false, message: "Tidak bisa menghapus akun sendiri." };
+  if (await hasAssignedCourses(userId)) {
+    return { ok: false, message: "Alihkan seluruh mata pelajaran yang diampu sebelum menghapus akun." };
+  }
   await prisma.user.delete({ where: { id: userId } });
   revalidatePath("/pengguna");
   revalidatePath("/dashboard");
@@ -582,7 +693,7 @@ export async function saveBkkhReportAction(formData: FormData) {
     (user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM) &&
     teacherId === user.id &&
     dateKey === toDateKey(new Date());
-  if (user.role !== UserRole.ADMIN && !isSelfToday) {
+  if (!isSelfToday) {
     redirect("/absen-ustadz?error=forbidden");
   }
 

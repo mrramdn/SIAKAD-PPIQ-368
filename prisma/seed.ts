@@ -60,7 +60,7 @@ const COURSES: Record<EducationLevel, CourseDef[]> = {
       title: "Tematik Kelas 5",
       slug: "tematik-kelas-5",
       description: "Pembelajaran tematik terpadu: lingkungan, kesehatan, dan kebersamaan.",
-      teacher: "guru2@pesantren.id",
+      teacher: "walikelas@pesantren.id",
       className: "5A",
       schedule: [{ dayOfWeek: 1, startTime: "07:30", room: "Kelas 5A" }, { dayOfWeek: 3, startTime: "07:30", room: "Kelas 5A" }],
     },
@@ -169,6 +169,8 @@ async function main() {
     const row = await upsertUser(t.email, t.name, UserRole.TEACHER, passwordHash);
     teacherIds.set(t.email, row.id);
   }
+  const academicStaffIds = new Map(teacherIds);
+  academicStaffIds.set("walikelas@pesantren.id", homeroom.id);
 
   // Demo parent owns two children across levels.
   const demoParent = await upsertUser("wali@pesantren.id", "Bapak Hadi Santoso", UserRole.PARENT, passwordHash, "0812-0000-1111");
@@ -178,11 +180,12 @@ async function main() {
   for (const level of LEVELS) {
     const list: { id: string; gradeItemIds: string[] }[] = [];
     for (const def of COURSES[level]) {
-      const teacherId = teacherIds.get(def.teacher) ?? admin.id;
+      const teacherId = academicStaffIds.get(def.teacher);
+      if (!teacherId) throw new Error(`Pengampu seed tidak ditemukan: ${def.teacher}`);
       const course = await prisma.course.upsert({
         where: { slug: def.slug },
-        update: { title: def.title, description: def.description, level, status: CourseStatus.PUBLISHED, createdById: teacherId },
-        create: { title: def.title, slug: def.slug, description: def.description, level, status: CourseStatus.PUBLISHED, createdById: teacherId },
+        update: { title: def.title, description: def.description, level, status: CourseStatus.PUBLISHED, createdById: admin.id, teacherId },
+        create: { title: def.title, slug: def.slug, description: def.description, level, status: CourseStatus.PUBLISHED, createdById: admin.id, teacherId },
         select: { id: true },
       });
 
@@ -345,7 +348,7 @@ async function main() {
         status: target.publish ? ReportCardStatus.PUBLISHED : ReportCardStatus.DRAFT,
         publishedAt: target.publish ? new Date() : null,
         homeroomNote: target.publish ? "Alhamdulillah perkembangan baik. Tingkatkan murojaah dan kedisiplinan waktu." : null,
-        createdById: admin.id,
+        createdById: homeroom.id,
       },
       create: {
         studentId: target.studentId,
@@ -354,7 +357,7 @@ async function main() {
         status: target.publish ? ReportCardStatus.PUBLISHED : ReportCardStatus.DRAFT,
         publishedAt: target.publish ? new Date() : null,
         homeroomNote: target.publish ? "Alhamdulillah perkembangan baik. Tingkatkan murojaah dan kedisiplinan waktu." : null,
-        createdById: admin.id,
+        createdById: homeroom.id,
       },
       select: { id: true },
     });
