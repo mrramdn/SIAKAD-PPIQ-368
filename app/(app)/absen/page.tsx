@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireVerifiedUser } from "@/lib/auth";
 import { getAttendanceBoard } from "@/lib/lms";
-import { Card, Field, Ring, inputClasses } from "@/components/ui";
+import { Card, Field, Ring, buttonClasses, inputClasses } from "@/components/ui";
 import { createAttendanceSessionAction } from "../actions";
 import { AttendanceGrid } from "./AttendanceGrid";
 
@@ -43,31 +43,44 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           {/* recap */}
-          <div className="mb-5 grid items-stretch gap-4.5 lg:grid-cols-[260px_1fr]" style={{ gap: 18 }}>
-            <Card pad={20} className="flex items-center gap-4.5" style={{ gap: 18 }}>
-              <Ring value={rate} size={92} stroke={11} color="var(--green)" label={`${rate}%`} sub="HADIR" />
-              <div>
-                <div className="text-[13px] font-semibold text-ink-3">Kehadiran Sesi Terbaru</div>
-                <div className="mt-1 text-[22px] font-extrabold tracking-tight">
-                  {counts.PRESENT}/{total} santri
+          <Card pad={18} className="mb-5">
+            <div className="grid items-center gap-5 md:grid-cols-[220px_1fr]">
+              <div className="flex items-center gap-4 md:border-r md:border-line md:pr-5">
+                <Ring value={rate} size={82} stroke={10} color="var(--green)" label={`${rate}%`} sub="HADIR" />
+                <div>
+                  <div className="text-[13px] font-semibold text-ink-3">Sesi Terbaru</div>
+                  <div className="mt-1 text-[20px] font-extrabold tracking-tight">
+                    {counts.PRESENT}/{total} santri
+                  </div>
+                  <div className="mt-0.5 text-[12.5px] text-ink-3">{todayCol >= 0 ? sessions[todayCol].date : "Belum ada sesi"}</div>
                 </div>
-                <div className="mt-0.5 text-[12.5px] text-ink-3">{todayCol >= 0 ? sessions[todayCol].date : "-"}</div>
               </div>
-            </Card>
-            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(120px,1fr))" }}>
-              {STATUS_META.map((s) => (
-                <Card key={s.key} pad={16}>
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded" style={{ background: s.color }} />
-                    <span className="text-[13px] font-semibold text-ink-2">{s.label}</span>
+              <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-4">
+                {STATUS_META.map((s, index) => (
+                  <div
+                    key={s.key}
+                    className={
+                      index === 0
+                        ? ""
+                        : index === 1
+                          ? "border-l border-line pl-4"
+                          : index === 2
+                            ? "border-t border-line pt-4 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"
+                            : "border-l border-t border-line pl-4 pt-4 sm:border-t-0 sm:pt-0"
+                    }
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded" style={{ background: s.color }} />
+                      <span className="text-[13px] font-semibold text-ink-2">{s.label}</span>
+                    </div>
+                    <div className="mt-2 text-[28px] font-extrabold tracking-tight" style={{ color: s.color }}>
+                      {counts[s.key]}
+                    </div>
                   </div>
-                  <div className="mt-2 text-[28px] font-extrabold tracking-tight" style={{ color: s.color }}>
-                    {counts[s.key]}
-                  </div>
-                </Card>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          </Card>
 
           {/* course tabs */}
           <div className="mb-3.5 flex gap-2 overflow-x-auto pb-1">
@@ -99,7 +112,7 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
                   <input name="heldAt" type="datetime-local" required className={inputClasses} />
                 </Field>
                 <div className="flex items-end">
-                  <button type="submit" className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-600">
+                  <button type="submit" className={buttonClasses("primary", "md")}>
                     Buat sesi
                   </button>
                 </div>
