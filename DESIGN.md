@@ -2,7 +2,7 @@
 
 ## Design Direction
 
-Scene: wali santri membuka aplikasi dari HP untuk membuat akun, mendaftarkan anak, lalu memantau nilai, kehadiran, dan informasi anaknya tanpa datang ke sekolah. Wali kelas dan pengajar membuka panel untuk mengelola kelas, mengisi nilai, mencatat absensi, dan mengirim pengumuman. Administrasi meninjau pendaftaran santri baru dan dokumen pendukung.
+Scene: wali santri membuka aplikasi dari HP untuk memantau anak. Pengajar dan Wali Kelas mengisi data akademik dari ponsel atau laptop kelas. Administrasi bekerja dari laptop kantor untuk memproses PPDB, akun, data dasar, dan jadwal. Mudir Ma'had membuka panel pengawasan untuk memeriksa kehadiran, BKKH, jadwal mengajar, serta hasil akademik ustadz tanpa kontrol edit.
 
 Theme: calm school information dashboard.
 
@@ -34,6 +34,8 @@ Primary use:
 - Use clear sections for landing, pendaftaran, login, dashboard, and admin panel.
 - Avoid unnecessary nested cards.
 - Parent pages prioritize child summary, per-subject grades, attendance recap, and published report cards; parents only ever see their own children (including schedule).
+- Admin pages prioritize PPDB, accounts, master data, scheduling, and staff attendance; do not expose academic editing controls.
+- Mudir pages prioritize teacher oversight and read-only evidence; do not expose account management, PPDB, or mutation controls.
 - Schedule board renders slots as flat divided rows inside a per-day card; never stack bordered cards inside cards.
 - Teacher/admin pages use summary cards, readable lists, compact forms, and per-section management.
 - Admission review uses status tabs (pending/accepted/rejected) dengan kartu yang dapat diperluas.

@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { requireVerifiedUser } from "@/lib/auth";
+import { requireAcademicViewer } from "@/lib/auth";
 import { getGradebook } from "@/lib/lms";
 import { Avatar, Badge, Card, Field, buttonClasses, inputClasses, scoreColor, PASS_THRESHOLD } from "@/components/ui";
 import { createGradeItemAction } from "../actions";
 import { Gradebook } from "./Gradebook";
 
-export default async function NilaiPage({ searchParams }: { searchParams: Promise<{ course?: string }> }) {
-  const [{ course }, user] = await Promise.all([searchParams, requireVerifiedUser()]);
+export default async function NilaiPage({ searchParams }: { searchParams: Promise<{ course?: string; error?: string }> }) {
+  const [{ course, error }, user] = await Promise.all([searchParams, requireAcademicViewer()]);
   const { courses, activeCourseId, columns, rows, canEdit } = await getGradebook(user, course);
 
   const classAvg = rows.length ? Math.round(rows.reduce((s, r) => s + r.avg, 0) / rows.length) : 0;
@@ -19,10 +19,16 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Nilai</h1>
           <p className="mt-1 text-sm text-ink-3">
-            {canEdit ? "Klik sel untuk mengubah nilai. Rata-rata dihitung otomatis." : "Rekap nilai kamu pada setiap kelas."}
+            {canEdit ? "Klik sel untuk mengubah nilai. Rata-rata dihitung otomatis." : "Pantau rekap nilai santri sebagai bahan pengawasan akademik."}
           </p>
         </div>
       </div>
+
+      {error ? (
+        <div className="mb-4 rounded-xl border border-line bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
+          {error === "forbidden" ? "Anda tidak ditugaskan pada mata pelajaran ini." : "Komponen nilai gagal dibuat. Periksa kembali isian Anda."}
+        </div>
+      ) : null}
 
       {courses.length === 0 ? (
         <Card pad={40}>

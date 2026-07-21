@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { requireVerifiedUser } from "@/lib/auth";
+import { requireReportViewer } from "@/lib/auth";
 import { getReportBoard, getCurrentPeriod, formatPeriod } from "@/lib/lms";
 import { Card, Field, inputClasses } from "@/components/ui";
 import { ReportBoardTable } from "./ReportBoardTable";
@@ -13,15 +12,10 @@ export default async function RaporPage({
 }) {
   const [{ class: className, semester, year }, user] = await Promise.all([
     searchParams,
-    requireVerifiedUser(),
+    requireReportViewer(),
   ]);
 
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
-  const canView = canEdit || user.role === UserRole.MUDIR;
-
-  if (!canView) {
-    redirect("/dashboard");
-  }
+  const canEdit = user.role === UserRole.HOMEROOM;
 
   const currentPeriod = getCurrentPeriod();
   const activeSemester = Object.values(Semester).includes(semester as Semester)

@@ -1,5 +1,6 @@
 import { cache } from "react";
 import {
+  AdmissionStatus,
   AttendanceStatus,
   CourseStatus,
   EducationLevel,
@@ -19,6 +20,10 @@ import type { AuthUser } from "@/lib/auth";
 const WEEKDAY_LABELS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"] as const;
 // Bars shown on the dashboard activity chart (Mon–Sat).
 const WEEK_BARS = [1, 2, 3, 4, 5, 6] as const;
+
+function isAssignedAcademicStaff(user: AuthUser) {
+  return user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+}
 
 export function formatRelative(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -57,57 +62,117 @@ export function formatPeriod(period: Period) {
 /* -------------------------------------------------------------------------- */
 
 export const getDashboardData = cache(async (user: AuthUser) => {
-  void user;
-  const todayDow = new Date().getDay();
+  const now = new Date();
+  const todayDow = now.getDay();
+  const today = dateKeyToDb(toDateKey(now));
   const weekStart = new Date(Date.now() - 28 * 864e5);
+  const isAdmin = user.role === UserRole.ADMIN;
+  const isMudir = user.role === UserRole.MUDIR;
+  const oversightMode = isAdmin || isMudir;
+  const teacherScope = isAssignedAcademicStaff(user) ? { teacherId: user.id } : {};
 
-  const [schedule, deadlines, attendanceSessionsForWeek, recentGradeItems, recentSessions, recentVerified] =
-    await Promise.all([
+  const [
+    schedule,
+    deadlines,
+    attendanceSessionsForWeek,
+    recentGradeItems,
+    recentSessions,
+    recentVerified,
+    students,
+    pendingUsers,
+    pendingAdmissions,
+    totalUsers,
+    courses,
+    attendanceGroups,
+    staffCount,
+    staffAttendanceToday,
+    bkkhToday,
+    staffAttendanceForWeek,
+  ] = await Promise.all([
       prisma.scheduleSlot.findMany({
-        where: { dayOfWeek: todayDow, course: { deletedAt: null } },
+        where: { dayOfWeek: todayDow, course: { deletedAt: null, ...teacherScope } },
         orderBy: { startTime: "asc" },
         select: {
           id: true,
           startTime: true,
           room: true,
-          course: { select: { id: true, title: true, createdBy: { select: { name: true } } } },
+          course: { select: { id: true, title: true, teacher: { select: { name: true } } } },
         },
       }),
-      prisma.gradeItem.findMany({
-        where: {
-          dueAt: { gte: new Date() },
-        },
-        orderBy: { dueAt: "asc" },
-        take: 4,
-        select: { id: true, title: true, dueAt: true, course: { select: { title: true } } },
-      }),
+      isAdmin
+        ? Promise.resolve([])
+        : prisma.gradeItem.findMany({
+            where: { dueAt: { gte: now }, course: { ...teacherScope } },
+            orderBy: { dueAt: "asc" },
+            take: 4,
+            select: { id: true, title: true, dueAt: true, course: { select: { title: true } } },
+          }),
       prisma.attendanceSession.findMany({
-        where: { heldAt: { gte: weekStart }, course: { deletedAt: null } },
-        select: { heldAt: true, _count: { select: { records: true } } },
+        where: { heldAt: { gte: weekStart }, course: { deletedAt: null, ...teacherScope } },
+        select: { heldAt: true },
       }),
-      prisma.gradeItem.findMany({
+      isAdmin
+        ? Promise.resolve([])
+        : prisma.gradeItem.findMany({
+            where: { course: { ...teacherScope } },
+            orderBy: { createdAt: "desc" },
+            take: 4,
+            select: { title: true, createdAt: true, course: { select: { title: true, teacher: { select: { name: true } } } } },
+          }),
+      isAdmin
+        ? Promise.resolve([])
+        : prisma.attendanceSession.findMany({
+            where: { course: { ...teacherScope } },
+            orderBy: { createdAt: "desc" },
+            take: 4,
+            select: { title: true, createdAt: true, course: { select: { title: true } } },
+          }),
+      isAdmin
+        ? prisma.user.findMany({
+            where: { status: UserStatus.VERIFIED, verifiedAt: { not: null } },
+            orderBy: { verifiedAt: "desc" },
+            take: 5,
+            select: { name: true, verifiedAt: true },
+          })
+        : Promise.resolve([]),
+      isAdmin ? prisma.studentProfile.count() : Promise.resolve(0),
+      isAdmin ? prisma.user.count({ where: { status: UserStatus.PENDING } }) : Promise.resolve(0),
+      isAdmin ? prisma.admission.count({ where: { status: AdmissionStatus.PENDING } }) : Promise.resolve(0),
+      isAdmin ? prisma.user.count() : Promise.resolve(0),
+      prisma.course.findMany({
+        where: { deletedAt: null, status: CourseStatus.PUBLISHED, ...teacherScope },
         orderBy: { createdAt: "desc" },
-        take: 4,
-        select: { title: true, createdAt: true, course: { select: { title: true, createdBy: { select: { name: true } } } } },
+        take: 6,
+        select: { id: true, title: true, _count: { select: { enrollments: true } } },
       }),
-      prisma.attendanceSession.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 4,
-        select: { title: true, createdAt: true, course: { select: { title: true } } },
+      prisma.attendanceRecord.groupBy({
+        by: ["status"],
+        where: isAssignedAcademicStaff(user) ? { attendanceSession: { course: { teacherId: user.id } } } : undefined,
+        _count: { status: true },
       }),
-      prisma.user.findMany({
-        where: { status: UserStatus.VERIFIED, verifiedAt: { not: null } },
-        orderBy: { verifiedAt: "desc" },
-        take: 3,
-        select: { name: true, verifiedAt: true },
-      }),
+      oversightMode
+        ? prisma.user.count({ where: { role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] }, status: UserStatus.VERIFIED } })
+        : Promise.resolve(0),
+      oversightMode
+        ? prisma.staffAttendance.groupBy({ by: ["status"], where: { date: today }, _count: { status: true } })
+        : Promise.resolve([]),
+      oversightMode ? prisma.bkkhReport.count({ where: { date: today } }) : Promise.resolve(0),
+      oversightMode
+        ? prisma.staffAttendance.findMany({ where: { date: { gte: weekStart } }, select: { date: true } })
+        : Promise.resolve([]),
     ]);
 
-  // Weekly activity buckets (Mon–Sat) from attendance.
   const buckets = new Map<number, number>();
-  for (const session of attendanceSessionsForWeek) {
-    const dow = session.heldAt.getDay();
-    buckets.set(dow, (buckets.get(dow) ?? 0) + session._count.records);
+  if (oversightMode) {
+    for (const record of staffAttendanceForWeek) {
+      const dow = record.date.getUTCDay();
+      buckets.set(dow, (buckets.get(dow) ?? 0) + 1);
+    }
+  } else {
+    for (const session of attendanceSessionsForWeek) {
+      const dow = session.heldAt.getDay();
+      buckets.set(dow, (buckets.get(dow) ?? 0) + 1);
+    }
   }
   const weekData = WEEK_BARS.map((dow) => ({ l: WEEKDAY_LABELS[dow], v: buckets.get(dow) ?? 0 }));
   const maxVal = Math.max(0, ...weekData.map((d) => d.v));
@@ -117,7 +182,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   type FeedItem = { who: string; text: string; at: Date; tag: string };
   const feedRaw: FeedItem[] = [
     ...recentGradeItems.map((g) => ({
-      who: g.course.createdBy?.name ?? "Pengajar",
+      who: g.course.teacher?.name ?? "Pengajar",
       text: `menambahkan komponen nilai "${g.title}" di ${g.course.title}`,
       at: g.createdAt,
       tag: "Nilai",
@@ -137,41 +202,49 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   ];
   const activity = feedRaw.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 5);
 
-  // Role-specific stats + ringkasan mata pelajaran.
-  let stats: { label: string; value: string; delta?: string; up?: boolean; tone: string; icon: string }[] = [];
-
-  const [students, pending, courses, attendanceGroups] = await Promise.all([
-    prisma.studentProfile.count(),
-    prisma.user.count({ where: { status: UserStatus.PENDING } }),
-    prisma.course.findMany({
-      where: { deletedAt: null, status: CourseStatus.PUBLISHED },
-      orderBy: { createdAt: "desc" },
-      take: 6,
-      select: {
-        id: true,
-        title: true,
-        _count: { select: { enrollments: true } },
-      },
-    }),
-    prisma.attendanceRecord.groupBy({
-      by: ["status"],
-      _count: { status: true },
-    }),
-  ]);
-
   const attendanceTotal = attendanceGroups.reduce((sum, group) => sum + group._count.status, 0);
   const present = attendanceGroups.find((group) => group.status === AttendanceStatus.PRESENT)?._count.status ?? 0;
   const attRate = attendanceTotal ? Math.round((present / attendanceTotal) * 100) : 0;
-  stats = [
-    { label: "Santri Aktif", value: String(students), tone: "var(--primary)", icon: "users", up: true },
-    { label: "Menunggu Verifikasi", value: String(pending), tone: "var(--amber)", icon: "award", up: false, delta: pending ? "perlu tinjauan" : undefined },
-    { label: "Kelas Berjalan", value: String(courses.length), tone: "var(--teal)", icon: "book", up: true },
-    { label: "Rata Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2", up: true },
-  ];
+  const staffPresent = staffAttendanceToday.find((group) => group.status === AttendanceStatus.PRESENT)?._count.status ?? 0;
+  const staffLate = staffAttendanceToday.find((group) => group.status === AttendanceStatus.LATE)?._count.status ?? 0;
+  const staffAbsent = staffAttendanceToday.find((group) => group.status === AttendanceStatus.ABSENT)?._count.status ?? 0;
+  const staffMarked = staffAttendanceToday.reduce((sum, group) => sum + group._count.status, 0);
+  const participantCount = courses.reduce((sum, course) => sum + course._count.enrollments, 0);
+
+  let stats: { label: string; value: string; delta?: string; up?: boolean; tone: string; icon: string }[];
+  let hero = { value: attRate, label: "Tingkat Kehadiran" };
+  if (isAdmin) {
+    stats = [
+      { label: "PPDB Menunggu", value: String(pendingAdmissions), tone: "var(--amber)", icon: "doc", delta: pendingAdmissions ? "perlu tinjauan" : undefined },
+      { label: "Akun Menunggu", value: String(pendingUsers), tone: "var(--amber)", icon: "award", delta: pendingUsers ? "perlu verifikasi" : undefined },
+      { label: "Total Pengguna", value: String(totalUsers), tone: "var(--primary)", icon: "users" },
+      { label: "Santri Aktif", value: String(students), tone: "var(--green)", icon: "book" },
+    ];
+    hero = { value: staffCount ? Math.round((staffMarked / staffCount) * 100) : 0, label: "Absensi Ustadz Tercatat" };
+  } else if (isMudir) {
+    const followUp = Math.max(0, staffCount - staffMarked) + staffLate + staffAbsent;
+    stats = [
+      { label: "Ustadz Aktif", value: String(staffCount), tone: "var(--primary)", icon: "users" },
+      { label: "Hadir Hari Ini", value: String(staffPresent), tone: "var(--green)", icon: "check2" },
+      { label: "BKKH Masuk", value: String(bkkhToday), tone: "var(--teal)", icon: "doc" },
+      { label: "Perlu Tindak Lanjut", value: String(followUp), tone: "var(--amber)", icon: "award", delta: followUp ? "perlu diperiksa" : undefined },
+    ];
+    hero = { value: staffCount ? Math.round((bkkhToday / staffCount) * 100) : 0, label: "Kelengkapan BKKH" };
+  } else {
+    stats = [
+      { label: isAssignedAcademicStaff(user) ? "Mapel Diampu" : "Mata Pelajaran", value: String(courses.length), tone: "var(--primary)", icon: "book" },
+      { label: "Peserta Mapel", value: String(participantCount), tone: "var(--teal)", icon: "users" },
+      { label: "Sesi 4 Pekan", value: String(attendanceSessionsForWeek.length), tone: "var(--amber)", icon: "calendar" },
+      { label: "Rata Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2" },
+    ];
+  }
   const courseSummaries = courses.map((c) => ({ id: c.id, title: c.title, students: c._count.enrollments }));
 
   return {
     stats,
+    hero,
+    weeklyTitle: oversightMode ? "Kehadiran Ustadz" : "Aktivitas Mingguan",
+    weeklySub: oversightMode ? "Catatan kehadiran dalam empat pekan terakhir" : "Sesi kelas tercatat per hari",
     courses: courseSummaries,
     weeklyActivity,
     schedule: schedule.map((s) => ({
@@ -179,7 +252,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
       time: s.startTime.replace(".", ":"),
       title: s.course.title,
       room: s.room ?? "-",
-      teacher: s.course.createdBy?.name ?? "-",
+      teacher: s.course.teacher?.name ?? "Belum ditugaskan",
     })),
     deadlines: deadlines.map((d) => ({
       id: d.id,
@@ -195,16 +268,17 @@ export const getDashboardData = cache(async (user: AuthUser) => {
 /*                          mata pelajaran (courses)                          */
 /* -------------------------------------------------------------------------- */
 
-export const getCourseOverview = cache(async () => {
+export const getCourseOverview = cache(async (user: AuthUser) => {
   const courses = await prisma.course.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, ...(isAssignedAcademicStaff(user) ? { teacherId: user.id } : {}) },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
       title: true,
       description: true,
       level: true,
-      createdBy: { select: { name: true } },
+      teacherId: true,
+      teacher: { select: { name: true } },
       _count: { select: { enrollments: true, scheduleSlots: true } },
     },
   });
@@ -214,27 +288,37 @@ export const getCourseOverview = cache(async () => {
     title: c.title,
     description: c.description,
     level: c.level,
-    teacher: c.createdBy?.name ?? "Pengajar",
+    assigned: Boolean(c.teacherId),
+    teacher: c.teacher?.name ?? "Belum ditugaskan",
     students: c._count.enrollments,
     scheduleSlots: c._count.scheduleSlots,
   }));
+});
+
+export const getTeachingStaff = cache(async () => {
+  return prisma.user.findMany({
+    where: { role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] }, status: UserStatus.VERIFIED },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, role: true },
+  });
 });
 
 /* -------------------------------------------------------------------------- */
 /*                        admin/teacher course management                     */
 /* -------------------------------------------------------------------------- */
 
-export const getCourseManagement = cache(async (courseId: string) => {
-  const [course, verifiedStudents] = await Promise.all([
-    prisma.course.findUnique({
-      where: { id: courseId },
+export const getCourseManagement = cache(async (courseId: string, user: AuthUser) => {
+  const [course, verifiedStudents, teachingStaff] = await Promise.all([
+    prisma.course.findFirst({
+      where: { id: courseId, ...(isAssignedAcademicStaff(user) ? { teacherId: user.id } : {}) },
       select: {
         id: true,
         title: true,
         slug: true,
         description: true,
         status: true,
-        createdBy: { select: { name: true } },
+        teacherId: true,
+        teacher: { select: { name: true } },
         enrollments: {
           where: { status: EnrollmentStatus.ACTIVE },
           orderBy: { student: { name: "asc" } },
@@ -245,28 +329,35 @@ export const getCourseManagement = cache(async (courseId: string) => {
         },
       },
     }),
-    prisma.studentProfile.findMany({
-      where: { enrollments: { none: { courseId, status: EnrollmentStatus.ACTIVE } } },
-      orderBy: { name: "asc" },
-      take: 200,
-      select: { id: true, name: true, studentNumber: true, className: true },
-    }),
+    user.role === UserRole.ADMIN
+      ? prisma.studentProfile.findMany({
+          where: { enrollments: { none: { courseId, status: EnrollmentStatus.ACTIVE } } },
+          orderBy: { name: "asc" },
+          take: 200,
+          select: { id: true, name: true, studentNumber: true, className: true },
+        })
+      : Promise.resolve([]),
+    user.role === UserRole.ADMIN ? getTeachingStaff() : Promise.resolve([]),
   ]);
-  return { course, verifiedStudents };
+  return { course, verifiedStudents, teachingStaff };
 });
 
 /* -------------------------------------------------------------------------- */
 /*                                  gradebook                                  */
 /* -------------------------------------------------------------------------- */
 
-async function courseTabsFor() {
-  return prisma.course.findMany({ where: { deletedAt: null }, orderBy: { title: "asc" }, select: { id: true, title: true } });
+async function courseTabsFor(user: AuthUser) {
+  return prisma.course.findMany({
+    where: { deletedAt: null, ...(isAssignedAcademicStaff(user) ? { teacherId: user.id } : {}) },
+    orderBy: { title: "asc" },
+    select: { id: true, title: true },
+  });
 }
 
 export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
-  const courses = await courseTabsFor();
+  const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+  const canEdit = user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, columns: [], rows: [], canEdit };
@@ -312,9 +403,9 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
 /* -------------------------------------------------------------------------- */
 
 export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string) => {
-  const courses = await courseTabsFor();
+  const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+  const canEdit = user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, sessions: [], rows: [], canEdit };
@@ -480,7 +571,7 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
         select: {
           id: true,
           title: true,
-          createdBy: { select: { name: true } },
+          teacher: { select: { name: true } },
           gradeItems: {
             orderBy: { createdAt: "asc" },
             select: { id: true, title: true, maxScore: true, records: { where: { studentId: childId }, select: { score: true } } },
@@ -526,7 +617,7 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
     return {
       id: e.course.id,
       title: e.course.title,
-      teacher: e.course.createdBy?.name ?? "Pengajar",
+      teacher: e.course.teacher?.name ?? "Belum ditugaskan",
       grades,
       courseAvg,
       marks,
@@ -554,21 +645,22 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
 const DAY_NAMES = ["Ahad", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"] as const;
 
 /** Papan jadwal per hari (dayOfWeek 0 = Ahad, mengikuti Date.getDay()). */
-export const getScheduleBoard = cache(async (level?: EducationLevel) => {
+export const getScheduleBoard = cache(async (user: AuthUser, level?: EducationLevel) => {
+  const teacherScope = isAssignedAcademicStaff(user) ? { teacherId: user.id } : {};
   const [slots, courses] = await Promise.all([
     prisma.scheduleSlot.findMany({
-      where: { course: { deletedAt: null, ...(level ? { level } : {}) } },
+      where: { course: { deletedAt: null, ...teacherScope, ...(level ? { level } : {}) } },
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
       select: {
         id: true,
         dayOfWeek: true,
         startTime: true,
         room: true,
-        course: { select: { id: true, title: true, level: true, createdBy: { select: { name: true } } } },
+        course: { select: { id: true, title: true, level: true, teacher: { select: { name: true } } } },
       },
     }),
     prisma.course.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, ...teacherScope },
       orderBy: { title: "asc" },
       select: { id: true, title: true, level: true },
     }),
@@ -586,7 +678,7 @@ export const getScheduleBoard = cache(async (level?: EducationLevel) => {
         courseId: s.course.id,
         courseTitle: s.course.title,
         level: s.course.level,
-        teacher: s.course.createdBy?.name ?? "-",
+        teacher: s.course.teacher?.name ?? "Belum ditugaskan",
       })),
   }));
 
@@ -610,7 +702,7 @@ export const getParentScheduleBoard = cache(async (parentId: string) => {
             select: {
               id: true,
               title: true,
-              createdBy: { select: { name: true } },
+              teacher: { select: { name: true } },
               scheduleSlots: { select: { id: true, dayOfWeek: true, startTime: true, room: true } },
             },
           },
@@ -628,7 +720,7 @@ export const getParentScheduleBoard = cache(async (parentId: string) => {
         room: s.room ?? "-",
         courseId: e.course.id,
         courseTitle: e.course.title,
-        teacher: e.course.createdBy?.name ?? "-",
+        teacher: e.course.teacher?.name ?? "Belum ditugaskan",
       })),
     );
     slots.sort((a, b) => a.startTime.localeCompare(b.startTime));

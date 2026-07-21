@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { requireVerifiedUser } from "@/lib/auth";
+import { notFound } from "next/navigation";
+import { requireReportViewer } from "@/lib/auth";
 import { getReportCardDetail, formatPeriod } from "@/lib/lms";
 import { Badge, Card, Icons, scoreColor } from "@/components/ui";
 import { HomeroomNoteForm } from "./HomeroomNoteForm";
@@ -8,14 +8,9 @@ import { UserRole } from "@/generated/prisma/client";
 
 export default async function RaporDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await requireVerifiedUser();
+  const user = await requireReportViewer();
 
-  const canEdit = user.role === UserRole.ADMIN || user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
-  const canView = canEdit || user.role === UserRole.MUDIR;
-
-  if (!canView) {
-    redirect("/dashboard");
-  }
+  const canEdit = user.role === UserRole.HOMEROOM;
 
   const reportCard = await getReportCardDetail(id);
   if (!reportCard) {

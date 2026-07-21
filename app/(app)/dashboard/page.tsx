@@ -59,22 +59,22 @@ export default async function DashboardPage() {
   const data = await getDashboardData(user);
   const greet = user.name.split(" ")[0];
 
-  const heroRing = Number(String(data.stats[3]?.value ?? "0").replace("%", "")) || 0;
-
   const primaryCta =
     user.role === "ADMIN"
       ? { href: "/pengguna", label: "Kelola Pengguna" }
       : user.role === "MUDIR"
-        ? { href: "/pengguna", label: "Pantau Data" }
+        ? { href: "/absen-ustadz", label: "Pantau Ustadz" }
         : user.role === "HOMEROOM"
-          ? { href: "/absen", label: "Pantau Kelas" }
+          ? { href: "/rapor", label: "Kelola Rapor" }
           : { href: "/nilai", label: "Mulai Menilai" };
 
   const secondaryCta =
     user.role === "ADMIN"
       ? { href: "/penerimaan", label: "Tinjau Pendaftaran" }
+      : user.role === "MUDIR"
+        ? { href: "/jadwal", label: "Lihat Jadwal" }
       : user.role === "HOMEROOM"
-        ? { href: "/rapor", label: "Kelola Rapor" }
+        ? { href: "/absen", label: "Pantau Kelas" }
         : { href: "/absen", label: "Lihat Absensi" };
 
   const heroBlurb =
@@ -83,8 +83,8 @@ export default async function DashboardPage() {
       : user.role === "HOMEROOM"
         ? "Pantau kelas binaan, absensi santri, nilai, dan informasi untuk wali."
       : user.role === "MUDIR"
-        ? "Pantau data pengguna, mata pelajaran, nilai, absensi, dan informasi pesantren."
-      : "Pantau verifikasi akun, kelas aktif, dan kehadiran santri.";
+        ? "Awasi kehadiran, laporan BKKH, jadwal mengajar, dan hasil akademik ustadz."
+      : "Kelola pendaftaran, akun, data dasar, jadwal, dan operasional pesantren.";
 
   return (
     <div className="view-enter flex flex-col gap-5.5" style={{ gap: 22 }}>
@@ -117,8 +117,8 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="hidden flex-col items-center gap-1.5 sm:flex">
-            <Ring value={heroRing} size={120} stroke={12} color="#fff" label={`${heroRing}%`} />
-            <div className="text-[12.5px] font-semibold opacity-90">Tingkat Kehadiran</div>
+            <Ring value={data.hero.value} size={120} stroke={12} color="#fff" label={`${data.hero.value}%`} />
+            <div className="max-w-32 text-center text-[12.5px] font-semibold opacity-90">{data.hero.label}</div>
           </div>
         </div>
       </div>
@@ -167,7 +167,7 @@ export default async function DashboardPage() {
           <Card pad={20}>
             <SectionTitle
               title="Mata Pelajaran"
-              sub="Mapel terbaru dan jumlah pesertanya"
+              sub={user.role === "TEACHER" ? "Mapel yang ditugaskan kepada Anda" : "Mapel terbaru dan jumlah pesertanya"}
               action={
                 <Link href="/mapel" className={buttonClasses("ghost", "sm")}>
                   Semua mapel
@@ -205,7 +205,7 @@ export default async function DashboardPage() {
 
           {/* Weekly activity */}
           <Card pad={20}>
-            <SectionTitle title="Aktivitas Mingguan" sub="Sesi kelas tercatat per hari" />
+            <SectionTitle title={data.weeklyTitle} sub={data.weeklySub} />
             <BarChart data={data.weeklyActivity} height={140} />
           </Card>
         </div>
@@ -242,27 +242,29 @@ export default async function DashboardPage() {
           </Card>
 
           {/* Deadlines */}
-          <Card pad={20}>
-            <SectionTitle title="Tenggat Terdekat" />
-            <div className="flex flex-col gap-2.5">
-              {data.deadlines.length === 0 ? (
-                <p className="text-sm text-ink-3">Tidak ada tenggat mendatang.</p>
-              ) : (
-                data.deadlines.map((d) => (
-                  <div key={d.id} className="flex items-center gap-3 rounded-xl bg-surface-2 p-2.5">
-                    <div className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-lg border border-line bg-surface text-primary">
-                      <Icons.clock size={18} />
+          {user.role !== "ADMIN" ? (
+            <Card pad={20}>
+              <SectionTitle title="Tenggat Terdekat" />
+              <div className="flex flex-col gap-2.5">
+                {data.deadlines.length === 0 ? (
+                  <p className="text-sm text-ink-3">Tidak ada tenggat mendatang.</p>
+                ) : (
+                  data.deadlines.map((d) => (
+                    <div key={d.id} className="flex items-center gap-3 rounded-xl bg-surface-2 p-2.5">
+                      <div className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-lg border border-line bg-surface text-primary">
+                        <Icons.clock size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13.5px] font-semibold">{d.title}</div>
+                        <div className="text-xs text-ink-3">{d.course}</div>
+                      </div>
+                      <div className="text-right text-[13px] font-bold">{d.due}</div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13.5px] font-semibold">{d.title}</div>
-                      <div className="text-xs text-ink-3">{d.course}</div>
-                    </div>
-                    <div className="text-right text-[13px] font-bold">{d.due}</div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
+                  ))
+                )}
+              </div>
+            </Card>
+          ) : null}
 
           {/* Activity feed */}
           <Card pad={20}>

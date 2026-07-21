@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { CourseStatus } from "@/generated/prisma/client";
-import { requireVerifiedUser } from "@/lib/auth";
-import { getCourseOverview } from "@/lib/lms";
+import { requireStaffViewer } from "@/lib/auth";
+import { getCourseOverview, getTeachingStaff } from "@/lib/lms";
 import { LEVEL_FULL } from "@/lib/brand";
 import { Avatar, Badge, Card, Field, Icons, inputClasses, courseAccent, courseCode, initialsFromName } from "@/components/ui";
 import { createCourseAction } from "../actions";
 
 export default async function MapelPage() {
-  const user = await requireVerifiedUser();
-  const courses = await getCourseOverview();
+  const user = await requireStaffViewer();
   const isAdmin = user.role === "ADMIN";
+  const [courses, teachingStaff] = await Promise.all([
+    getCourseOverview(user),
+    isAdmin ? getTeachingStaff() : Promise.resolve([]),
+  ]);
+  const unassignedCourses = isAdmin ? courses.filter((course) => !course.assigned).length : 0;
 
   return (
     <div className="view-enter">
@@ -20,15 +24,29 @@ export default async function MapelPage() {
         </div>
       </div>
 
+      {unassignedCourses > 0 ? (
+        <div className="mb-5 rounded-xl border border-line bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
+          {unassignedCourses} mata pelajaran lama belum memiliki ustadz pengampu. Buka detail mapel untuk menugaskannya sebelum dipakai mengisi nilai atau absensi.
+        </div>
+      ) : null}
+
       {isAdmin ? (
         <Card pad={20} className="mb-5">
           <h2 className="mb-4 text-base font-bold">Tambah Mata Pelajaran</h2>
-          <form action={createCourseAction} className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
+          <form action={createCourseAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.8fr_auto]">
             <Field label="Nama mata pelajaran">
               <input name="title" required placeholder="cth. Matematika" className={inputClasses} />
             </Field>
             <Field label="Deskripsi singkat">
               <input name="description" required placeholder="Ringkasan mata pelajaran" className={inputClasses} />
+            </Field>
+            <Field label="Ustadz pengampu">
+              <select name="teacherId" required className={inputClasses} defaultValue="">
+                <option value="" disabled>Pilih ustadz</option>
+                {teachingStaff.map((staff) => (
+                  <option key={staff.id} value={staff.id}>{staff.name}</option>
+                ))}
+              </select>
             </Field>
             <input type="hidden" name="status" value={CourseStatus.PUBLISHED} />
             <div className="flex items-end">
