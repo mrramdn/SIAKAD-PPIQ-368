@@ -1,6 +1,16 @@
 import Link from "next/link";
 import { requireVerifiedUser } from "@/lib/auth";
-import { getAnnouncements, getDashboardData, getParentChildren, getParentLevels, getChildReportCards } from "@/lib/lms";
+import { BKKH_TIME_SLOTS, countFilledBkkhSlots } from "@/lib/bkkh";
+import {
+  getAnnouncements,
+  getBkkhDailyReports,
+  getChildReportCards,
+  getDashboardData,
+  getParentChildren,
+  getParentLevels,
+  getStaffAttendanceBoard,
+  toDateKey,
+} from "@/lib/lms";
 import {
   Avatar,
   BarChart,
@@ -15,6 +25,7 @@ import {
   type IconKey,
 } from "@/components/ui";
 import { ParentDashboard } from "./ParentDashboard";
+import { MudirDashboard } from "./MudirDashboard";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 const annFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short" });
@@ -56,23 +67,41 @@ export default async function DashboardPage() {
     );
   }
 
+  if (user.role === "MUDIR") {
+    const dateKey = toDateKey(new Date());
+    const [data, staff, bkkhReports] = await Promise.all([
+      getDashboardData(user),
+      getStaffAttendanceBoard(dateKey),
+      getBkkhDailyReports(dateKey),
+    ]);
+    const attention = staff
+      .map((row) => {
+        const report = bkkhReports.get(row.id);
+        const filledSlots = countFilledBkkhSlots(report);
+        const issues: string[] = [];
+        if (!report) issues.push("BKKH belum diisi");
+        else if (filledSlots < BKKH_TIME_SLOTS.length) issues.push(`BKKH ${filledSlots}/${BKKH_TIME_SLOTS.length}`);
+        return { id: row.id, name: row.name, role: row.role, status: row.status, issues };
+      })
+      .filter((row) => row.status !== "PRESENT" || row.issues.length > 0)
+      .sort((a, b) => b.issues.length - a.issues.length);
+
+    return <MudirDashboard name={user.name} dateLabel={dateFmt.format(new Date())} data={data} attention={attention} />;
+  }
+
   const data = await getDashboardData(user);
   const greet = user.name.split(" ")[0];
 
   const primaryCta =
     user.role === "ADMIN"
       ? { href: "/pengguna", label: "Kelola Pengguna" }
-      : user.role === "MUDIR"
-        ? { href: "/absen-ustadz", label: "Pantau Ustadz" }
-        : user.role === "HOMEROOM"
-          ? { href: "/rapor", label: "Kelola Rapor" }
-          : { href: "/nilai", label: "Mulai Menilai" };
+      : user.role === "HOMEROOM"
+        ? { href: "/rapor", label: "Kelola Rapor" }
+        : { href: "/nilai", label: "Mulai Menilai" };
 
   const secondaryCta =
     user.role === "ADMIN"
       ? { href: "/penerimaan", label: "Tinjau Pendaftaran" }
-      : user.role === "MUDIR"
-        ? { href: "/jadwal", label: "Lihat Jadwal" }
       : user.role === "HOMEROOM"
         ? { href: "/absen", label: "Pantau Kelas" }
         : { href: "/absen", label: "Lihat Absensi" };
@@ -82,9 +111,7 @@ export default async function DashboardPage() {
       ? "Kelola mata pelajaran, catat kehadiran, dan isi nilai kelas yang kamu ampu hari ini."
       : user.role === "HOMEROOM"
         ? "Pantau kelas binaan, absensi santri, nilai, dan informasi untuk wali."
-      : user.role === "MUDIR"
-        ? "Awasi kehadiran, laporan BKKH, jadwal mengajar, dan hasil akademik ustadz."
-      : "Kelola pendaftaran, akun, data dasar, jadwal, dan operasional pesantren.";
+        : "Kelola pendaftaran, akun, data dasar, jadwal, dan operasional pesantren.";
 
   return (
     <div className="view-enter flex flex-col gap-5.5" style={{ gap: 22 }}>
