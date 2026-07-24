@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { inputClasses } from "@/components/ui";
 import { AuthShell } from "@/components/AuthShell";
+import { DEMO_ACCOUNTS } from "@/lib/demo-accounts";
 import { loginAction } from "@/app/login/actions";
 
 type LoginPageProps = {
@@ -31,9 +32,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       asideFooter={
         <div className="mono border-t border-white/15 pt-5 text-xs leading-6 text-white/70">
           <p className="font-sans font-semibold text-white/85">Akun demo</p>
-          <p className="mt-1">admin@pesantren.id · password123</p>
-          <p>wali@pesantren.id · password123</p>
-          <p>mudir@pesantren.id · password123</p>
+          <div className="mt-2 grid gap-2">
+            {DEMO_ACCOUNTS.map((account) => (
+              <div key={account.email}>
+                <p className="font-sans text-[11px] font-semibold uppercase tracking-wider text-white/60">{account.role}</p>
+                <p>{account.email} · {account.password}</p>
+              </div>
+            ))}
+          </div>
         </div>
       }
     >
@@ -66,10 +72,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
       <details className="mono mt-7 border-y border-line py-3 text-xs text-ink-3 lg:hidden">
         <summary className="cursor-pointer font-sans text-sm font-semibold text-ink-2">Lihat akun demo</summary>
-        <div className="mt-3 leading-6">
-          <p>admin@pesantren.id · password123</p>
-          <p>wali@pesantren.id · password123</p>
-          <p>mudir@pesantren.id · password123</p>
+        <div className="mt-3 grid gap-2 leading-6">
+          {DEMO_ACCOUNTS.map((account) => (
+            <div key={account.email}>
+              <p className="font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-3">{account.role}</p>
+              <p>{account.email} · {account.password}</p>
+            </div>
+          ))}
         </div>
       </details>
 

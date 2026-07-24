@@ -140,6 +140,7 @@ Uji di viewport 360px, lalu jalankan pnpm lint dan pnpm build.
 - [x] Memperbesar target sentuh pada tab, tautan dokumen, dan aksi ikon utama hingga minimal 44px.
 - [x] Memberi Mudir dashboard pengawasan khusus dengan tindak lanjut ustadz, kelengkapan BKKH, kehadiran, jadwal mengajar, dan pintasan akademik.
 - [x] Mengganti card autentikasi menjadi layout full-page; pada mobile login dan register tampil sebagai form satu kolom tanpa floating card.
+- [x] Memperluas landing page publik dengan penjelasan aplikasi, 6 fitur inti, batas kewenangan role, alur penggunaan, akun demo yang konsisten, CTA, dan footer.
 
 ### Pemisahan kewenangan role (21 Juli 2026)
 
