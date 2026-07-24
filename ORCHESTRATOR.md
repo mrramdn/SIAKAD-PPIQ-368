@@ -138,6 +138,8 @@ Uji di viewport 360px, lalu jalankan pnpm lint dan pnpm build.
 - [x] Menggabungkan kartu statistik yang padat pada halaman Nilai, Absensi Santri, Pengguna, dan Penerimaan menjadi klaster ringkas yang responsif.
 - [x] Menyamakan copy antarmuka dan dokumen dengan scope 6 fitur, termasuk perubahan modul lama menjadi Mata Pelajaran dan koreksi format laporan BKKH.
 - [x] Memperbesar target sentuh pada tab, tautan dokumen, dan aksi ikon utama hingga minimal 44px.
+- [x] Memberi Mudir dashboard pengawasan khusus dengan tindak lanjut ustadz, kelengkapan BKKH, kehadiran, jadwal mengajar, dan pintasan akademik.
+- [x] Mengganti card autentikasi menjadi layout full-page; pada mobile login dan register tampil sebagai form satu kolom tanpa floating card.
 
 ### Pemisahan kewenangan role (21 Juli 2026)
 

@@ -16,7 +16,12 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const title = pathname.startsWith("/mapel/") ? "Detail Mata Pelajaran" : PAGE_TITLE[pathname] ?? APP_NAME;
+  const title =
+    pathname === "/absen-ustadz" && user.role === "MUDIR"
+      ? "Pengawasan Ustadz"
+      : pathname.startsWith("/mapel/")
+        ? "Detail Mata Pelajaran"
+        : PAGE_TITLE[pathname] ?? APP_NAME;
   const initials = initialsFromName(user.name);
 
   return (
