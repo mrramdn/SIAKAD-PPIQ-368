@@ -1,36 +1,16 @@
 import Link from "next/link";
 import { Card, Icons, inputClasses } from "@/components/ui";
-import { UserRole } from "@/generated/prisma/client";
-import { requireVerifiedUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { LEVEL_FULL, LEVELS } from "@/lib/brand";
 import { submitAdmissionAction } from "./actions";
 
 type PageProps = { searchParams: Promise<{ error?: string; success?: string }> };
 
 export default async function PendaftaranPage({ searchParams }: PageProps) {
-  const [params, user] = await Promise.all([searchParams, requireVerifiedUser()]);
+  const [params, user] = await Promise.all([searchParams, requirePermission("admission.submit")]);
 
-  if (user.role !== UserRole.PARENT) {
-    return (
-      <div className="view-enter">
-        <Card pad={40} className="mx-auto max-w-lg text-center">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-primary-soft text-primary-700">
-            <Icons.users size={24} />
-          </span>
-          <h1 className="mt-5 text-2xl font-extrabold tracking-tight">Khusus akun wali santri</h1>
-          <p className="mt-3 text-sm leading-relaxed text-ink-2">
-            Peninjauan pendaftaran santri baru untuk staf ada di menu Penerimaan.
-          </p>
-          <Link
-            href={user.role === UserRole.ADMIN ? "/penerimaan" : "/dashboard"}
-            className="mt-6 inline-flex rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white"
-          >
-            {user.role === UserRole.ADMIN ? "Buka Penerimaan" : "Kembali ke Dashboard"}
-          </Link>
-        </Card>
-      </div>
-    );
-  }
+  // requirePermission("admission.submit") already redirects anyone without the
+  // permission to /dashboard, so this page is reachable only by wali santri.
 
   if (params.success) {
     return (

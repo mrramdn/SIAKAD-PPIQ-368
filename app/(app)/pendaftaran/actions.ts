@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { EducationLevel } from "@/generated/prisma/client";
-import { requireParent } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
@@ -22,7 +22,7 @@ const schema = z.object({
 });
 
 export async function submitAdmissionAction(formData: FormData) {
-  const parent = await requireParent();
+  const parent = await requirePermission("admission.submit");
   const parsed = schema.safeParse({
     childName: formData.get("childName"),
     level: formData.get("level"),

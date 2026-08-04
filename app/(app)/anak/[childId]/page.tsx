@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireParent } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getChildDetail, getChildReportCards, formatPeriod } from "@/lib/lms";
 import { Badge, Card, Icons, Progress, Ring, SectionTitle, scoreColor, scoreTone } from "@/components/ui";
 import { ChildTabs } from "./ChildTabs";
@@ -14,7 +14,7 @@ const ATT_META = [
 
 export default async function ChildDetailPage({ params }: { params: Promise<{ childId: string }> }) {
   const { childId } = await params;
-  const user = await requireParent();
+  const user = await requirePermission("child.monitor");
 
   const [data, reportCards] = await Promise.all([
     getChildDetail(user.id, childId),

@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import {
   AdmissionStatus,
   AttendanceStatus,
@@ -14,19 +15,18 @@ import {
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client";
-import {
-  requireAcademicStaff,
-  requireAdmin,
-  requireAnnouncementManager,
-  requireHomeroom,
-  requireVerifiedUser,
-  type AuthUser,
-} from "@/lib/auth";
+import { requirePermission, requireVerifiedUser, userCan, type AuthUser } from "@/lib/auth";
 import { BKKH_TIME_SLOTS, type BkkhActivityField } from "@/lib/bkkh";
 import { computeReportEntries, dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
+import { ROLE_PRECEDENCE, type Role } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 type ActionResult = { ok: boolean; message?: string };
+
+const rolesSchema = z
+  .array(z.enum(ROLE_PRECEDENCE as [Role, ...Role[]]))
+  .min(1, "Pilih minimal satu peran.")
+  .transform((roles) => Array.from(new Set(roles)));
 
 function slugify(value: string) {
   return value
@@ -49,7 +49,7 @@ async function isValidTeachingStaff(userId: string) {
   const user = await prisma.user.findFirst({
     where: {
       id: userId,
-      role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] },
+      roles: { hasSome: [UserRole.TEACHER, UserRole.HOMEROOM] },
       status: UserStatus.VERIFIED,
     },
     select: { id: true },
@@ -72,10 +72,10 @@ function revalidateCourseAreas(courseId?: string) {
   if (courseId) revalidatePath(`/mapel/${courseId}`);
 }
 
-/* ----------------------------- course (admin) ------------------------------ */
+/* ----------------------------- course (mudir) ------------------------------ */
 
 export async function createCourseAction(formData: FormData) {
-  const admin = await requireAdmin();
+  const mudir = await requirePermission("course.manage");
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const teacherId = String(formData.get("teacherId") ?? "");
@@ -89,14 +89,14 @@ export async function createCourseAction(formData: FormData) {
   const existing = await prisma.course.findUnique({ where: { slug: baseSlug }, select: { id: true } });
 
   await prisma.course.create({
-    data: { title, slug: existing ? `${baseSlug}-${Date.now()}` : baseSlug, description, status, createdById: admin.id, teacherId },
+    data: { title, slug: existing ? `${baseSlug}-${Date.now()}` : baseSlug, description, status, createdById: mudir.id, teacherId },
   });
 
   revalidateCourseAreas();
 }
 
 export async function updateCourseAction(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("course.manage");
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -111,10 +111,10 @@ export async function updateCourseAction(formData: FormData) {
   revalidateCourseAreas(courseId);
 }
 
-/* --------------------------- enrollment (admin) ---------------------------- */
+/* --------------------------- enrollment (mudir) ----------------------------- */
 
 export async function enrollStudentAction(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("course.manage");
   const courseId = String(formData.get("courseId") ?? "");
   const studentId = String(formData.get("studentId") ?? "");
 
@@ -134,7 +134,7 @@ export async function enrollStudentAction(formData: FormData) {
 /* ---------------------- attendance (academic staff) ------------------------ */
 
 export async function createAttendanceSessionAction(formData: FormData) {
-  const user = await requireAcademicStaff();
+  const user = await requirePermission("attendance.record");
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const heldAtValue = String(formData.get("heldAt") ?? "");
@@ -174,7 +174,7 @@ export async function setAttendanceStatusAction(input: {
   studentId: string;
   status: AttendanceStatus;
 }): Promise<ActionResult> {
-  const user = await requireAcademicStaff();
+  const user = await requirePermission("attendance.record");
   if (!input.sessionId || !input.studentId || !Object.values(AttendanceStatus).includes(input.status)) {
     return { ok: false, message: "Data absensi tidak valid." };
   }
@@ -209,7 +209,7 @@ export async function setAttendanceStatusAction(input: {
 }
 
 export async function markAllPresentAction(sessionId: string): Promise<ActionResult> {
-  const user = await requireAcademicStaff();
+  const user = await requirePermission("attendance.record");
   if (!sessionId) return { ok: false, message: "Sesi tidak ditemukan." };
   const session = await prisma.attendanceSession.findUnique({
     where: { id: sessionId },
@@ -229,7 +229,7 @@ export async function markAllPresentAction(sessionId: string): Promise<ActionRes
 /* ------------------------- grades (academic staff) ------------------------- */
 
 export async function createGradeItemAction(formData: FormData) {
-  const user = await requireAcademicStaff();
+  const user = await requirePermission("grade.manage");
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const description = toNullableString(formData.get("description"));
@@ -266,7 +266,7 @@ export async function saveGradeAction(input: {
   studentId: string;
   value: number; // 0-100 display value
 }): Promise<ActionResult> {
-  const user = await requireAcademicStaff();
+  const user = await requirePermission("grade.manage");
   const item = await prisma.gradeItem.findUnique({
     where: { id: input.gradeItemId },
     select: {
@@ -303,10 +303,10 @@ export async function saveGradeAction(input: {
   return { ok: true };
 }
 
-/* ----------------------- schedule (teacher/admin) -------------------------- */
+/* ----------------------- schedule (mudir) ----------------------------------- */
 
 export async function createScheduleSlotAction(formData: FormData) {
-  await requireAdmin();
+  await requirePermission("course.manage");
   const courseId = String(formData.get("courseId") ?? "");
   const dayOfWeek = Number(formData.get("dayOfWeek") ?? -1);
   const startTime = String(formData.get("startTime") ?? "").trim().replace(".", ":");
@@ -322,7 +322,7 @@ export async function createScheduleSlotAction(formData: FormData) {
 }
 
 export async function deleteScheduleSlotAction(id: string): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("course.manage");
   if (!id) return { ok: false, message: "Jadwal tidak ditemukan." };
   await prisma.scheduleSlot.delete({ where: { id } });
   revalidatePath("/jadwal");
@@ -330,14 +330,14 @@ export async function deleteScheduleSlotAction(id: string): Promise<ActionResult
   return { ok: true };
 }
 
-/* ----------------------- report card (teacher/admin) ----------------------- */
+/* ----------------------- report card (homeroom) ----------------------------- */
 
 export async function generateReportCardAction(input: {
   studentId: string;
   semester: Semester;
   academicYear: string;
 }): Promise<ActionResult> {
-  const user = await requireHomeroom();
+  const user = await requirePermission("report.manage");
   const academicYear = input.academicYear.trim();
   if (!input.studentId || !Object.values(Semester).includes(input.semester) || !/^\d{4}\/\d{4}$/.test(academicYear)) {
     return { ok: false, message: "Data rapor tidak valid." };
@@ -384,7 +384,7 @@ export async function generateReportCardAction(input: {
 }
 
 export async function saveHomeroomNoteAction(input: { reportCardId: string; note: string }): Promise<ActionResult> {
-  await requireHomeroom();
+  await requirePermission("report.manage");
   if (!input.reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
 
   const card = await prisma.reportCard.findUnique({ where: { id: input.reportCardId }, select: { status: true } });
@@ -402,7 +402,7 @@ export async function saveHomeroomNoteAction(input: { reportCardId: string; note
 }
 
 export async function publishReportCardAction(reportCardId: string): Promise<ActionResult> {
-  await requireHomeroom();
+  await requirePermission("report.manage");
   if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
 
   const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
@@ -413,6 +413,39 @@ export async function publishReportCardAction(reportCardId: string): Promise<Act
     where: { id: reportCardId },
     data: { status: ReportCardStatus.PUBLISHED, publishedAt: new Date() },
   });
+  revalidatePath("/rapor");
+  revalidatePath("/anak");
+  return { ok: true };
+}
+
+export async function unpublishReportCardAction(reportCardId: string): Promise<ActionResult> {
+  await requirePermission("report.manage");
+  if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
+
+  const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
+  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
+  if (card.status !== ReportCardStatus.PUBLISHED) return { ok: false, message: "Rapor belum terbit." };
+
+  await prisma.reportCard.update({
+    where: { id: reportCardId },
+    data: { status: ReportCardStatus.DRAFT, publishedAt: null },
+  });
+  revalidatePath("/rapor");
+  revalidatePath("/anak");
+  return { ok: true };
+}
+
+export async function deleteReportCardAction(reportCardId: string): Promise<ActionResult> {
+  await requirePermission("report.manage");
+  if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
+
+  const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
+  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
+  if (card.status === ReportCardStatus.PUBLISHED) {
+    return { ok: false, message: "Rapor yang sudah terbit tidak bisa dihapus." };
+  }
+
+  await prisma.reportCard.delete({ where: { id: reportCardId } });
   revalidatePath("/rapor");
   revalidatePath("/anak");
   return { ok: true };
@@ -434,7 +467,7 @@ export async function updateProfileAction(input: { name: string }): Promise<Acti
 /* --------------------------- user management (admin) ----------------------- */
 
 export async function setUserStatusAction(userId: string, status: UserStatus): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("user.manage");
   if (!userId || !Object.values(UserStatus).includes(status)) {
     return { ok: false, message: "Status tidak valid." };
   }
@@ -457,14 +490,16 @@ export async function setUserStatusAction(userId: string, status: UserStatus): P
 export async function createUserAction(input: {
   name: string;
   email: string;
-  role: UserRole;
+  roles: Role[];
 }): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("user.manage");
   const name = input.name.trim();
   const email = input.email.toLowerCase().trim();
-  if (!name || !email || !Object.values(UserRole).includes(input.role)) {
+  const rolesResult = rolesSchema.safeParse(input.roles);
+  if (!name || !email || !rolesResult.success) {
     return { ok: false, message: "Nama, email, dan peran wajib diisi." };
   }
+  const roles = rolesResult.data as UserRole[];
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) return { ok: false, message: "Email sudah dipakai akun lain." };
@@ -476,7 +511,7 @@ export async function createUserAction(input: {
       name,
       email,
       passwordHash,
-      role: input.role,
+      roles,
       status: UserStatus.VERIFIED,
       verifiedAt: new Date(),
     },
@@ -490,30 +525,27 @@ export async function createUserAction(input: {
 export async function updateUserAction(input: {
   userId: string;
   name: string;
-  role: UserRole;
+  roles: Role[];
   status: UserStatus;
 }): Promise<ActionResult> {
-  await requireAdmin();
+  await requirePermission("user.manage");
   const name = input.name.trim();
-  if (
-    !input.userId ||
-    !name ||
-    !Object.values(UserRole).includes(input.role) ||
-    !Object.values(UserStatus).includes(input.status)
-  ) {
+  const rolesResult = rolesSchema.safeParse(input.roles);
+  if (!input.userId || !name || !rolesResult.success || !Object.values(UserStatus).includes(input.status)) {
     return { ok: false, message: "Data pengguna tidak valid." };
   }
+  const roles = rolesResult.data as UserRole[];
 
   const remainsVerifiedTeachingStaff =
     input.status === UserStatus.VERIFIED &&
-    (input.role === UserRole.TEACHER || input.role === UserRole.HOMEROOM);
+    (roles.includes(UserRole.TEACHER) || roles.includes(UserRole.HOMEROOM));
   if (!remainsVerifiedTeachingStaff && (await hasAssignedCourses(input.userId))) {
     return { ok: false, message: "Alihkan seluruh mata pelajaran yang diampu sebelum mengubah role atau status akun." };
   }
 
   await prisma.user.update({
     where: { id: input.userId },
-    data: { name, role: input.role, status: input.status },
+    data: { name, roles, status: input.status },
   });
   revalidatePath("/pengguna");
   return { ok: true };
@@ -522,7 +554,7 @@ export async function updateUserAction(input: {
 /* ---------------------- announcements (teacher/admin) ---------------------- */
 
 export async function createAnnouncementAction(formData: FormData) {
-  const user = await requireAnnouncementManager();
+  const user = await requirePermission("announcement.manage");
   const title = String(formData.get("title") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
   const levelRaw = String(formData.get("level") ?? "");
@@ -539,7 +571,7 @@ export async function createAnnouncementAction(formData: FormData) {
 }
 
 export async function deleteAnnouncementAction(id: string): Promise<ActionResult> {
-  await requireAnnouncementManager();
+  await requirePermission("announcement.manage");
   if (!id) return { ok: false, message: "Informasi tidak ditemukan." };
   await prisma.announcement.delete({ where: { id } });
   revalidatePath("/informasi");
@@ -552,7 +584,7 @@ export async function reviewAdmissionAction(input: {
   admissionId: string;
   decision: "ACCEPTED" | "REJECTED";
 }): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("admission.review");
   const adm = await prisma.admission.findUnique({ where: { id: input.admissionId } });
   if (!adm) return { ok: false, message: "Pendaftaran tidak ditemukan." };
   if (adm.status !== AdmissionStatus.PENDING) return { ok: false, message: "Pendaftaran sudah diproses." };
@@ -569,8 +601,8 @@ export async function reviewAdmissionAction(input: {
   const parentEmail = adm.parentEmail.toLowerCase().trim();
 
   let parent = adm.submitterId
-    ? await prisma.user.findUnique({ where: { id: adm.submitterId }, select: { id: true, role: true } })
-    : await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true, role: true } });
+    ? await prisma.user.findUnique({ where: { id: adm.submitterId }, select: { id: true, roles: true } })
+    : await prisma.user.findUnique({ where: { email: parentEmail }, select: { id: true, roles: true } });
   if (!parent) {
     const passwordHash = await bcrypt.hash("password123", 12);
     parent = await prisma.user.create({
@@ -579,15 +611,15 @@ export async function reviewAdmissionAction(input: {
         email: parentEmail,
         phone: adm.parentPhone,
         passwordHash,
-        role: UserRole.PARENT,
+        roles: [UserRole.PARENT],
         status: UserStatus.VERIFIED,
         verifiedAt: new Date(),
         verifiedById: admin.id,
       },
-      select: { id: true, role: true },
+      select: { id: true, roles: true },
     });
   } else {
-    if (parent.role !== UserRole.PARENT) {
+    if (!parent.roles.includes(UserRole.PARENT)) {
       return { ok: false, message: "Email sudah dipakai akun non-wali. Gunakan email wali yang berbeda." };
     }
     await prisma.user.update({
@@ -628,7 +660,7 @@ export async function reviewAdmissionAction(input: {
 }
 
 export async function deleteUserAction(userId: string): Promise<ActionResult> {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("user.manage");
   if (!userId) return { ok: false, message: "Pengguna tidak ditemukan." };
   if (userId === admin.id) return { ok: false, message: "Tidak bisa menghapus akun sendiri." };
   if (await hasAssignedCourses(userId)) {
@@ -652,16 +684,15 @@ export async function saveStaffAttendanceAction(formData: FormData) {
     redirect("/absen-ustadz?error=invalid");
   }
 
-  const isSelfToday =
-    (user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM) &&
-    teacherId === user.id &&
-    dateKey === toDateKey(new Date());
-  if (user.role !== UserRole.ADMIN && !isSelfToday) {
+  const isOwnRow = teacherId === user.id;
+  const canRecordSelf = isOwnRow && dateKey === toDateKey(new Date()) && userCan(user, "staff_attendance.self");
+  const canRecordOthers = userCan(user, "staff_attendance.record");
+  if (!canRecordOthers && !canRecordSelf) {
     redirect("/absen-ustadz?error=forbidden");
   }
 
   const teacher = await prisma.user.findFirst({
-    where: { id: teacherId, role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] } },
+    where: { id: teacherId, roles: { hasSome: [UserRole.TEACHER, UserRole.HOMEROOM] } },
     select: { id: true },
   });
   if (!teacher) redirect("/absen-ustadz?error=invalid");
@@ -681,7 +712,7 @@ export async function saveStaffAttendanceAction(formData: FormData) {
 /* ------------------------- BKKH (laporan harian) ---------------------------- */
 
 export async function saveBkkhReportAction(formData: FormData) {
-  const user = await requireVerifiedUser();
+  const user = await requirePermission("staff_attendance.self");
   const teacherId = String(formData.get("teacherId") ?? "");
   const dateKey = String(formData.get("date") ?? "");
 
@@ -689,10 +720,7 @@ export async function saveBkkhReportAction(formData: FormData) {
     redirect("/absen-ustadz?error=invalid");
   }
 
-  const isSelfToday =
-    (user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM) &&
-    teacherId === user.id &&
-    dateKey === toDateKey(new Date());
+  const isSelfToday = teacherId === user.id && dateKey === toDateKey(new Date());
   if (!isSelfToday) {
     redirect("/absen-ustadz?error=forbidden");
   }
@@ -713,7 +741,7 @@ export async function saveBkkhReportAction(formData: FormData) {
   }
 
   const teacher = await prisma.user.findFirst({
-    where: { id: teacherId, role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] } },
+    where: { id: teacherId, roles: { hasSome: [UserRole.TEACHER, UserRole.HOMEROOM] } },
     select: { id: true },
   });
   if (!teacher) redirect("/absen-ustadz?error=invalid");

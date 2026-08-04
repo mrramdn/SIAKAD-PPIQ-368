@@ -11,7 +11,7 @@ import {
   UserStatus,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { AuthUser } from "@/lib/auth";
+import { userCan, type AuthUser } from "@/lib/auth";
 
 /* -------------------------------------------------------------------------- */
 /*                                   helpers                                  */
@@ -21,8 +21,9 @@ const WEEKDAY_LABELS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"] as cons
 // Bars shown on the dashboard activity chart (Mon–Sat).
 const WEEK_BARS = [1, 2, 3, 4, 5, 6] as const;
 
-function isAssignedAcademicStaff(user: AuthUser) {
-  return user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+/** Ustadz/wali kelas berpengampu mata pelajaran sendiri (dulu role TEACHER/HOMEROOM). */
+function isTeachingStaff(user: AuthUser) {
+  return userCan(user, "grade.manage") || userCan(user, "attendance.record");
 }
 
 export function formatRelative(date: Date): string {
@@ -66,10 +67,24 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   const todayDow = now.getDay();
   const today = dateKeyToDb(toDateKey(now));
   const weekStart = new Date(Date.now() - 28 * 864e5);
-  const isAdmin = user.role === UserRole.ADMIN;
-  const isMudir = user.role === UserRole.MUDIR;
-  const oversightMode = isAdmin || isMudir;
-  const teacherScope = isAssignedAcademicStaff(user) ? { teacherId: user.id } : {};
+
+  // Independent, non-mutually-exclusive permission flags: one user can hold several.
+  const canReviewAdmissions = userCan(user, "admission.review");
+  const canManageUsers = userCan(user, "user.manage");
+  const canManageCourses = userCan(user, "course.manage");
+  const canRecordStaffAttendance = userCan(user, "staff_attendance.record");
+  const canViewStaffAttendance = userCan(user, "staff_attendance.view");
+  const canManageReports = userCan(user, "report.manage");
+  const canMonitorChildren = userCan(user, "child.monitor");
+  const canManageGrades = userCan(user, "grade.manage");
+  const canRecordAttendance = userCan(user, "attendance.record");
+
+  // Section triggers: an "admin-ish" section (PPDB/akun) and a "mudir-ish" section
+  // (kelola mapel/jadwal + kehadiran ustadz) can both be true for the same user.
+  const showAdminSection = canManageUsers || canReviewAdmissions;
+  const showMudirSection = canManageCourses;
+  const oversightMode = canViewStaffAttendance;
+  const teacherScope = isTeachingStaff(user) ? { teacherId: user.id } : {};
 
   const [
     schedule,
@@ -99,35 +114,35 @@ export const getDashboardData = cache(async (user: AuthUser) => {
           course: { select: { id: true, title: true, teacher: { select: { name: true } } } },
         },
       }),
-      isAdmin
-        ? Promise.resolve([])
-        : prisma.gradeItem.findMany({
+      !showAdminSection && canManageGrades
+        ? prisma.gradeItem.findMany({
             where: { dueAt: { gte: now }, course: { ...teacherScope } },
             orderBy: { dueAt: "asc" },
             take: 4,
             select: { id: true, title: true, dueAt: true, course: { select: { title: true } } },
-          }),
+          })
+        : Promise.resolve([]),
       prisma.attendanceSession.findMany({
         where: { heldAt: { gte: weekStart }, course: { deletedAt: null, ...teacherScope } },
         select: { heldAt: true },
       }),
-      isAdmin
-        ? Promise.resolve([])
-        : prisma.gradeItem.findMany({
+      showAdminSection || canManageGrades
+        ? prisma.gradeItem.findMany({
             where: { course: { ...teacherScope } },
             orderBy: { createdAt: "desc" },
             take: 4,
             select: { title: true, createdAt: true, course: { select: { title: true, teacher: { select: { name: true } } } } },
-          }),
-      isAdmin
-        ? Promise.resolve([])
-        : prisma.attendanceSession.findMany({
+          })
+        : Promise.resolve([]),
+      showAdminSection || canRecordAttendance
+        ? prisma.attendanceSession.findMany({
             where: { course: { ...teacherScope } },
             orderBy: { createdAt: "desc" },
             take: 4,
             select: { title: true, createdAt: true, course: { select: { title: true } } },
-          }),
-      isAdmin
+          })
+        : Promise.resolve([]),
+      showAdminSection
         ? prisma.user.findMany({
             where: { status: UserStatus.VERIFIED, verifiedAt: { not: null } },
             orderBy: { verifiedAt: "desc" },
@@ -135,10 +150,10 @@ export const getDashboardData = cache(async (user: AuthUser) => {
             select: { name: true, verifiedAt: true },
           })
         : Promise.resolve([]),
-      isAdmin ? prisma.studentProfile.count() : Promise.resolve(0),
-      isAdmin ? prisma.user.count({ where: { status: UserStatus.PENDING } }) : Promise.resolve(0),
-      isAdmin ? prisma.admission.count({ where: { status: AdmissionStatus.PENDING } }) : Promise.resolve(0),
-      isAdmin ? prisma.user.count() : Promise.resolve(0),
+      showAdminSection ? prisma.studentProfile.count() : Promise.resolve(0),
+      showAdminSection ? prisma.user.count({ where: { status: UserStatus.PENDING } }) : Promise.resolve(0),
+      showAdminSection ? prisma.admission.count({ where: { status: AdmissionStatus.PENDING } }) : Promise.resolve(0),
+      showAdminSection ? prisma.user.count() : Promise.resolve(0),
       prisma.course.findMany({
         where: { deletedAt: null, status: CourseStatus.PUBLISHED, ...teacherScope },
         orderBy: { createdAt: "desc" },
@@ -147,11 +162,11 @@ export const getDashboardData = cache(async (user: AuthUser) => {
       }),
       prisma.attendanceRecord.groupBy({
         by: ["status"],
-        where: isAssignedAcademicStaff(user) ? { attendanceSession: { course: { teacherId: user.id } } } : undefined,
+        where: isTeachingStaff(user) ? { attendanceSession: { course: { teacherId: user.id } } } : undefined,
         _count: { status: true },
       }),
       oversightMode
-        ? prisma.user.count({ where: { role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] }, status: UserStatus.VERIFIED } })
+        ? prisma.user.count({ where: { roles: { hasSome: [UserRole.TEACHER, UserRole.HOMEROOM] }, status: UserStatus.VERIFIED } })
         : Promise.resolve(0),
       oversightMode
         ? prisma.staffAttendance.groupBy({ by: ["status"], where: { date: today }, _count: { status: true } })
@@ -211,38 +226,56 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   const staffMarked = staffAttendanceToday.reduce((sum, group) => sum + group._count.status, 0);
   const participantCount = courses.reduce((sum, course) => sum + course._count.enrollments, 0);
 
-  let stats: { label: string; value: string; delta?: string; up?: boolean; tone: string; icon: string }[];
-  let hero = { value: attRate, label: "Tingkat Kehadiran" };
-  if (isAdmin) {
-    stats = [
+  // Sections stack: a user holding both admin-ish and mudir-ish permissions
+  // (e.g. ADMIN + MUDIR) sees both tile sets instead of one overwriting the other.
+  type StatTile = { label: string; value: string; delta?: string; up?: boolean; tone: string; icon: string };
+  let stats: StatTile[] = [];
+  const heroCandidates: { value: number; label: string }[] = [];
+
+  if (showAdminSection) {
+    stats = stats.concat([
       { label: "PPDB Menunggu", value: String(pendingAdmissions), tone: "var(--amber)", icon: "doc", delta: pendingAdmissions ? "perlu tinjauan" : undefined },
       { label: "Akun Menunggu", value: String(pendingUsers), tone: "var(--amber)", icon: "award", delta: pendingUsers ? "perlu verifikasi" : undefined },
       { label: "Total Pengguna", value: String(totalUsers), tone: "var(--primary)", icon: "users" },
       { label: "Santri Aktif", value: String(students), tone: "var(--green)", icon: "book" },
-    ];
-    hero = { value: staffCount ? Math.round((staffMarked / staffCount) * 100) : 0, label: "Absensi Ustadz Tercatat" };
-  } else if (isMudir) {
+    ]);
+    heroCandidates.push({ value: staffCount ? Math.round((staffMarked / staffCount) * 100) : 0, label: "Absensi Ustadz Tercatat" });
+  }
+  if (showMudirSection) {
     const followUp = Math.max(0, staffCount - staffMarked) + staffLate + staffAbsent;
-    stats = [
+    stats = stats.concat([
       { label: "Ustadz Aktif", value: String(staffCount), tone: "var(--primary)", icon: "users" },
       { label: "Hadir Hari Ini", value: String(staffPresent), tone: "var(--green)", icon: "check2" },
       { label: "BKKH Masuk", value: String(bkkhToday), tone: "var(--teal)", icon: "doc" },
       { label: "Perlu Tindak Lanjut", value: String(followUp), tone: "var(--amber)", icon: "award", delta: followUp ? "perlu diperiksa" : undefined },
-    ];
-    hero = { value: staffCount ? Math.round((bkkhToday / staffCount) * 100) : 0, label: "Kelengkapan BKKH" };
-  } else {
+    ]);
+    heroCandidates.push({ value: staffCount ? Math.round((bkkhToday / staffCount) * 100) : 0, label: "Kelengkapan BKKH" });
+  }
+  if (!showAdminSection && !showMudirSection) {
     stats = [
-      { label: isAssignedAcademicStaff(user) ? "Mapel Diampu" : "Mata Pelajaran", value: String(courses.length), tone: "var(--primary)", icon: "book" },
+      { label: isTeachingStaff(user) ? "Mapel Diampu" : "Mata Pelajaran", value: String(courses.length), tone: "var(--primary)", icon: "book" },
       { label: "Peserta Mapel", value: String(participantCount), tone: "var(--teal)", icon: "users" },
       { label: "Sesi 4 Pekan", value: String(attendanceSessionsForWeek.length), tone: "var(--amber)", icon: "calendar" },
       { label: "Rata Kehadiran", value: `${attRate}%`, tone: "var(--green)", icon: "check2" },
     ];
   }
+  const hero = heroCandidates[0] ?? { value: attRate, label: "Tingkat Kehadiran" };
   const courseSummaries = courses.map((c) => ({ id: c.id, title: c.title, students: c._count.enrollments }));
 
   return {
     stats,
     hero,
+    // Independent capability flags so the dashboard page can stack whichever
+    // sections apply to this user, instead of one role overwriting another.
+    canReviewAdmissions,
+    canManageUsers,
+    canManageCourses,
+    canRecordStaffAttendance,
+    canViewStaffAttendance,
+    canManageReports,
+    canMonitorChildren,
+    canManageGrades,
+    canRecordAttendance,
     weeklyTitle: oversightMode ? "Kehadiran Ustadz" : "Aktivitas Mingguan",
     weeklySub: oversightMode ? "Catatan kehadiran dalam empat pekan terakhir" : "Sesi kelas tercatat per hari",
     courses: courseSummaries,
@@ -270,7 +303,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
 
 export const getCourseOverview = cache(async (user: AuthUser) => {
   const courses = await prisma.course.findMany({
-    where: { deletedAt: null, ...(isAssignedAcademicStaff(user) ? { teacherId: user.id } : {}) },
+    where: { deletedAt: null, ...(isTeachingStaff(user) ? { teacherId: user.id } : {}) },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -297,20 +330,21 @@ export const getCourseOverview = cache(async (user: AuthUser) => {
 
 export const getTeachingStaff = cache(async () => {
   return prisma.user.findMany({
-    where: { role: { in: [UserRole.TEACHER, UserRole.HOMEROOM] }, status: UserStatus.VERIFIED },
+    where: { roles: { hasSome: [UserRole.TEACHER, UserRole.HOMEROOM] }, status: UserStatus.VERIFIED },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, roles: true },
   });
 });
 
 /* -------------------------------------------------------------------------- */
-/*                        admin/teacher course management                     */
+/*                        mudir/teacher course management                     */
 /* -------------------------------------------------------------------------- */
 
 export const getCourseManagement = cache(async (courseId: string, user: AuthUser) => {
+  const canManage = userCan(user, "course.manage");
   const [course, verifiedStudents, teachingStaff] = await Promise.all([
     prisma.course.findFirst({
-      where: { id: courseId, ...(isAssignedAcademicStaff(user) ? { teacherId: user.id } : {}) },
+      where: { id: courseId, ...(canManage ? {} : { teacherId: user.id }) },
       select: {
         id: true,
         title: true,
@@ -329,7 +363,7 @@ export const getCourseManagement = cache(async (courseId: string, user: AuthUser
         },
       },
     }),
-    user.role === UserRole.ADMIN
+    canManage
       ? prisma.studentProfile.findMany({
           where: { enrollments: { none: { courseId, status: EnrollmentStatus.ACTIVE } } },
           orderBy: { name: "asc" },
@@ -337,9 +371,9 @@ export const getCourseManagement = cache(async (courseId: string, user: AuthUser
           select: { id: true, name: true, studentNumber: true, className: true },
         })
       : Promise.resolve([]),
-    user.role === UserRole.ADMIN ? getTeachingStaff() : Promise.resolve([]),
+    canManage ? getTeachingStaff() : Promise.resolve([]),
   ]);
-  return { course, verifiedStudents, teachingStaff };
+  return { course, verifiedStudents, teachingStaff, canManage };
 });
 
 /* -------------------------------------------------------------------------- */
@@ -348,7 +382,7 @@ export const getCourseManagement = cache(async (courseId: string, user: AuthUser
 
 async function courseTabsFor(user: AuthUser) {
   return prisma.course.findMany({
-    where: { deletedAt: null, ...(isAssignedAcademicStaff(user) ? { teacherId: user.id } : {}) },
+    where: { deletedAt: null, ...(isTeachingStaff(user) ? { teacherId: user.id } : {}) },
     orderBy: { title: "asc" },
     select: { id: true, title: true },
   });
@@ -357,7 +391,7 @@ async function courseTabsFor(user: AuthUser) {
 export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+  const canEdit = userCan(user, "grade.manage");
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, columns: [], rows: [], canEdit };
@@ -405,7 +439,7 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
 export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
+  const canEdit = userCan(user, "attendance.record");
 
   if (!activeCourseId) {
     return { courses, activeCourseId: null, sessions: [], rows: [], canEdit };
@@ -456,7 +490,7 @@ export const getManagedUsers = cache(async () => {
       id: true,
       name: true,
       email: true,
-      role: true,
+      roles: true,
       status: true,
       createdAt: true,
     },
@@ -474,7 +508,7 @@ export const getProfile = cache(async (userId: string) => {
       id: true,
       name: true,
       email: true,
-      role: true,
+      roles: true,
     },
   });
 });
@@ -646,7 +680,7 @@ const DAY_NAMES = ["Ahad", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
 
 /** Papan jadwal per hari (dayOfWeek 0 = Ahad, mengikuti Date.getDay()). */
 export const getScheduleBoard = cache(async (user: AuthUser, level?: EducationLevel) => {
-  const teacherScope = isAssignedAcademicStaff(user) ? { teacherId: user.id } : {};
+  const teacherScope = isTeachingStaff(user) ? { teacherId: user.id } : {};
   const [slots, courses] = await Promise.all([
     prisma.scheduleSlot.findMany({
       where: { course: { deletedAt: null, ...teacherScope, ...(level ? { level } : {}) } },
@@ -963,9 +997,9 @@ export const getStaffAttendanceBoard = cache(async (dateKey: string) => {
   const date = dateKeyToDb(dateKey);
   const [teachers, records] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: [...STAFF_ROLES] }, status: UserStatus.VERIFIED },
+      where: { roles: { hasSome: [...STAFF_ROLES] }, status: UserStatus.VERIFIED },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, roles: true },
     }),
     prisma.staffAttendance.findMany({
       where: { date },
@@ -976,7 +1010,7 @@ export const getStaffAttendanceBoard = cache(async (dateKey: string) => {
   return teachers.map((t) => ({
     id: t.id,
     name: t.name,
-    role: t.role,
+    roles: t.roles,
     status: byTeacher.get(t.id)?.status ?? null,
     note: byTeacher.get(t.id)?.note ?? null,
   }));
@@ -990,9 +1024,9 @@ export const getStaffAttendanceRecap = cache(async (dateKey: string) => {
 
   const [teachers, records] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: [...STAFF_ROLES] }, status: UserStatus.VERIFIED },
+      where: { roles: { hasSome: [...STAFF_ROLES] }, status: UserStatus.VERIFIED },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, roles: true },
     }),
     prisma.staffAttendance.findMany({
       where: { date: { gte: start, lt: end } },
@@ -1011,7 +1045,7 @@ export const getStaffAttendanceRecap = cache(async (dateKey: string) => {
     else c.excused += 1;
   }
 
-  return teachers.map((t) => ({ id: t.id, name: t.name, role: t.role, ...byTeacher.get(t.id)! }));
+  return teachers.map((t) => ({ id: t.id, name: t.name, roles: t.roles, ...byTeacher.get(t.id)! }));
 });
 
 /* -------------------------------------------------------------------------- */

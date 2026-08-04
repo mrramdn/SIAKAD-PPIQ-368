@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Icons } from "@/components/ui";
-import { saveHomeroomNoteAction, publishReportCardAction } from "../../actions";
+import { deleteReportCardAction, publishReportCardAction, saveHomeroomNoteAction, unpublishReportCardAction } from "../../actions";
 
 export function HomeroomNoteForm({
   reportCardId,
@@ -43,6 +43,33 @@ export function HomeroomNoteForm({
         } else {
           alert("Rapor berhasil diterbitkan!");
           router.refresh();
+        }
+      });
+    }
+  }
+
+  function handleUnpublish() {
+    if (confirm("Batalkan penerbitan rapor ini? Rapor akan kembali menjadi draft dan tidak lagi terlihat oleh wali santri.")) {
+      startTransition(async () => {
+        const res = await unpublishReportCardAction(reportCardId);
+        if (!res.ok) {
+          alert(res.message || "Gagal membatalkan penerbitan rapor");
+        } else {
+          alert("Penerbitan rapor berhasil dibatalkan.");
+          router.refresh();
+        }
+      });
+    }
+  }
+
+  function handleDelete() {
+    if (confirm("Hapus rapor draft ini? Tindakan ini tidak dapat dibatalkan.")) {
+      startTransition(async () => {
+        const res = await deleteReportCardAction(reportCardId);
+        if (!res.ok) {
+          alert(res.message || "Gagal menghapus rapor");
+        } else {
+          router.push("/rapor");
         }
       });
     }
@@ -89,6 +116,34 @@ export function HomeroomNoteForm({
             className="!bg-[oklch(0.58_0.19_142)] hover:!bg-[oklch(0.52_0.19_142)] text-white"
           >
             Terbitkan Rapor
+          </Button>
+        </div>
+      )}
+
+      {isDraft && canEdit && (
+        <div className="flex justify-end border-t border-line pt-4">
+          <Button
+            type="button"
+            variant="danger"
+            disabled={isPending}
+            onClick={handleDelete}
+            icon={<Icons.trash size={16} />}
+          >
+            Hapus
+          </Button>
+        </div>
+      )}
+
+      {!isDraft && canEdit && (
+        <div className="flex justify-end border-t border-line pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={isPending}
+            onClick={handleUnpublish}
+            icon={<Icons.x size={16} />}
+          >
+            Batalkan Terbit
           </Button>
         </div>
       )}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireParent } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getParentChildren } from "@/lib/lms";
 import { Badge, Card, Icons, Ring, scoreColor, type Tone } from "@/components/ui";
 
@@ -7,7 +7,7 @@ type Level = "SD" | "SMP" | "SMA";
 const LEVEL_TONE: Record<Level, Tone> = { SD: "accent", SMP: "primary", SMA: "success" };
 
 export default async function AnakPage() {
-  const user = await requireParent();
+  const user = await requirePermission("child.monitor");
   const children = await getParentChildren(user.id);
 
   return (

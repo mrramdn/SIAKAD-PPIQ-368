@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { requireAcademicViewer } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getGradebook } from "@/lib/lms";
 import { Avatar, Badge, Card, Field, buttonClasses, inputClasses, scoreColor, PASS_THRESHOLD } from "@/components/ui";
 import { createGradeItemAction } from "../actions";
 import { Gradebook } from "./Gradebook";
 
 export default async function NilaiPage({ searchParams }: { searchParams: Promise<{ course?: string; error?: string }> }) {
-  const [{ course, error }, user] = await Promise.all([searchParams, requireAcademicViewer()]);
+  const [{ course, error }, user] = await Promise.all([searchParams, requirePermission("grade.manage")]);
   const { courses, activeCourseId, columns, rows, canEdit } = await getGradebook(user, course);
 
   const classAvg = rows.length ? Math.round(rows.reduce((s, r) => s + r.avg, 0) / rows.length) : 0;
@@ -18,9 +18,7 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Nilai</h1>
-          <p className="mt-1 text-sm text-ink-3">
-            {canEdit ? "Klik sel untuk mengubah nilai. Rata-rata dihitung otomatis." : "Pantau rekap nilai santri sebagai bahan pengawasan akademik."}
-          </p>
+          <p className="mt-1 text-sm text-ink-3">Klik sel untuk mengubah nilai. Rata-rata dihitung otomatis.</p>
         </div>
       </div>
 

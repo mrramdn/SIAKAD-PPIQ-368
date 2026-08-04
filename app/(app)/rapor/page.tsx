@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { requireReportViewer } from "@/lib/auth";
+import { requireAnyPermission, userCan } from "@/lib/auth";
 import { getReportBoard, getCurrentPeriod, formatPeriod } from "@/lib/lms";
 import { Card, Field, inputClasses } from "@/components/ui";
 import { ReportBoardTable } from "./ReportBoardTable";
-import { Semester, UserRole } from "@/generated/prisma/client";
+import { Semester } from "@/generated/prisma/client";
 
 export default async function RaporPage({
   searchParams,
@@ -12,10 +12,10 @@ export default async function RaporPage({
 }) {
   const [{ class: className, semester, year }, user] = await Promise.all([
     searchParams,
-    requireReportViewer(),
+    requireAnyPermission(["report.manage", "report.distribute"]),
   ]);
 
-  const canEdit = user.role === UserRole.HOMEROOM;
+  const canEdit = userCan(user, "report.manage");
 
   const currentPeriod = getCurrentPeriod();
   const activeSemester = Object.values(Semester).includes(semester as Semester)
@@ -38,11 +38,11 @@ export default async function RaporPage({
     <div className="view-enter flex flex-col" style={{ gap: 20 }}>
       <div className="mb-1 flex flex-wrap items-end justify-between gap-3.5">
         <div>
-          <h1 className="text-[26px] font-extrabold tracking-tight">Rapor Santri</h1>
+          <h1 className="text-[26px] font-extrabold tracking-tight">{canEdit ? "Rapor" : "Penerimaan Rapor"}</h1>
           <p className="mt-1 text-sm text-ink-3">
             {canEdit
               ? "Kelola nilai akhir, absensi, catatan wali kelas, dan penerbitan rapor."
-              : "Pantau berkas rapor santri yang terbit per periode."}
+              : "Pantau rapor santri mana saja yang sudah terbit dan siap diserahkan ke wali santri."}
           </p>
         </div>
       </div>

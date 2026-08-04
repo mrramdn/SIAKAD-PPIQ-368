@@ -3,28 +3,20 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Button, Card, Field, Icons, inputClasses, initialsFromName } from "@/components/ui";
+import { ROLE_LABEL, sortRoles, type Role } from "@/lib/permissions";
 import { updateProfileAction } from "../actions";
-
-type Role = "ADMIN" | "TEACHER" | "HOMEROOM" | "MUDIR" | "PARENT";
-
-const ROLE_LABEL: Record<Role, string> = {
-  ADMIN: "Administrasi",
-  TEACHER: "Pengajar",
-  HOMEROOM: "Wali Kelas",
-  MUDIR: "Mudir Ma'had",
-  PARENT: "Wali Santri",
-};
 
 export function ProfileForm({
   profile,
 }: {
-  profile: { name: string; email: string; role: Role };
+  profile: { name: string; email: string; roles: Role[] };
 }) {
   const router = useRouter();
   const [name, setName] = useState(profile.name);
   const [toast, setToast] = useState<{ message: string; ok: boolean } | null>(null);
   const [pending, startTransition] = useTransition();
   const unchanged = name.trim() === profile.name;
+  const roleLabel = sortRoles(profile.roles).map((r) => ROLE_LABEL[r]).join(" & ");
 
   useEffect(() => {
     if (!toast) return;
@@ -53,7 +45,7 @@ export function ProfileForm({
           <Avatar initials={initialsFromName(profile.name)} color="var(--primary)" size={64} />
           <div className="min-w-0">
             <div className="truncate text-lg font-bold">{profile.name}</div>
-            <div className="mt-0.5 text-[13.5px] text-ink-3">{ROLE_LABEL[profile.role]}</div>
+            <div className="mt-0.5 text-[13.5px] text-ink-3">{roleLabel}</div>
           </div>
         </div>
 
@@ -68,7 +60,7 @@ export function ProfileForm({
             />
           </Field>
           <Field label="Peran">
-            <input value={ROLE_LABEL[profile.role]} disabled className={`${inputClasses} bg-surface-2 text-ink-3`} />
+            <input value={roleLabel} disabled className={`${inputClasses} bg-surface-2 text-ink-3`} />
           </Field>
           <Field label="Email">
             <input value={profile.email} disabled className={`${inputClasses} bg-surface-2 text-ink-3`} />

@@ -1,9 +1,9 @@
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getManagedUsers } from "@/lib/lms";
 import { UserManager } from "./UserManager";
 
 export default async function PenggunaPage() {
-  const user = await requireAdmin();
+  const user = await requirePermission("user.manage");
   const users = await getManagedUsers();
 
   return (
@@ -14,7 +14,7 @@ export default async function PenggunaPage() {
         id: u.id,
         name: u.name,
         email: u.email,
-        role: u.role,
+        roles: u.roles,
         status: u.status,
       }))}
     />

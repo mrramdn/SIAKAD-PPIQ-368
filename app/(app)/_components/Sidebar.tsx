@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icons } from "@/components/ui";
 import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
+import { sortRoles } from "@/lib/permissions";
 import { navFor, ROLE_BLURB, ROLE_LABEL, type Role } from "./nav";
 
-export function Sidebar({ role, open, onClose }: { role: Role; open: boolean; onClose: () => void }) {
+export function Sidebar({ roles, open, onClose }: { roles: Role[]; open: boolean; onClose: () => void }) {
   const pathname = usePathname();
-  const items = navFor(role);
+  const items = navFor(roles);
+  const heldRoles = sortRoles(roles);
 
   return (
     <>
@@ -70,8 +72,16 @@ export function Sidebar({ role, open, onClose }: { role: Role; open: boolean; on
         {/* role helper card */}
         <div className="p-3.5">
           <div className="rounded-xl border border-line bg-surface-2 p-3.5">
-            <div className="mb-1 text-xs font-bold text-ink-2">Mode {ROLE_LABEL[role]}</div>
-            <p className="text-[11.5px] leading-relaxed text-ink-3">{ROLE_BLURB[role]}</p>
+            <div className="mb-1 text-xs font-bold text-ink-2">
+              Mode {heldRoles.map((r) => ROLE_LABEL[r]).join(" + ")}
+            </div>
+            <div className="flex flex-col gap-1">
+              {heldRoles.map((r) => (
+                <p key={r} className="text-[11.5px] leading-relaxed text-ink-3">
+                  {ROLE_BLURB[r]}
+                </p>
+              ))}
+            </div>
           </div>
         </div>
       </aside>

@@ -13,7 +13,7 @@ export default async function PengaturanPage() {
       profile={{
         name: profile.name,
         email: profile.email,
-        role: profile.role,
+        roles: profile.roles,
       }}
     />
   );
