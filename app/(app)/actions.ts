@@ -474,6 +474,19 @@ export async function setUserStatusAction(userId: string, status: UserStatus): P
   if (status !== UserStatus.VERIFIED && (await hasAssignedCourses(userId))) {
     return { ok: false, message: "Alihkan seluruh mata pelajaran yang diampu sebelum mengubah status akun." };
   }
+  // Jalur kedua menuju lockout yang sama seperti di updateUserAction: menonaktifkan
+  // admin aktif terakhir membuat hak kelola pengguna tidak bisa dipulihkan lagi.
+  if (status !== UserStatus.VERIFIED) {
+    if (userId === admin.id) {
+      return { ok: false, message: "Tidak bisa menonaktifkan akun sendiri." };
+    }
+    const otherActiveAdmins = await prisma.user.count({
+      where: { id: { not: userId }, roles: { has: UserRole.ADMIN }, status: UserStatus.VERIFIED },
+    });
+    if (otherActiveAdmins === 0) {
+      return { ok: false, message: "Sisakan minimal satu akun Administrasi aktif." };
+    }
+  }
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -528,13 +541,29 @@ export async function updateUserAction(input: {
   roles: Role[];
   status: UserStatus;
 }): Promise<ActionResult> {
-  await requirePermission("user.manage");
+  const actor = await requirePermission("user.manage");
   const name = input.name.trim();
   const rolesResult = rolesSchema.safeParse(input.roles);
   if (!input.userId || !name || !rolesResult.success || !Object.values(UserStatus).includes(input.status)) {
     return { ok: false, message: "Data pengguna tidak valid." };
   }
   const roles = rolesResult.data as UserRole[];
+
+  // Tidak ada peran super admin terpisah, jadi hak kelola pengguna hanya bisa
+  // dipulihkan dari dalam aplikasi selama masih ada admin aktif. Dua pagar di
+  // bawah mencegah admin terakhir mengunci semua orang di luar sistem.
+  const staysActiveAdmin = roles.includes(UserRole.ADMIN) && input.status === UserStatus.VERIFIED;
+  if (!staysActiveAdmin) {
+    if (input.userId === actor.id) {
+      return { ok: false, message: "Tidak bisa mencabut peran Administrasi dari akun sendiri." };
+    }
+    const otherActiveAdmins = await prisma.user.count({
+      where: { id: { not: input.userId }, roles: { has: UserRole.ADMIN }, status: UserStatus.VERIFIED },
+    });
+    if (otherActiveAdmins === 0) {
+      return { ok: false, message: "Sisakan minimal satu akun Administrasi aktif." };
+    }
+  }
 
   const remainsVerifiedTeachingStaff =
     input.status === UserStatus.VERIFIED &&

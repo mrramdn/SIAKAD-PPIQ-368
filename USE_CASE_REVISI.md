@@ -3,22 +3,70 @@
 ## Aktor
 
 1. Wali Santri
-2. Wali Kelas
-3. Pengajar
-4. Administrasi
-5. Mudir Ma'had
+2. Pengajar (Ustadz)
+3. Wali Kelas
+4. Mudir Ma'had
+5. Administrasi
 6. Santri
 
-Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
+Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi. Yang
+memegang akun adalah orang tuanya, sehingga pemantauan perkembangan santri
+(kehadiran, nilai, rapor) berlangsung dari sisi wali santri.
+
+## Model Peran dan Hak Akses
+
+Sistem menggunakan kontrol akses berbasis peran (role-based access control).
+Satu pengguna dapat memegang **lebih dari satu peran**, dan hak aksesnya adalah
+**gabungan** hak akses dari seluruh peran yang dipegangnya. Contoh: seorang
+pengguna yang berperan sebagai Administrasi sekaligus Mudir Ma'had memperoleh
+seluruh fitur Administrasi ditambah seluruh fitur Mudir Ma'had, tanpa duplikasi
+untuk fitur yang beririsan.
+
+Pembatasan fitur tidak diputuskan langsung dari nama peran, melainkan dari
+daftar hak akses (permission) yang dimiliki peran tersebut. Setiap peran
+memetakan ke sekumpulan permission, dan setiap fitur mensyaratkan satu
+permission tertentu.
+
+### Tabel Peran dan Fitur
+
+| Peran | Fitur yang dapat diakses |
+|---|---|
+| Administrasi | Pendaftaran (PPDB), Pengguna, Absensi Ustadz, Penerimaan Rapor, Informasi |
+| Pengajar (Ustadz) | Jadwal & Mata Pelajaran, Absensi Santri, Pengelolaan Nilai, Absensi Ustadz & BKKH, Informasi |
+| Wali Kelas | Seluruh fitur Pengajar, ditambah Rapor |
+| Mudir Ma'had | Absensi Ustadz, Jadwal & Mata Pelajaran, Informasi |
+| Wali Santri | Pendaftaran Anak, Jadwal, Anak Saya (profil, kehadiran, nilai, rapor), Informasi |
+
+Dasbor dan Pengaturan tersedia untuk seluruh peran.
+
+### Administrasi Peran
+
+Pengelolaan akun dan peran dilakukan oleh Administrasi; tidak ada peran super
+admin yang terpisah. Karena hak kelola pengguna hanya dimiliki Administrasi,
+sistem menjaga agar hak tersebut tidak dapat hilang seluruhnya: akun
+Administrasi tidak dapat mencabut peran atau menonaktifkan akunnya sendiri, dan
+sistem menolak perubahan yang menyisakan nol akun Administrasi aktif.
 
 ## Cakupan Utama (6 Fitur Inti Skripsi)
 
-1. **Pendaftaran (PPDB)**: Wali mendaftarkan anak, Administrasi meninjau dan menerima pendaftaran.
-2. **Absensi**: Pengajar/Wali Kelas mencatat absensi santri per sesi pelajaran.
-3. **Penjadwalan**: Administrasi menyusun jadwal pelajaran per jenjang; pengajar, wali kelas, Mudir, dan wali santri melihat sesuai konteksnya.
-4. **Pengelolaan Nilai**: Pengajar mengisi nilai komponen per mata pelajaran.
-5. **Pengelolaan Rapor**: Wali Kelas membuat rapor semester (rekap nilai + absensi), menambahkan catatan, menerbitkan rapor, dan Wali Santri memantau rapor anaknya.
-6. **Absensi Ustadz dan BKKH**: Pengajar/Wali Kelas mencatat kehadiran pribadi dan mengisi laporan kegiatan harian berdasarkan enam rentang waktu; Administrasi mencatat kehadiran dan Mudir memantau laporan.
+1. **Pendaftaran (PPDB)**: Wali Santri mendaftarkan anak beserta unggahan
+   dokumen; Administrasi meninjau, menerima, atau menolak pendaftaran.
+2. **Absensi Santri**: Pengajar dan Wali Kelas mencatat kehadiran santri per
+   sesi pelajaran pada mata pelajaran yang ditugaskan kepadanya.
+3. **Penjadwalan dan Mata Pelajaran**: Mudir Ma'had menyusun mata pelajaran,
+   menetapkan ustadz pengampu, dan mengatur slot jadwal per jenjang. Pengajar,
+   Wali Kelas, dan Wali Santri melihat jadwal sesuai konteksnya. Mata pelajaran
+   dan jadwal disajikan dalam satu halaman.
+4. **Pengelolaan Nilai**: Pengajar dan Wali Kelas mengisi nilai komponen pada
+   mata pelajaran yang ditugaskan kepadanya.
+5. **Pengelolaan Rapor**: Wali Kelas membuat rapor semester (rekap nilai dan
+   kehadiran), menambahkan catatan, serta menerbitkannya. Administrasi memantau
+   rapor yang telah terbit untuk keperluan penyerahan kepada wali santri. Wali
+   Santri memantau rapor anaknya yang telah berstatus terbit.
+6. **Absensi Ustadz dan BKKH**: Pengajar dan Wali Kelas mencatat kehadiran
+   pribadi serta mengisi laporan kegiatan harian berdasarkan enam rentang waktu;
+   Administrasi mencatat kehadiran ustadz; Mudir Ma'had memantau kehadiran dan
+   laporan tersebut.
 
 ## Use Case per Peran
 
@@ -27,53 +75,52 @@ Catatan: santri adalah data yang dipantau, bukan pengguna aktif aplikasi.
 - Membuat Akun Wali
 - Mendaftarkan Anak Baru (PPDB) & Unggah Dokumen
 - Memantau Profil Anak
-- Memantau Jadwal Pelajaran Anak
+- Memantau Jadwal Pelajaran Anak (seluruh jenjang: SD, SMP, SMA)
 - Memantau Rekap Nilai Harian & Kehadiran Anak
-- Memantau Rapor Semester Anak (Hanya status PUBLISHED)
+- Memantau Rapor Semester Anak (hanya berstatus PUBLISHED)
 - Memantau Pengumuman / Informasi Pesantren
 
-### 2. Wali Kelas
+### 2. Pengajar (Ustadz)
 - Login
-- Memantau Kelas Binaan
-- Memantau Jadwal Pelajaran
+- Memantau Jadwal Mengajar dan Mata Pelajaran
 - Mencatat Kehadiran Sesi Pelajaran pada Mapel yang Ditugaskan
 - Mencatat Kehadiran Pribadi
 - Mengisi Laporan BKKH Harian
 - Mengisi dan Mengelola Nilai Komponen pada Mapel yang Ditugaskan
+- Mengelola Pengumuman / Informasi Pesantren
+
+### 3. Wali Kelas
+Seluruh use case Pengajar, ditambah:
 - Membuat Rapor Semester Santri (Generate & Hitung Rata-rata)
 - Mengisi Catatan Wali Kelas (Homeroom Note) pada Rapor
 - Menerbitkan Rapor Semester (Publish)
-- Mengelola Pengumuman / Informasi Pesantren
+- Membatalkan Penerbitan Rapor
+- Menghapus Rapor yang Masih Berstatus Draf
 
-### 3. Pengajar
+### 4. Mudir Ma'had (Pengawas)
 - Login
-- Memantau Jadwal Mengajar Pribadi
-- Mencatat Kehadiran Sesi Pelajaran pada Mapel yang Ditugaskan
-- Mencatat Kehadiran Pribadi
-- Mengisi Laporan BKKH Harian
-- Mengisi dan Mengelola Nilai Komponen pada Mapel yang Ditugaskan
-- Mengelola Pengumuman / Informasi Pesantren
-
-### 4. Administrasi
-- Login
-- Meninjau dan Memverifikasi Pendaftaran Anak (PPDB)
-- Mengelola Akun, Role, dan Status Pengguna
 - Mengelola Mata Pelajaran, Peserta, dan Ustadz Pengampu
 - Menyusun Jadwal Pelajaran (Mengelola Slot)
-- Mencatat Kehadiran Ustadz
-- Memantau Laporan BKKH Harian
-- Mengelola Pengumuman / Informasi Pesantren
-
-### 5. Mudir Ma'had (Pengawasan - Read-Only)
-- Login
-- Memantau Jadwal Mengajar Ustadz
-- Memantau Rekap Absensi Santri
-- Memantau Absensi Ustadz dan Laporan BKKH
-- Memantau Rekap Nilai Santri
-- Memantau Rapor Semester Santri (Semua Status)
+- Memantau Absensi Ustadz dan Laporan BKKH Harian
 - Memantau Pengumuman / Informasi Pesantren
 
-Catatan: Mudir tidak memiliki akses ke manajemen akun atau PPDB dan tidak memiliki aksi perubahan data.
+Catatan: Mudir Ma'had berperan sebagai pengawas ustadz sekaligus pemegang
+kewenangan penjadwalan akademik. Mudir tidak memiliki akses ke manajemen akun,
+PPDB, penilaian, maupun rapor; penilaian merupakan kewenangan Pengajar dan Wali
+Kelas, sedangkan rapor merupakan kewenangan Wali Kelas.
+
+### 5. Administrasi
+- Login
+- Meninjau dan Memverifikasi Pendaftaran Anak (PPDB)
+- Mengelola Akun, Peran, dan Status Pengguna
+- Mencatat Kehadiran Ustadz
+- Memantau Laporan BKKH Harian
+- Memantau Penerimaan Rapor (daftar rapor terbit untuk diserahkan ke wali santri)
+- Mengelola Pengumuman / Informasi Pesantren
+
+Catatan: Administrasi tidak mengelola mata pelajaran maupun jadwal; kewenangan
+tersebut berada pada Mudir Ma'had. Akses Administrasi terhadap rapor bersifat
+pemantauan saja, tanpa kemampuan mengubah isi rapor.
 
 ### 6. Santri (Aktor Pasif)
 - Terdaftar di sistem dan memiliki profil
@@ -81,9 +128,22 @@ Catatan: Mudir tidak memiliki akses ke manajemen akun atau PPDB dan tidak memili
 - Memiliki riwayat kelas, absensi, nilai, dan rapor semester
 
 ## Hubungan Antar Use Case
-- Proses pendaftaran anak oleh Wali Santri menghasilkan berkas pendaftaran yang ditinjau oleh Administrasi.
-- Saat pendaftaran diterima, sistem secara otomatis menautkan data profil Santri ke akun Wali Santri pengaju.
-- Pengelolaan Nilai dan Kehadiran merupakan basis data utama untuk menyusun Rapor Semester. Rapor semester di-snapshot dari rata-rata nilai dan total kehadiran pada periode berjalan sebelum diterbitkan.
-- Absensi Ustadz dan BKKH berada dalam satu halaman operasional, tetapi disimpan terpisah: status kehadiran harian dan laporan kegiatan per rentang waktu.
-- Administrasi mencatat status kehadiran ustadz, tetapi laporan BKKH hanya dapat diisi sendiri oleh Pengajar atau Wali Kelas pada hari yang sama.
-- Setiap mata pelajaran memiliki ustadz pengampu. Pengajar maupun Wali Kelas hanya dapat mengubah nilai dan absensi pada mata pelajaran yang ditugaskan kepadanya.
+- Proses pendaftaran anak oleh Wali Santri menghasilkan berkas pendaftaran yang
+  ditinjau oleh Administrasi.
+- Saat pendaftaran diterima, sistem secara otomatis menautkan data profil Santri
+  ke akun Wali Santri pengaju.
+- Setiap mata pelajaran memiliki ustadz pengampu yang ditetapkan oleh Mudir
+  Ma'had. Pengajar maupun Wali Kelas hanya dapat mengubah nilai dan absensi pada
+  mata pelajaran yang ditugaskan kepadanya. Kepemilikan mata pelajaran ini
+  berlaku sebagai pembatas tambahan di atas hak akses peran.
+- Pengelolaan Nilai dan Kehadiran merupakan basis data utama untuk menyusun
+  Rapor Semester. Rapor di-snapshot dari rata-rata nilai dan total kehadiran
+  pada periode berjalan sebelum diterbitkan, sehingga isinya tidak berubah
+  meskipun nilai sumber diedit setelah rapor terbit.
+- Rapor yang telah terbit tidak dapat dihapus, agar rekam jejak yang telah
+  diterima wali santri tetap utuh. Penghapusan hanya dimungkinkan selama rapor
+  masih berstatus draf.
+- Absensi Ustadz dan BKKH berada dalam satu halaman operasional, tetapi disimpan
+  terpisah: status kehadiran harian dan laporan kegiatan per rentang waktu.
+- Administrasi mencatat status kehadiran ustadz, tetapi laporan BKKH hanya dapat
+  diisi sendiri oleh Pengajar atau Wali Kelas pada hari yang sama.
