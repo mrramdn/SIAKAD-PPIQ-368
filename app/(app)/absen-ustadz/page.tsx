@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { requireVerifiedUser } from "@/lib/auth";
+import { requirePermission, userCan } from "@/lib/auth";
 import { BKKH_TIME_SLOTS, countFilledBkkhSlots, type BkkhActivityField } from "@/lib/bkkh";
 import {
   dateKeyToDb,
@@ -21,6 +20,10 @@ const STATUS_META = [
 ] as const;
 
 const ROLE_LABEL: Record<string, string> = { TEACHER: "Pengajar", HOMEROOM: "Wali Kelas" };
+
+function roleLabel(roles: readonly string[]): string {
+  return roles.map((r) => ROLE_LABEL[r] ?? r).join(" & ");
+}
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const monthFmt = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -59,8 +62,7 @@ export default async function AbsenUstadzPage({
 }: {
   searchParams: Promise<{ tanggal?: string; error?: string; success?: string }>;
 }) {
-  const [{ tanggal, error, success }, user] = await Promise.all([searchParams, requireVerifiedUser()]);
-  if (user.role === "PARENT") redirect("/dashboard");
+  const [{ tanggal, error, success }, user] = await Promise.all([searchParams, requirePermission("staff_attendance.view")]);
 
   const todayKey = toDateKey(new Date());
   const dateKey = tanggal && /^\d{4}-\d{2}-\d{2}$/.test(tanggal) ? tanggal : todayKey;
@@ -71,9 +73,11 @@ export default async function AbsenUstadzPage({
     getBkkhMonthlyCounts(dateKey),
   ]);
 
-  const isAdmin = user.role === "ADMIN";
-  const isMudir = user.role === "MUDIR";
-  const isStaffSelf = user.role === "TEACHER" || user.role === "HOMEROOM";
+  const canRecord = userCan(user, "staff_attendance.record");
+  const isStaffSelf = userCan(user, "staff_attendance.self");
+  // A pure oversight account can view staff attendance but neither record it for others
+  // nor self-report BKKH — that's the capability that used to be keyed off role === MUDIR.
+  const isOversightOnly = !canRecord && !isStaffSelf;
   const isToday = dateKey === todayKey;
   const myReport = bkkhReports.get(user.id);
   const marked = board.filter((row) => row.status !== null).length;
@@ -93,11 +97,11 @@ export default async function AbsenUstadzPage({
     <div className="view-enter flex flex-col" style={{ gap: 18 }}>
       <div className="flex flex-wrap items-end justify-between gap-3.5">
         <div>
-          <h1 className="text-[26px] font-extrabold tracking-tight">{isMudir ? "Pengawasan Ustadz" : "Absensi Ustadz"}</h1>
+          <h1 className="text-[26px] font-extrabold tracking-tight">{isOversightOnly ? "Pengawasan Ustadz" : "Absensi Ustadz"}</h1>
           <p className="mt-1 text-sm text-ink-3">
-            {isAdmin
+            {canRecord
               ? "Catat kehadiran dan pantau laporan kegiatan harian ustadz."
-              : isMudir
+              : isOversightOnly
                 ? "Pantau kehadiran dan laporan kegiatan harian ustadz."
                 : "Tandai kehadiran dan isi laporan kegiatan Anda hari ini."}
           </p>
@@ -145,7 +149,7 @@ export default async function AbsenUstadzPage({
         ) : (
           <div className="divide-y divide-line">
             {board.map((row) => {
-              const canEdit = isAdmin || (isToday && row.id === user.id);
+              const canEdit = canRecord || (isToday && row.id === user.id);
               const meta = STATUS_META.find((status) => status.key === row.status);
               const report = bkkhReports.get(row.id);
               const filledSlots = countFilledBkkhSlots(report);
@@ -157,7 +161,7 @@ export default async function AbsenUstadzPage({
                       {row.id === user.id ? <Badge tone="primary">Anda</Badge> : null}
                     </div>
                     <div className="mt-0.5 text-[12.5px] text-ink-3">
-                      {ROLE_LABEL[row.role] ?? row.role} · {report ? `BKKH ${filledSlots}/${BKKH_TIME_SLOTS.length}` : "BKKH belum diisi"}
+                      {roleLabel(row.roles)} · {report ? `BKKH ${filledSlots}/${BKKH_TIME_SLOTS.length}` : "BKKH belum diisi"}
                     </div>
                   </div>
                   {canEdit ? (
@@ -272,7 +276,7 @@ export default async function AbsenUstadzPage({
         </Card>
       ) : null}
 
-      {isAdmin || isMudir ? (
+      {canRecord || isOversightOnly ? (
         <Card pad={0} className="overflow-hidden">
           <div className="px-5 pt-5 pb-4">
             <h2 className="text-base font-bold tracking-tight">Laporan BKKH Harian</h2>
@@ -287,7 +291,7 @@ export default async function AbsenUstadzPage({
                   <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 transition hover:bg-surface-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-ink">{row.name}</div>
-                      <div className="mt-0.5 text-[12px] text-ink-3">{report?.assignment ?? ROLE_LABEL[row.role] ?? row.role}</div>
+                      <div className="mt-0.5 text-[12px] text-ink-3">{report?.assignment ?? roleLabel(row.roles)}</div>
                     </div>
                     <Badge tone={report ? "success" : "neutral"}>{report ? `${filledSlots}/6 terisi` : "Belum diisi"}</Badge>
                   </summary>
@@ -324,7 +328,7 @@ export default async function AbsenUstadzPage({
                 <tr key={row.id} className="border-t border-line">
                   <td className="sticky left-0 z-[1] bg-surface px-5 py-3">
                     <div className="whitespace-nowrap text-sm font-semibold">{row.name}</div>
-                    <div className="text-[11.5px] text-ink-3">{ROLE_LABEL[row.role] ?? row.role}</div>
+                    <div className="text-[11.5px] text-ink-3">{roleLabel(row.roles)}</div>
                   </td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--green)" }}>{row.present}</td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--primary)" }}>{row.excused}</td>

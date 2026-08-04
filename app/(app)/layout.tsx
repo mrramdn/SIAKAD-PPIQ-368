@@ -6,7 +6,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireVerifiedUser();
 
   return (
-    <Shell user={{ name: user.name, email: user.email, role: user.role as Role }}>
+    <Shell user={{ name: user.name, email: user.email, roles: user.roles as Role[] }}>
       {children}
     </Shell>
   );

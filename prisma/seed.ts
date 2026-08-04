@@ -143,11 +143,11 @@ const STUDENT_NAMES: Record<EducationLevel, string[]> = {
 
 const LEVELS: EducationLevel[] = [EducationLevel.SD, EducationLevel.SMP, EducationLevel.SMA];
 
-async function upsertUser(email: string, name: string, role: UserRole, passwordHash: string, phone?: string) {
+async function upsertUser(email: string, name: string, roles: UserRole[], passwordHash: string, phone?: string) {
   return prisma.user.upsert({
     where: { email },
-    update: { name, phone: phone ?? null, passwordHash, role, status: UserStatus.VERIFIED, verifiedAt: new Date() },
-    create: { name, email, phone: phone ?? null, passwordHash, role, status: UserStatus.VERIFIED, verifiedAt: new Date() },
+    update: { name, phone: phone ?? null, passwordHash, roles, status: UserStatus.VERIFIED, verifiedAt: new Date() },
+    create: { name, email, phone: phone ?? null, passwordHash, roles, status: UserStatus.VERIFIED, verifiedAt: new Date() },
     select: { id: true },
   });
 }
@@ -155,9 +155,11 @@ async function upsertUser(email: string, name: string, role: UserRole, passwordH
 async function main() {
   const passwordHash = await bcrypt.hash("password123", 12);
 
-  const admin = await upsertUser("admin@pesantren.id", "Administrasi Pesantren", UserRole.ADMIN, passwordHash);
-  await upsertUser("mudir@pesantren.id", "Mudir Ma'had", UserRole.MUDIR, passwordHash);
-  const homeroom = await upsertUser("walikelas@pesantren.id", "Ustadzah Nur Wali Kelas", UserRole.HOMEROOM, passwordHash);
+  const admin = await upsertUser("admin@pesantren.id", "Administrasi Pesantren", [UserRole.ADMIN], passwordHash);
+  await upsertUser("mudir@pesantren.id", "Mudir Ma'had", [UserRole.MUDIR], passwordHash);
+  const homeroom = await upsertUser("walikelas@pesantren.id", "Ustadzah Nur Wali Kelas", [UserRole.HOMEROOM], passwordHash);
+  // Dual-role demo account: makes the union-of-permissions behaviour visible without touching the DB by hand.
+  await upsertUser("admin.mudir@pesantren.id", "Ustadz Admin & Mudir", [UserRole.ADMIN, UserRole.MUDIR], passwordHash);
 
   const teachers = [
     { email: "guru@pesantren.id", name: "Ustadz Ahmad" },
@@ -166,14 +168,14 @@ async function main() {
   ];
   const teacherIds = new Map<string, string>();
   for (const t of teachers) {
-    const row = await upsertUser(t.email, t.name, UserRole.TEACHER, passwordHash);
+    const row = await upsertUser(t.email, t.name, [UserRole.TEACHER], passwordHash);
     teacherIds.set(t.email, row.id);
   }
   const academicStaffIds = new Map(teacherIds);
   academicStaffIds.set("walikelas@pesantren.id", homeroom.id);
 
   // Demo parent owns two children across levels.
-  const demoParent = await upsertUser("wali@pesantren.id", "Bapak Hadi Santoso", UserRole.PARENT, passwordHash, "0812-0000-1111");
+  const demoParent = await upsertUser("wali@pesantren.id", "Bapak Hadi Santoso", [UserRole.PARENT], passwordHash, "0812-0000-1111");
 
   // Courses + schedule + grade items, grouped by level.
   const coursesByLevel = new Map<EducationLevel, { id: string; gradeItemIds: string[] }[]>();
@@ -224,7 +226,7 @@ async function main() {
       if ((level === EducationLevel.SMP || level === EducationLevel.SMA) && i === 0) {
         parentId = demoParent.id;
       } else {
-        const parent = await upsertUser(`wali.${level.toLowerCase()}.${i + 1}@pesantren.id`, `Wali ${names[i]}`, UserRole.PARENT, passwordHash, "0812-3456-7890");
+        const parent = await upsertUser(`wali.${level.toLowerCase()}.${i + 1}@pesantren.id`, `Wali ${names[i]}`, [UserRole.PARENT], passwordHash, "0812-3456-7890");
         parentId = parent.id;
       }
 

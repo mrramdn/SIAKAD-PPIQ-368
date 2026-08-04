@@ -1,11 +1,11 @@
-import { requireAdmin } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getAdmissions } from "@/lib/lms";
 import { AdmissionReview } from "./AdmissionReview";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" });
 
 export default async function PenerimaanPage() {
-  await requireAdmin();
+  await requirePermission("admission.review");
   const admissions = await getAdmissions();
 
   const rows = admissions.map((a) => ({
