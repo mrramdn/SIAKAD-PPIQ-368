@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { UserRole, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { hasAnyPermission, hasPermission, permissionsFor, type Permission, type Role } from "@/lib/permissions";
 
 export const SESSION_COOKIE = "general_lms_session";
 
@@ -14,7 +15,7 @@ export type AuthUser = {
   name: string;
   email: string;
   phone: string | null;
-  role: UserRole;
+  roles: UserRole[];
   status: UserStatus;
 };
 
@@ -52,7 +53,7 @@ export async function createUserSession(userId: string) {
 export async function signInWithPassword(email: string, password: string) {
   const user = await prisma.user.findUnique({
     where: { email: email.toLowerCase().trim() },
-    select: { id: true, passwordHash: true, role: true, status: true },
+    select: { id: true, passwordHash: true, roles: true, status: true },
   });
 
   if (!user) {
@@ -67,7 +68,7 @@ export async function signInWithPassword(email: string, password: string) {
 
   await createUserSession(user.id);
 
-  return { id: user.id, role: user.role, status: user.status };
+  return { id: user.id, roles: user.roles, status: user.status };
 }
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
@@ -84,7 +85,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       id: true,
       expiresAt: true,
       user: {
-        select: { id: true, name: true, email: true, phone: true, role: true, status: true },
+        select: { id: true, name: true, email: true, phone: true, roles: true, status: true },
       },
     },
   });
@@ -111,16 +112,6 @@ export async function requireUser() {
   return user;
 }
 
-export async function requireAdmin() {
-  const user = await requireUser();
-
-  if (user.role !== UserRole.ADMIN || user.status !== UserStatus.VERIFIED) {
-    redirect("/dashboard");
-  }
-
-  return user;
-}
-
 export async function requireVerifiedUser() {
   const user = await requireUser();
 
@@ -131,70 +122,28 @@ export async function requireVerifiedUser() {
   return user;
 }
 
-export async function requireAcademicStaff() {
+export function userPermissions(user: AuthUser): Set<Permission> {
+  return permissionsFor(user.roles as Role[]);
+}
+
+export function userCan(user: AuthUser, permission: Permission): boolean {
+  return hasPermission(user.roles as Role[], permission);
+}
+
+export async function requirePermission(permission: Permission): Promise<AuthUser> {
   const user = await requireVerifiedUser();
 
-  if (user.role !== UserRole.TEACHER && user.role !== UserRole.HOMEROOM) {
+  if (!userCan(user, permission)) {
     redirect("/dashboard");
   }
 
   return user;
 }
 
-export async function requireAcademicViewer() {
+export async function requireAnyPermission(permissions: readonly Permission[]): Promise<AuthUser> {
   const user = await requireVerifiedUser();
 
-  if (user.role !== UserRole.TEACHER && user.role !== UserRole.HOMEROOM && user.role !== UserRole.MUDIR) {
-    redirect("/dashboard");
-  }
-
-  return user;
-}
-
-export async function requireHomeroom() {
-  const user = await requireVerifiedUser();
-
-  if (user.role !== UserRole.HOMEROOM) {
-    redirect("/dashboard");
-  }
-
-  return user;
-}
-
-export async function requireReportViewer() {
-  const user = await requireVerifiedUser();
-
-  if (user.role !== UserRole.HOMEROOM && user.role !== UserRole.MUDIR) {
-    redirect("/dashboard");
-  }
-
-  return user;
-}
-
-export async function requireAnnouncementManager() {
-  const user = await requireVerifiedUser();
-
-  if (user.role !== UserRole.ADMIN && user.role !== UserRole.TEACHER && user.role !== UserRole.HOMEROOM) {
-    redirect("/dashboard");
-  }
-
-  return user;
-}
-
-export async function requireStaffViewer() {
-  const user = await requireVerifiedUser();
-
-  if (user.role === UserRole.PARENT) {
-    redirect("/dashboard");
-  }
-
-  return user;
-}
-
-export async function requireParent() {
-  const user = await requireVerifiedUser();
-
-  if (user.role !== UserRole.PARENT) {
+  if (!hasAnyPermission(user.roles as Role[], permissions)) {
     redirect("/dashboard");
   }
 

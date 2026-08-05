@@ -9,14 +9,14 @@ export function Shell({
   user,
   children,
 }: {
-  user: { name: string; email: string; role: Role };
+  user: { name: string; email: string; roles: Role[] };
   children: ReactNode;
 }) {
   const [navOpen, setNavOpen] = useState(false);
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-ink">
-      <Sidebar role={user.role} open={navOpen} onClose={() => setNavOpen(false)} />
+      <Sidebar roles={user.roles} open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} onMenu={() => setNavOpen(true)} />
         <main className="flex-1 overflow-y-auto px-4 pb-12 pt-5 lg:px-8 lg:pt-7">

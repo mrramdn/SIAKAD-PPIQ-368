@@ -1,29 +1,28 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CourseStatus, UserRole } from "@/generated/prisma/client";
-import { requireStaffViewer } from "@/lib/auth";
+import { CourseStatus } from "@/generated/prisma/client";
+import { requirePermission, userCan } from "@/lib/auth";
 import { getCourseManagement } from "@/lib/lms";
 import { Avatar, Card, Field, Icons, inputClasses, buttonClasses, courseAccent, courseCode, initialsFromName } from "@/components/ui";
 import { enrollStudentAction, updateCourseAction } from "../../actions";
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireStaffViewer();
+  const user = await requirePermission("course.view");
   const { id } = await params;
 
-  const { course, verifiedStudents, teachingStaff } = await getCourseManagement(id, user);
+  const { course, verifiedStudents, teachingStaff, canManage } = await getCourseManagement(id, user);
   if (!course) notFound();
   const accent = courseAccent(course.id);
   const enrolledIds = new Set(course.enrollments.map((e) => e.student.id));
   const availableStudents = verifiedStudents.filter((s) => !enrolledIds.has(s.id));
-  const isAdmin = user.role === UserRole.ADMIN;
-  const canEditAcademic = user.role === UserRole.TEACHER || user.role === UserRole.HOMEROOM;
-  const canViewAcademic = canEditAcademic || user.role === UserRole.MUDIR;
+  const canGrade = userCan(user, "grade.manage");
+  const canAttend = userCan(user, "attendance.record");
 
   return (
     <div className="view-enter">
-      <Link href="/mapel" className="mb-4 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-ink-2">
+      <Link href="/jadwal" className="mb-4 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-ink-2">
         <Icons.chevL size={17} />
-        Kembali ke Mata Pelajaran
+        Kembali ke Jadwal &amp; Mapel
       </Link>
 
       <div
@@ -43,22 +42,22 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2.5">
-        {canViewAcademic ? (
-          <>
-            <Link href={`/nilai?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
-              <Icons.chart size={15} /> {canEditAcademic ? "Kelola Nilai" : "Lihat Nilai"}
-            </Link>
-            <Link href={`/absen?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
-              <Icons.check2 size={15} /> {canEditAcademic ? "Kelola Absensi" : "Lihat Absensi"}
-            </Link>
-          </>
+        {canGrade ? (
+          <Link href={`/nilai?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
+            <Icons.chart size={15} /> Kelola Nilai
+          </Link>
+        ) : null}
+        {canAttend ? (
+          <Link href={`/absen?course=${course.id}`} className={buttonClasses("ghost", "sm")}>
+            <Icons.check2 size={15} /> Kelola Absensi
+          </Link>
         ) : null}
         <Link href="/jadwal" className={buttonClasses("ghost", "sm")}>
-          <Icons.calendar size={15} /> {isAdmin ? "Kelola Jadwal" : "Lihat Jadwal"}
+          <Icons.calendar size={15} /> {canManage ? "Kelola Jadwal" : "Lihat Jadwal"}
         </Link>
       </div>
 
-      {isAdmin ? (
+      {canManage ? (
         <Card pad={20} className="mb-5">
           <h2 className="mb-4 text-base font-bold">Pengaturan Mata Pelajaran</h2>
           <form action={updateCourseAction} className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.8fr_0.7fr_auto]">
@@ -93,7 +92,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
 
       <Card pad={20} className="max-w-2xl">
         <h2 className="mb-4 text-base font-bold">Peserta ({course.enrollments.length})</h2>
-        {isAdmin ? (
+        {canManage ? (
           <form action={enrollStudentAction} className="mb-4 flex gap-2">
             <input type="hidden" name="courseId" value={course.id} />
             <select name="studentId" className={inputClasses} disabled={availableStudents.length === 0}>

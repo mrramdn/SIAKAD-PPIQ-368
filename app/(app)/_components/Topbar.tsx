@@ -5,24 +5,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar, Icons, initialsFromName } from "@/components/ui";
 import { APP_NAME } from "@/lib/brand";
+import { sortRoles } from "@/lib/permissions";
 import { PAGE_TITLE, ROLE_LABEL, type Role } from "./nav";
 
 export function Topbar({
   user,
   onMenu,
 }: {
-  user: { name: string; email: string; role: Role };
+  user: { name: string; email: string; roles: Role[] };
   onMenu: () => void;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const title =
-    pathname === "/absen-ustadz" && user.role === "MUDIR"
-      ? "Pengawasan Ustadz"
-      : pathname.startsWith("/mapel/")
-        ? "Detail Mata Pelajaran"
-        : PAGE_TITLE[pathname] ?? APP_NAME;
+  const title = pathname.startsWith("/mapel/") ? "Detail Mata Pelajaran" : PAGE_TITLE[pathname] ?? APP_NAME;
   const initials = initialsFromName(user.name);
+  const roleLabel = sortRoles(user.roles)
+    .map((r) => ROLE_LABEL[r])
+    .join(" + ");
 
   return (
     <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-3.5 border-b border-line bg-[color-mix(in_oklch,var(--surface),transparent_18%)] px-4 backdrop-blur lg:px-6">
@@ -45,7 +44,7 @@ export function Topbar({
             <Avatar initials={initials} color="var(--primary)" size={32} />
             <div className="hidden text-left leading-tight sm:block">
               <div className="text-[13px] font-bold">{user.name}</div>
-              <div className="text-[11px] text-ink-3">{ROLE_LABEL[user.role]}</div>
+              <div className="text-[11px] text-ink-3">{roleLabel}</div>
             </div>
             <Icons.chevD size={16} style={{ color: "var(--text-3)" }} />
           </button>

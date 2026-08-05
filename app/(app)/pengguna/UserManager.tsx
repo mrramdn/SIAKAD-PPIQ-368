@@ -3,19 +3,13 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, Badge, Button, Card, Field, Icons, inputClasses, initialsFromName, type Tone } from "@/components/ui";
+import { ROLE_LABEL, ROLE_PRECEDENCE, sortRoles, type Role } from "@/lib/permissions";
+import { navFor } from "../_components/nav";
 import { createUserAction, deleteUserAction, setUserStatusAction, updateUserAction } from "../actions";
 
-type Role = "ADMIN" | "TEACHER" | "HOMEROOM" | "MUDIR" | "PARENT";
 type Status = "PENDING" | "VERIFIED" | "REJECTED" | "SUSPENDED";
-type User = { id: string; name: string; email: string; role: Role; status: Status };
+type User = { id: string; name: string; email: string; roles: Role[]; status: Status };
 
-const ROLE_LABEL: Record<Role, string> = {
-  ADMIN: "Administrasi",
-  TEACHER: "Pengajar",
-  HOMEROOM: "Wali Kelas",
-  MUDIR: "Mudir Ma'had",
-  PARENT: "Wali Santri",
-};
 const ROLE_TONE: Record<Role, Tone> = { ADMIN: "accent", TEACHER: "primary", HOMEROOM: "neutral", MUDIR: "success", PARENT: "warning" };
 const STATUS_LABEL: Record<Status, string> = { PENDING: "Menunggu", VERIFIED: "Aktif", REJECTED: "Ditolak", SUSPENDED: "Nonaktif" };
 const STATUS_COLOR: Record<Status, string> = {
@@ -33,6 +27,9 @@ const TAB_LABEL: Record<Role | "ALL", string> = {
   MUDIR: "Mudir",
   ADMIN: "Administrasi",
 };
+
+/** Menu yang selalu tersedia untuk pengguna terverifikasi, di luar hak akses peran. */
+const ALWAYS_AVAILABLE_HREFS = new Set(["/dashboard", "/pengaturan"]);
 
 /* --------------------------------- Modal ---------------------------------- */
 function Modal({ title, sub, onClose, children, width = 460 }: { title: string; sub?: string; onClose: () => void; children: ReactNode; width?: number }) {
@@ -68,9 +65,18 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
   const isEdit = !!initial;
   const [name, setName] = useState(initial?.name ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
-  const [role, setRole] = useState<Role>(initial?.role ?? "PARENT");
+  const [roles, setRoles] = useState<Role[]>(initial?.roles ?? ["PARENT"]);
   const [status, setStatus] = useState<Status>(initial?.status ?? "VERIFIED");
-  const valid = name.trim() && email.trim();
+  const valid = Boolean(name.trim() && email.trim() && roles.length > 0);
+
+  const matchedMenus = useMemo(
+    () => navFor(roles).filter((item) => !ALWAYS_AVAILABLE_HREFS.has(item.href)),
+    [roles],
+  );
+
+  function toggleRole(role: Role) {
+    setRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
+  }
 
   return (
     <Modal
@@ -91,37 +97,49 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
           className={`${inputClasses} ${isEdit ? "bg-surface-2 text-ink-3" : ""}`}
         />
       </Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        <Field label="Peran">
-          <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClasses}>
-            <option value="PARENT">Wali Santri</option>
-            <option value="HOMEROOM">Wali Kelas</option>
-            <option value="TEACHER">Pengajar</option>
-            <option value="MUDIR">Mudir Ma&apos;had</option>
-            <option value="ADMIN">Administrasi</option>
+      <Field label="Peran (bisa lebih dari satu)">
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {ROLE_PRECEDENCE.map((r) => (
+            <label
+              key={r}
+              className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface px-3 py-2 text-[13px] font-medium text-ink-2 transition hover:bg-surface-2"
+            >
+              <input
+                type="checkbox"
+                checked={roles.includes(r)}
+                onChange={() => toggleRole(r)}
+                className="h-4 w-4 rounded border-line-strong accent-primary"
+              />
+              {ROLE_LABEL[r]}
+            </label>
+          ))}
+        </div>
+        {roles.length === 0 ? <p className="mt-1.5 text-[12px] font-semibold text-danger">Pilih minimal satu peran.</p> : null}
+      </Field>
+      <div className="mb-4 rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] leading-relaxed">
+        <p className="font-semibold text-ink">Peran terpilih memberi akses ke {matchedMenus.length} fitur</p>
+        <p className="mt-0.5 text-ink-3">
+          {matchedMenus.length ? matchedMenus.map((m) => m.label).join(" • ") : "Belum ada fitur yang dapat diakses."}
+        </p>
+      </div>
+      {isEdit ? (
+        <Field label="Status">
+          <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className={inputClasses}>
+            <option value="VERIFIED">Aktif</option>
+            <option value="PENDING">Menunggu</option>
+            <option value="REJECTED">Ditolak</option>
+            <option value="SUSPENDED">Nonaktif</option>
           </select>
         </Field>
-        {isEdit ? (
-          <Field label="Status">
-            <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className={inputClasses}>
-              <option value="VERIFIED">Aktif</option>
-              <option value="PENDING">Menunggu</option>
-              <option value="REJECTED">Ditolak</option>
-              <option value="SUSPENDED">Nonaktif</option>
-            </select>
-          </Field>
-        ) : (
-          <div />
-        )}
-      </div>
-      <div className="mt-5 flex justify-end gap-2.5">
+      ) : null}
+      <div className="mt-1 flex justify-end gap-2.5">
         <Button variant="ghost" onClick={onClose}>
           Batal
         </Button>
         <Button
           variant="primary"
           disabled={!valid}
-          onClick={() => onSave({ name, email, role, status })}
+          onClick={() => onSave({ name, email, roles, status })}
           className={!valid ? "opacity-50" : ""}
         >
           {isEdit ? "Simpan Perubahan" : "Tambah Pengguna"}
@@ -131,7 +149,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
   );
 }
 
-type FormSnapshot = { name: string; email: string; role: Role; status: Status };
+type FormSnapshot = { name: string; email: string; roles: Role[]; status: Status };
 
 /* ------------------------------ User manager ------------------------------ */
 export function UserManager({ users, adminId, readOnly = false }: { users: User[]; adminId: string; readOnly?: boolean }) {
@@ -151,18 +169,18 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
   const counts = useMemo(
     () => ({
       ALL: users.length,
-      PARENT: users.filter((u) => u.role === "PARENT").length,
-      HOMEROOM: users.filter((u) => u.role === "HOMEROOM").length,
-      TEACHER: users.filter((u) => u.role === "TEACHER").length,
-      MUDIR: users.filter((u) => u.role === "MUDIR").length,
-      ADMIN: users.filter((u) => u.role === "ADMIN").length,
+      PARENT: users.filter((u) => u.roles.includes("PARENT")).length,
+      HOMEROOM: users.filter((u) => u.roles.includes("HOMEROOM")).length,
+      TEACHER: users.filter((u) => u.roles.includes("TEACHER")).length,
+      MUDIR: users.filter((u) => u.roles.includes("MUDIR")).length,
+      ADMIN: users.filter((u) => u.roles.includes("ADMIN")).length,
     }),
     [users],
   );
 
   const list = users.filter(
     (u) =>
-      (tab === "ALL" || u.role === tab) &&
+      (tab === "ALL" || u.roles.includes(tab)) &&
       (u.name.toLowerCase().includes(q.toLowerCase()) || u.email.toLowerCase().includes(q.toLowerCase())),
   );
 
@@ -177,12 +195,12 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
   function save(data: FormSnapshot) {
     if (modal?.type === "edit" && modal.user) {
       run(
-        updateUserAction({ userId: modal.user.id, name: data.name, role: data.role, status: data.status }),
+        updateUserAction({ userId: modal.user.id, name: data.name, roles: data.roles, status: data.status }),
         `Data ${data.name} diperbarui`,
       );
     } else {
       run(
-        createUserAction({ name: data.name, email: data.email, role: data.role }),
+        createUserAction({ name: data.name, email: data.email, roles: data.roles }),
         `${data.name} ditambahkan`,
       );
     }
@@ -290,7 +308,13 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
                     </div>
                   </td>
                   <td className="px-3.5 py-3">
-                    <Badge tone={ROLE_TONE[u.role]}>{ROLE_LABEL[u.role]}</Badge>
+                    <div className="flex flex-wrap gap-1">
+                      {sortRoles(u.roles).map((r) => (
+                        <Badge key={r} tone={ROLE_TONE[r]}>
+                          {ROLE_LABEL[r]}
+                        </Badge>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-3.5 py-3">
                     <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: STATUS_COLOR[u.status] }}>
@@ -347,7 +371,11 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
       {modal?.type === "delete" && modal.user ? (
         <Modal title="Hapus Pengguna?" onClose={() => setModal(null)} width={400}>
           <p className="text-sm leading-relaxed text-ink-2">
-            Akun <strong className="text-ink">{modal.user.name}</strong> ({ROLE_LABEL[modal.user.role]}) akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+            Akun <strong className="text-ink">{modal.user.name}</strong> (
+            {sortRoles(modal.user.roles)
+              .map((r) => ROLE_LABEL[r])
+              .join(", ")}
+            ) akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
           </p>
           <div className="mt-6 flex justify-end gap-2.5">
             <Button variant="ghost" onClick={() => setModal(null)}>

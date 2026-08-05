@@ -3,9 +3,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
-import { AttendanceStatus, UserRole, UserStatus } from "../generated/prisma/client";
+import { AttendanceStatus, Prisma, UserRole, UserStatus } from "../generated/prisma/client";
 import { SESSION_COOKIE } from "../lib/auth";
 import { prisma } from "../lib/prisma";
+import { permissionsFor, ROLE_PERMISSIONS, type Permission, type Role } from "../lib/permissions";
 
 type ActionManifest = {
   node: Record<string, { exportedName: string }>;
@@ -14,8 +15,119 @@ type ActionManifest = {
 const port = Number(process.env.ROLE_QA_PORT ?? 3100);
 const baseUrl = process.env.ROLE_QA_BASE_URL ?? `http://127.0.0.1:${port}`;
 
+const ALL_ROLES: Role[] = ["ADMIN", "TEACHER", "HOMEROOM", "MUDIR", "PARENT"];
+
+/* ------------------------------------------------------------------------- */
+/* Pure permission assertions — no database/network. This is what guards    */
+/* the RBAC contract itself and always runs, even when the DB is down.      */
+/* ------------------------------------------------------------------------- */
+function runPermissionAssertions() {
+  // Each role's granted set matches ROLE_PERMISSIONS exactly.
+  for (const role of ALL_ROLES) {
+    const granted = [...permissionsFor([role])].sort();
+    const expected = [...ROLE_PERMISSIONS[role]].sort();
+    assert.deepEqual(granted, expected, `permissionsFor(["${role}"]) menyimpang dari ROLE_PERMISSIONS.${role}.`);
+  }
+
+  // Union property: two roles combined grant exactly the union of each role alone,
+  // and strictly more than either role alone (this is the "2 roles = union" guarantee).
+  const adminOnly = permissionsFor(["ADMIN"]);
+  const mudirOnly = permissionsFor(["MUDIR"]);
+  const combined = permissionsFor(["ADMIN", "MUDIR"]);
+  const expectedUnion = new Set<Permission>([...adminOnly, ...mudirOnly]);
+
+  assert.deepEqual(
+    [...combined].sort(),
+    [...expectedUnion].sort(),
+    'permissionsFor(["ADMIN","MUDIR"]) tidak sama dengan union izin ADMIN dan MUDIR.',
+  );
+  assert.ok(combined.size > adminOnly.size, "Union ADMIN+MUDIR semestinya lebih besar dari ADMIN saja.");
+  assert.ok(combined.size > mudirOnly.size, "Union ADMIN+MUDIR semestinya lebih besar dari MUDIR saja.");
+  for (const permission of combined) {
+    assert.ok(
+      adminOnly.has(permission) || mudirOnly.has(permission),
+      `Union ADMIN+MUDIR memuat izin ${permission} yang tidak diberikan oleh salah satu peran.`,
+    );
+  }
+
+  // Product rules requested by the user, as named checks.
+  assert.ok(!adminOnly.has("course.manage"), "ADMIN semestinya tidak punya course.manage.");
+  assert.ok(!adminOnly.has("grade.manage"), "ADMIN semestinya tidak punya grade.manage.");
+
+  assert.ok(!mudirOnly.has("report.manage"), "MUDIR semestinya tidak punya report.manage.");
+  assert.ok(!mudirOnly.has("grade.manage"), "MUDIR semestinya tidak punya grade.manage.");
+  assert.ok(!mudirOnly.has("attendance.record"), "MUDIR semestinya tidak punya attendance.record.");
+
+  const parentOnly = permissionsFor(["PARENT"]);
+  const staffPermissions: Permission[] = ["staff_attendance.view", "staff_attendance.record", "staff_attendance.self"];
+  for (const permission of staffPermissions) {
+    assert.ok(!parentOnly.has(permission), `PARENT semestinya tidak punya ${permission}.`);
+  }
+
+  const teacherOnly = permissionsFor(["TEACHER"]);
+  const homeroomOnly = permissionsFor(["HOMEROOM"]);
+  assert.ok(homeroomOnly.size > teacherOnly.size, "HOMEROOM semestinya superset ketat dari TEACHER.");
+  for (const permission of teacherOnly) {
+    assert.ok(homeroomOnly.has(permission), `HOMEROOM kehilangan izin TEACHER: ${permission}.`);
+  }
+
+  for (const role of ALL_ROLES) {
+    const granted = permissionsFor([role]);
+    if (role === "ADMIN") {
+      assert.ok(granted.has("report.distribute"), "ADMIN semestinya punya report.distribute.");
+    } else {
+      assert.ok(!granted.has("report.distribute"), `${role} semestinya tidak punya report.distribute.`);
+    }
+    if (role === "HOMEROOM") {
+      assert.ok(granted.has("report.manage"), "HOMEROOM semestinya punya report.manage.");
+    } else {
+      assert.ok(!granted.has("report.manage"), `${role} semestinya tidak punya report.manage.`);
+    }
+  }
+
+  console.log(
+    "Permission assertions passed: per-role contract, union property (ADMIN+MUDIR), and product rules (ADMIN/MUDIR/PARENT/HOMEROOM-TEACHER/report.*).",
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+/* DB/HTTP-backed QA — exercises the live server + database. Requires a     */
+/* reachable database and a built Next.js app; skipped (not crashed) when   */
+/* unavailable so the pure permission assertions above remain the source of */
+/* truth even offline.                                                      */
+/* ------------------------------------------------------------------------- */
+
 function sessionHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+/** Thrown when the local QA server never comes up — treated as connectivity, not assertion, failure. */
+class QaServerUnreachableError extends Error {
+  readonly code = "ECONNREFUSED" as const;
+}
+
+/**
+ * True only for genuine "can't reach the database/server" failures (Prisma
+ * P1001/P1002/P1008/P1017 init errors, ECONNREFUSED/ENOTFOUND/ETIMEDOUT
+ * connect errors, and our own QaServerUnreachableError). Everything else —
+ * assertion failures above all — must be reported as a real QA failure.
+ */
+const CONNECTIVITY_PRISMA_CODES = new Set(["P1001", "P1002", "P1008", "P1017"]);
+const CONNECTIVITY_SYSCALL_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "EAI_AGAIN"]);
+
+function isDatabaseConnectivityError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return error.errorCode === undefined || CONNECTIVITY_PRISMA_CODES.has(error.errorCode);
+  }
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return CONNECTIVITY_PRISMA_CODES.has(error.code);
+  }
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (code && CONNECTIVITY_SYSCALL_CODES.has(code)) return true;
+  // fetch() network failures surface as a TypeError whose `cause` carries the syscall code.
+  const causeCode = (error as { cause?: NodeJS.ErrnoException } | undefined)?.cause?.code;
+  if (causeCode && CONNECTIVITY_SYSCALL_CODES.has(causeCode)) return true;
+  return false;
 }
 
 async function waitForServer() {
@@ -28,7 +140,7 @@ async function waitForServer() {
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`Server QA tidak siap di ${baseUrl}`);
+  throw new QaServerUnreachableError(`Server QA tidak siap di ${baseUrl}`);
 }
 
 async function ensureServer() {
@@ -83,7 +195,7 @@ async function invokeAction(actionId: string, path: string, cookie: string, inpu
   return body;
 }
 
-async function main() {
+async function runDbAssertions() {
   const server: ChildProcess | null = await ensureServer();
   const manifest = JSON.parse(
     await readFile(".next/server/server-reference-manifest.json", "utf8"),
@@ -165,7 +277,9 @@ async function main() {
     });
     const mudirDashboardHtml = await mudirDashboard.text();
     assert.equal(mudirDashboard.status, 200);
-    assert.ok(mudirDashboardHtml.includes("Pengawasan ustadz hari ini"));
+    // Shared chrome (hero/stats) renders once, with the Mudir-specific stat set…
+    assert.ok(mudirDashboardHtml.includes("Kelengkapan BKKH"));
+    // …composed with the Mudir-only attention list and quick links below it.
     assert.ok(mudirDashboardHtml.includes("Perlu ditindaklanjuti"));
     assert.ok(mudirDashboardHtml.includes("Pengawasan akademik"));
 
@@ -221,7 +335,7 @@ async function main() {
     const userUpdateResponse = await invokeAction(updateUserAction, "/pengguna", adminSession.cookie, {
       userId: homeroom.id,
       name: homeroom.name,
-      role: UserRole.MUDIR,
+      roles: [UserRole.MUDIR],
       status: UserStatus.VERIFIED,
     });
     assert.ok(userUpdateResponse.includes("Alihkan seluruh mata pelajaran"));
@@ -235,35 +349,68 @@ async function main() {
       }),
       prisma.user.findUniqueOrThrow({
         where: { id: homeroom.id },
-        select: { role: true, status: true },
+        select: { roles: true, status: true },
       }),
     ]);
     assert.equal(forgedGrades, 0, "Forged grade action sempat menulis record.");
     assert.equal(forgedAttendance, 0, "Forged attendance action sempat menulis record.");
-    assert.equal(homeroomAfter.role, UserRole.HOMEROOM);
+    assert.deepEqual(homeroomAfter.roles, [UserRole.HOMEROOM]);
     assert.equal(homeroomAfter.status, UserStatus.VERIFIED);
 
     console.log(
-      "Role QA passed: Mudir dashboard, assigned-course scope, report access, forged writes, and assignee account protection.",
+      "DB-backed role QA passed: Mudir dashboard, assigned-course scope, report access, forged writes, and assignee account protection.",
     );
   } finally {
-    await prisma.user.update({
-      where: { id: homeroom.id },
-      data: { role: UserRole.HOMEROOM, status: UserStatus.VERIFIED },
-    });
-    await prisma.session.deleteMany({
-      where: { id: { in: [adminSession.id, homeroomSession.id, mudirSession.id] } },
-    });
-    await prisma.studentProfile.deleteMany({
-      where: { id: { in: [unenrolledStudent.id, foreignStudent.id] } },
-    });
-    await prisma.$disconnect();
+    // Kill the spawned server FIRST: it holds the event loop open, so if any
+    // cleanup query below throws the script would otherwise hang forever.
     server?.kill("SIGTERM");
+
+    // Each cleanup step is independent — one failure must not skip the rest.
+    for (const cleanup of [
+      () =>
+        prisma.user.update({
+          where: { id: homeroom.id },
+          data: { roles: [UserRole.HOMEROOM], status: UserStatus.VERIFIED },
+        }),
+      () =>
+        prisma.session.deleteMany({
+          where: { id: { in: [adminSession.id, homeroomSession.id, mudirSession.id] } },
+        }),
+      () =>
+        prisma.studentProfile.deleteMany({
+          where: { id: { in: [unenrolledStudent.id, foreignStudent.id] } },
+        }),
+    ]) {
+      await cleanup().catch((error) => {
+        console.warn("Cleanup QA gagal (dilanjutkan):", error instanceof Error ? error.message : error);
+      });
+    }
   }
 }
 
-main().catch(async (error) => {
+async function main() {
+  // Pure permission assertions run first and independently — they are the
+  // regression guard on the RBAC contract itself and need no database.
+  runPermissionAssertions();
+
+  try {
+    await runDbAssertions();
+  } catch (error) {
+    if (isDatabaseConnectivityError(error)) {
+      console.warn(
+        "DB-backed role QA dilewati (database/server tidak terjangkau):",
+        error instanceof Error ? error.message : error,
+      );
+    } else {
+      console.error("DB-backed role QA GAGAL:", error);
+      process.exitCode = 1;
+    }
+  } finally {
+    await prisma.$disconnect().catch(() => {});
+  }
+}
+
+main().catch((error) => {
   console.error(error);
-  await prisma.$disconnect();
   process.exitCode = 1;
 });

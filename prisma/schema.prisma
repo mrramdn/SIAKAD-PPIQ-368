@@ -69,7 +69,8 @@ model User {
   email        String       @unique
   phone        String?
   passwordHash String
-  role         UserRole
+  // Postgres enum arrays would need a GIN index to be useful; dataset is dummy-scale, so skip it.
+  roles        UserRole[]
   status       UserStatus   @default(PENDING)
   verifiedAt   DateTime?
   verifiedById String?
@@ -86,7 +87,6 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  @@index([role])
   @@index([status])
   @@index([verifiedAt])
 }

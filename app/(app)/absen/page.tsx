@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAcademicViewer } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { getAttendanceBoard } from "@/lib/lms";
 import { Card, Field, Ring, buttonClasses, inputClasses } from "@/components/ui";
 import { createAttendanceSessionAction } from "../actions";
@@ -13,7 +13,7 @@ const STATUS_META = [
 ] as const;
 
 export default async function AbsenPage({ searchParams }: { searchParams: Promise<{ course?: string; error?: string }> }) {
-  const [{ course, error }, user] = await Promise.all([searchParams, requireAcademicViewer()]);
+  const [{ course, error }, user] = await Promise.all([searchParams, requirePermission("attendance.record")]);
   const { courses, activeCourseId, sessions, rows, canEdit } = await getAttendanceBoard(user, course);
 
   const todayCol = sessions.length - 1;
@@ -32,7 +32,7 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
           <h1 className="text-[26px] font-extrabold tracking-tight">Absensi</h1>
-          <p className="mt-1 text-sm text-ink-3">{canEdit ? "Ketuk sel untuk mengubah status kehadiran." : "Pantau rekap kehadiran santri sebagai bahan pengawasan akademik."}</p>
+          <p className="mt-1 text-sm text-ink-3">Ketuk sel untuk mengubah status kehadiran.</p>
         </div>
       </div>
 

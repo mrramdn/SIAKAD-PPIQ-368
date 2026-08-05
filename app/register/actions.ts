@@ -36,7 +36,7 @@ export async function registerParentAction(formData: FormData) {
       email,
       phone: data.phone,
       passwordHash,
-      role: UserRole.PARENT,
+      roles: [UserRole.PARENT],
       status: UserStatus.VERIFIED,
       verifiedAt: new Date(),
     },
