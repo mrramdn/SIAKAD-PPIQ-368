@@ -1182,11 +1182,15 @@ async function main() {
   }
 
   /* ------------------------- absensi ustadz & BKKH ------------------------ */
-  const staffDates = [0, 1, 2].map((back) => {
+  // Enam hari kerja terakhir (Senin-Sabtu, Minggu dilewati) supaya grafik
+  // rekap mingguan di dasbor selalu terisi penuh apa pun hari "hari ini".
+  const staffDates: Date[] = [];
+  for (let back = 0; staffDates.length < 6; back += 1) {
     const d = new Date();
     d.setDate(d.getDate() - back);
-    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  });
+    if (d.getDay() === 0) continue;
+    staffDates.push(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())));
+  }
   for (let idx = 0; idx < TEACHING_KEYS.length; idx += 1) {
     const teacherId = userIdByKey.get(TEACHING_KEYS[idx])!;
     const isHomeroom = CLASSES.some((c) => c.homeroomKey === TEACHING_KEYS[idx]);

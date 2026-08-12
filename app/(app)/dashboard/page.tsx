@@ -185,22 +185,15 @@ export default async function DashboardPage() {
 
           {/* Stat cards */}
           <Card pad={18}>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-4" style={{ gap: "16px 20px" }}>
-              {data.stats.map((s, idx) => {
+            <div
+              className="grid grid-cols-2 lg:grid-cols-4 gap-y-4 max-lg:[&>*:nth-child(2n)]:border-l max-lg:[&>*:nth-child(2n)]:border-line max-lg:[&>*:nth-child(2n)]:pl-4 max-lg:[&>*:nth-child(n+3)]:border-t max-lg:[&>*:nth-child(n+3)]:border-line max-lg:[&>*:nth-child(n+3)]:pt-4 lg:[&>*:not(:nth-child(4n+1))]:border-l lg:[&>*:not(:nth-child(4n+1))]:border-line lg:[&>*:not(:nth-child(4n+1))]:pl-5 lg:[&>*:nth-child(n+5)]:border-t lg:[&>*:nth-child(n+5)]:border-line lg:[&>*:nth-child(n+5)]:pt-4"
+              style={{ gap: "16px 20px" }}
+            >
+              {data.stats.map((s) => {
                 const Icon = Icons[s.icon as IconKey];
-                let borderClass = "";
-                if (idx === 0) {
-                  borderClass = "";
-                } else if (idx === 1) {
-                  borderClass = "border-l border-line pl-4 lg:pl-5";
-                } else if (idx === 2) {
-                  borderClass = "border-t border-line pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:border-line lg:pl-5";
-                } else if (idx === 3) {
-                  borderClass = "border-t border-l border-line pt-4 pl-4 lg:border-t-0 lg:pt-0 lg:pl-5";
-                }
 
                 return (
-                  <div key={s.label} className={`flex flex-col justify-between ${borderClass}`}>
+                  <div key={s.label} className="flex flex-col justify-between">
                     <div className="flex items-start justify-between">
                       <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: s.tone }}>
                         <Icon size={20} />
