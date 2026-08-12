@@ -1,12 +1,12 @@
+import { getAdmissionsForReview, toAdmissionDocumentViews } from "@/lib/admissions";
 import { requirePermission } from "@/lib/auth";
-import { getAdmissions } from "@/lib/lms";
 import { AdmissionReview } from "./AdmissionReview";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" });
 
 export default async function PenerimaanPage() {
   await requirePermission("admission.review");
-  const admissions = await getAdmissions();
+  const admissions = await getAdmissionsForReview();
 
   const rows = admissions.map((a) => ({
     id: a.id,
@@ -21,12 +21,9 @@ export default async function PenerimaanPage() {
     parentEmail: a.parentEmail,
     address: a.address,
     note: a.note,
-    familyCardUrl: a.familyCardUrl,
-    birthCertificateUrl: a.birthCertificateUrl,
-    previousReportUrl: a.previousReportUrl,
-    photoUrl: a.photoUrl,
     status: a.status,
     createdAt: dateFmt.format(a.createdAt),
+    documents: toAdmissionDocumentViews(a),
   }));
 
   return <AdmissionReview admissions={rows} />;

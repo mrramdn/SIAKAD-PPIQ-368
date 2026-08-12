@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { Icons, type IconKey } from "@/components/ui";
 import { APP_NAME, APP_TAGLINE, LEVEL_FULL, LEVELS } from "@/lib/brand";
-import { DEMO_ACCOUNTS } from "@/lib/demo-accounts";
 
 const highlights = [
   "Pantau nilai dan kehadiran anak secara berkala",
@@ -26,7 +25,7 @@ const coreFeatures = [
   {
     number: "03",
     title: "Jadwal pelajaran",
-    description: "Jadwal disusun per jenjang agar kelas, pengajar, ruang, dan waktu tetap terarah.",
+    description: "Jadwal disusun per jenjang agar kelas, ustadz, ruang, dan waktu tetap terarah.",
     icon: "calendar",
   },
   {
@@ -56,7 +55,7 @@ const roles = [
     description: "Mendaftarkan anak serta memantau jadwal, absensi, nilai, informasi, dan rapor yang sudah diterbitkan.",
   },
   {
-    name: "Ustadz / Pengajar",
+    name: "Ustadz",
     code: "TEACHER",
     description: "Mengisi nilai dan absensi hanya untuk mata pelajaran yang diampu, lalu melengkapi absensi serta BKKH pribadi.",
   },
@@ -68,7 +67,7 @@ const roles = [
   {
     name: "Administrasi",
     code: "ADMIN",
-    description: "Mengelola PPDB, akun, data dasar, penugasan pengajar, jadwal, informasi, dan operasional pesantren.",
+    description: "Mengelola PPDB, akun, data dasar, penugasan ustadz, jadwal, informasi, dan operasional pesantren.",
   },
   {
     name: "Mudir Ma'had",
@@ -183,24 +182,17 @@ export default async function Home() {
               <div className="bg-primary-700 p-5 text-white sm:p-6">
                 <div className="flex items-end justify-between gap-4">
                   <div>
-                    <p className="text-sm font-bold">Coba akun demo</p>
-                    <p className="mt-1 text-xs text-white/65">Semua akun memakai password yang sama.</p>
+                    <p className="text-sm font-bold">Pondok Pesantren Integritas Qur&apos;ani 368</p>
+                    <p className="mt-1 text-xs text-white/65">Jl. Ciwaruga, Parongpong, Kabupaten Bandung Barat, Jawa Barat 40559</p>
                   </div>
                   <Link href="/login" className="text-xs font-bold text-white underline decoration-white/30 underline-offset-4 hover:decoration-white">
                     Buka login
                   </Link>
                 </div>
-                <div className="mt-4 grid gap-x-5 gap-y-3 sm:grid-cols-2">
-                  {DEMO_ACCOUNTS.map((account) => (
-                    <div key={account.email} className="min-w-0">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-white/55">{account.role}</p>
-                      <p className="mono mt-0.5 truncate text-xs text-white/85" title={`${account.email} · ${account.password}`}>
-                        {account.email}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <p className="mono mt-4 border-t border-white/15 pt-3 text-xs text-white/70">Password · password123</p>
+                <p className="mt-4 border-t border-white/15 pt-4 text-sm leading-6 text-white/80">
+                  Lembaga pendidikan berbasis Tahfidz Al-Qur&apos;an sejak 2012. Motto: &quot;Membentuk Generasi Qur&apos;ani, Berintegritas,
+                  Berilmu dan Berakhlak Mulia&quot;.
+                </p>
               </div>
             </div>
           </div>
@@ -210,18 +202,20 @@ export default async function Home() {
       <section id="tentang" className="scroll-mt-20 px-5 py-20 sm:px-6 sm:py-24">
         <div className="mx-auto grid w-full max-w-6xl gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary-700">Tentang aplikasi</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary-700">Tentang pesantren</p>
             <h2 className="mt-4 text-3xl font-extrabold tracking-[-0.035em] text-balance sm:text-4xl">
-              Informasi pesantren yang jelas untuk setiap peran.
+              Pondok Pesantren Integritas Qur&apos;ani 368.
             </h2>
+            <p className="mt-4 text-sm leading-6 text-ink-3">Jl. Ciwaruga, Parongpong, Kabupaten Bandung Barat, Jawa Barat 40559</p>
           </div>
           <div className="max-w-2xl">
             <p className="text-lg leading-8 text-ink-2">
-              {APP_NAME} adalah sistem informasi pondok yang menyatukan proses administrasi, kegiatan akademik, dan komunikasi
-              perkembangan santri. Data tidak lagi tersebar di formulir dan catatan terpisah.
+              PPIQ-368 adalah lembaga pendidikan berbasis Tahfidz Al-Qur&apos;an yang berdiri sejak 2012. Visi kami adalah
+              mewujudkan Generasi Qur&apos;ani berakhlak al-karimah, berjiwa mandiri, tangguh jiwa raga, dan cerdas paripurna.
             </p>
             <p className="mt-5 leading-7 text-ink-3">
-              Akses dibatasi berdasarkan tanggung jawab. Wali hanya melihat anaknya sendiri, ustadz mengelola mapel yang diampu,
+              {APP_NAME} menyatukan proses administrasi, kegiatan akademik, dan komunikasi perkembangan santri dalam satu portal.
+              Akses dibatasi berdasarkan tanggung jawab: wali hanya melihat anaknya sendiri, ustadz mengelola mapel yang diampu,
               Administrasi menangani operasional, dan Mudir melakukan pengawasan tanpa mengubah data akademik.
             </p>
           </div>

@@ -1,14 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
-import { getChildDetail, getChildReportCards, formatPeriod } from "@/lib/lms";
+import { getChildDetail } from "@/lib/lms";
+import { getChildRaporSheets } from "@/lib/rapor";
 import { Badge, Card, Icons, Progress, Ring, SectionTitle, scoreColor, scoreTone } from "@/components/ui";
+import { ReportCardSheet } from "../../rapor/ReportCardSheet";
+import { PrintButton } from "../../rapor/PrintButton";
 import { ChildTabs } from "./ChildTabs";
+import styles from "../../rapor/rapor.module.css";
 
+// Semua status yang ikut menjadi penyebut persentase kehadiran harus tampil di
+// sini, termasuk Sakit, agar rincian ini cocok dengan angka "Kehadiran x%".
 const ATT_META = [
   { key: "PRESENT", label: "Hadir", color: "var(--green)" },
   { key: "LATE", label: "Terlambat", color: "var(--amber)" },
   { key: "EXCUSED", label: "Izin", color: "var(--teal)" },
+  { key: "SICK", label: "Sakit", color: "var(--primary)" },
   { key: "ABSENT", label: "Alpa", color: "var(--red)" },
 ] as const;
 
@@ -18,7 +25,7 @@ export default async function ChildDetailPage({ params }: { params: Promise<{ ch
 
   const [data, reportCards] = await Promise.all([
     getChildDetail(user.id, childId),
-    getChildReportCards(user.id, childId),
+    getChildRaporSheets(user.id, childId),
   ]);
 
   if (!data || !reportCards) notFound();
@@ -36,7 +43,7 @@ export default async function ChildDetailPage({ params }: { params: Promise<{ ch
           <Card key={c.id} pad={20}>
             <SectionTitle
               title={c.title}
-              sub={`Pengajar: ${c.teacher}`}
+              sub={`Ustadz: ${c.teacher}`}
               action={<Badge tone={scoreTone(c.courseAvg)}>Rata {c.courseAvg || "-"}</Badge>}
             />
 
@@ -79,109 +86,22 @@ export default async function ChildDetailPage({ params }: { params: Promise<{ ch
   );
 
   const reportCardTab = (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {reportCards.length === 0 ? (
         <Card pad={40}>
           <p className="text-center text-sm text-ink-3">Belum ada rapor semester yang terbit.</p>
         </Card>
       ) : (
-        reportCards.map((rc) => {
-          // Compute total attendance for this report card
-          const totalAtt = rc.entries.reduce(
-            (acc, e) => {
-              acc.present += e.present;
-              acc.late += e.late;
-              acc.absent += e.absent;
-              acc.excused += e.excused;
-              return acc;
-            },
-            { present: 0, late: 0, absent: 0, excused: 0 }
-          );
-
-          return (
-            <Card key={rc.id} pad={20}>
-              {/* Rapor Header */}
-              <div className="flex flex-wrap items-center justify-between border-b border-line pb-3.5 mb-4 gap-3">
-                <div>
-                  <h2 className="text-base font-extrabold text-ink-1">
-                    {formatPeriod({ semester: rc.semester, academicYear: rc.academicYear })}
-                  </h2>
-                  {rc.publishedAt && (
-                    <p className="mt-0.5 text-xs text-ink-3 font-semibold">
-                      Diterbitkan pada {new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(rc.publishedAt)}
-                    </p>
-                  )}
-                </div>
-                <Badge tone="success">Terbit</Badge>
-              </div>
-
-              {/* Entries Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse mb-4" style={{ minWidth: 400 }}>
-                  <thead>
-                    <tr className="bg-surface-2 border-b border-line">
-                      <th className="sticky left-0 z-[2] min-w-[160px] bg-surface-2 px-3.5 py-2 text-left text-xs font-bold uppercase tracking-wide text-ink-2">Mata Pelajaran</th>
-                      <th className="px-3.5 py-2 text-center text-xs font-bold uppercase tracking-wide text-ink-2 w-24">Nilai Akhir</th>
-                      <th className="px-3.5 py-2 text-center text-xs font-bold uppercase tracking-wide text-ink-2 w-32">Kehadiran (H/I/T/A)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rc.entries.map((e) => (
-                      <tr key={e.id} className="border-b border-line last:border-0 hover:bg-surface-2/20 transition-colors">
-                        <td className="sticky left-0 z-[1] bg-surface px-3.5 py-2.5 text-sm font-semibold text-ink-1 whitespace-nowrap">{e.courseTitle}</td>
-                        <td className="px-3.5 py-2.5 text-center">
-                          <span className="text-sm font-extrabold" style={{ color: scoreColor(e.finalScore) }}>
-                            {e.finalScore}
-                          </span>
-                        </td>
-                        <td className="px-3.5 py-2.5 text-center text-xs font-semibold text-ink-2">
-                          <span className="text-success">{e.present}</span>
-                          <span className="text-ink-4 mx-0.5">/</span>
-                          <span className="text-primary">{e.excused}</span>
-                          <span className="text-ink-4 mx-0.5">/</span>
-                          <span className="text-amber-600">{e.late}</span>
-                          <span className="text-ink-4 mx-0.5">/</span>
-                          <span className="text-danger">{e.absent}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Attendance Summary & Note */}
-              <div className="grid gap-4.5 md:grid-cols-[1.2fr_1.8fr] border-t border-line pt-4" style={{ gap: 18 }}>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-ink-3 mb-2">Rekap Kehadiran</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
-                    <div className="rounded-lg bg-success-soft p-1.5">
-                      <div className="text-[10px] font-bold text-[oklch(0.42_0.13_150)]">H</div>
-                      <div className="text-sm font-extrabold text-[oklch(0.42_0.13_150)]">{totalAtt.present}</div>
-                    </div>
-                    <div className="rounded-lg bg-primary-soft p-1.5">
-                      <div className="text-[10px] font-bold text-primary-700">I</div>
-                      <div className="text-sm font-extrabold text-primary-700">{totalAtt.excused}</div>
-                    </div>
-                    <div className="rounded-lg bg-warning-soft p-1.5">
-                      <div className="text-[10px] font-bold text-[oklch(0.48_0.12_75)]">T</div>
-                      <div className="text-sm font-extrabold text-[oklch(0.48_0.12_75)]">{totalAtt.late}</div>
-                    </div>
-                    <div className="rounded-lg bg-danger-soft p-1.5">
-                      <div className="text-[10px] font-bold text-[oklch(0.46_0.16_25)]">A</div>
-                      <div className="text-sm font-extrabold text-[oklch(0.46_0.16_25)]">{totalAtt.absent}</div>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-ink-3 mb-2">Catatan Wali Kelas</h3>
-                  <div className="rounded-xl border border-line bg-surface-2 p-3 text-sm text-ink-2 italic min-h-[50px] flex items-center">
-                    {rc.homeroomNote ? `"${rc.homeroomNote}"` : "Belum ada catatan wali kelas."}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )
-        })
+        // Hanya rapor berstatus PUBLISHED yang sampai ke sini (lihat getChildRaporSheets).
+        reportCards.map((rc) => (
+          <div key={rc.id} className="flex flex-col gap-2.5">
+            <div className={`flex items-center justify-between ${styles.noPrint}`}>
+              <Badge tone="success">Rapor Terbit</Badge>
+              <PrintButton label="Cetak / Simpan PDF" />
+            </div>
+            <ReportCardSheet sheet={rc} showStatus={false} />
+          </div>
+        ))
       )}
     </div>
   );

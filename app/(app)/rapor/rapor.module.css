@@ -1,0 +1,55 @@
+/* Lembar rapor dibagikan dalam bentuk cetak, jadi tampilan layar disederhanakan
+   saat dicetak: chrome aplikasi disembunyikan, warna dijadikan hitam-putih. */
+
+.sheet {
+  background: var(--surface);
+}
+
+@media print {
+  /* Sembunyikan kerangka aplikasi (sidebar + topbar) dan tombol aksi. */
+  :global(aside),
+  :global(header),
+  .noPrint {
+    display: none !important;
+  }
+
+  :global(html),
+  :global(body) {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  :global(main) {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .sheet {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .sheet table {
+    page-break-inside: auto;
+  }
+
+  .sheet tr {
+    page-break-inside: avoid;
+  }
+
+  .sheet th,
+  .sheet td {
+    border-color: #999 !important;
+  }
+
+  .signature {
+    page-break-inside: avoid;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

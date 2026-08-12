@@ -4,17 +4,10 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Avatar, Badge, Button, Card, Icons } from "@/components/ui";
-import { generateReportCardAction, publishReportCardAction } from "../actions";
+import type { RaporBoardStudent } from "@/lib/rapor";
+import { REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "./status";
+import { generateRaporAction } from "./actions";
 import { Semester } from "@/generated/prisma/client";
-
-type ReportCard = { id: string; status: "DRAFT" | "PUBLISHED"; publishedAt: Date | null } | null;
-type Student = {
-  studentId: string;
-  name: string;
-  studentNumber: string;
-  level: string;
-  reportCard: ReportCard;
-};
 
 export function ReportBoardTable({
   students,
@@ -22,7 +15,7 @@ export function ReportBoardTable({
   academicYear,
   canEdit,
 }: {
-  students: Student[];
+  students: RaporBoardStudent[];
   semester: Semester;
   academicYear: string;
   canEdit: boolean;
@@ -32,26 +25,13 @@ export function ReportBoardTable({
 
   function handleCreate(studentId: string) {
     startTransition(async () => {
-      const res = await generateReportCardAction({ studentId, semester, academicYear });
+      const res = await generateRaporAction({ studentId, semester, academicYear });
       if (!res.ok) {
         alert(res.message || "Gagal membuat rapor");
       } else {
         router.refresh();
       }
     });
-  }
-
-  function handlePublish(reportCardId: string) {
-    if (confirm("Apakah Anda yakin ingin menerbitkan rapor ini? Setelah diterbitkan, rapor tidak bisa diubah.")) {
-      startTransition(async () => {
-        const res = await publishReportCardAction(reportCardId);
-        if (!res.ok) {
-          alert(res.message || "Gagal menerbitkan rapor");
-        } else {
-          router.refresh();
-        }
-      });
-    }
   }
 
   if (students.length === 0) {
@@ -71,36 +51,46 @@ export function ReportBoardTable({
               <th className="sticky left-0 z-[2] min-w-[220px] bg-surface-2 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2">
                 Santri
               </th>
-              <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2 w-28 whitespace-nowrap">Status Rapor</th>
-              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-ink-2 w-72 whitespace-nowrap">Aksi</th>
+              <th className="w-36 whitespace-nowrap px-4 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2">
+                Status Rapor
+              </th>
+              <th className="w-60 whitespace-nowrap px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-ink-2">
+                Aksi
+              </th>
             </tr>
           </thead>
           <tbody>
             {students.map((s, idx) => (
-              <tr key={s.studentId} className="border-t border-line hover:bg-surface-2/20 transition-colors">
+              <tr key={s.studentId} className="border-t border-line transition-colors hover:bg-surface-2/20">
                 <td className="sticky left-0 z-[1] bg-surface px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span className="w-5 text-right text-xs font-semibold text-ink-3">{idx + 1}</span>
-                    <Avatar initials={s.name.split(" ").map((w) => w[0]).slice(0, 2).join("")} color="var(--primary)" size={32} />
+                    <Avatar
+                      initials={s.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                      color="var(--primary)"
+                      size={32}
+                    />
                     <div className="min-w-0">
                       <div className="whitespace-nowrap text-sm font-semibold text-ink-1">{s.name}</div>
-                      <div className="mono text-[11.5px] text-ink-3">{s.studentNumber} • {s.level}</div>
+                      <div className="mono text-[11.5px] text-ink-3">
+                        {s.studentNumber} • {s.level}
+                      </div>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center">
                   {!s.reportCard ? (
                     <Badge tone="neutral">Belum Dibuat</Badge>
-                  ) : s.reportCard.status === "DRAFT" ? (
-                    <Badge tone="warning">Draft</Badge>
                   ) : (
-                    <Badge tone="success">Terbit</Badge>
+                    <Badge tone={REPORT_STATUS_TONE[s.reportCard.status]}>
+                      {REPORT_STATUS_LABEL[s.reportCard.status]}
+                    </Badge>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
                     {!s.reportCard ? (
-                      canEdit && (
+                      canEdit ? (
                         <Button
                           disabled={isPending}
                           size="sm"
@@ -110,28 +100,15 @@ export function ReportBoardTable({
                         >
                           Buat Rapor
                         </Button>
+                      ) : (
+                        <span className="text-[12.5px] text-ink-3">Menunggu wali kelas</span>
                       )
                     ) : (
-                      <>
-                        <Link href={`/rapor/${s.reportCard.id}`}>
-                          <Button size="sm" variant="soft" icon={<Icons.doc size={14} />}>
-                            {s.reportCard.status === "DRAFT" && canEdit ? "Detail & Catatan" : "Lihat Rapor"}
-                          </Button>
-                        </Link>
-
-                        {s.reportCard.status === "DRAFT" && canEdit && (
-                          <Button
-                            disabled={isPending}
-                            size="sm"
-                            variant="primary"
-                            onClick={() => handlePublish(s.reportCard!.id)}
-                            icon={<Icons.check2 size={14} />}
-                            className="!bg-[oklch(0.58_0.19_142)] hover:!bg-[oklch(0.52_0.19_142)] text-white"
-                          >
-                            Terbitkan
-                          </Button>
-                        )}
-                      </>
+                      <Link href={`/rapor/${s.reportCard.id}`}>
+                        <Button size="sm" variant="soft" icon={<Icons.doc size={14} />}>
+                          Buka Rapor
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 </td>

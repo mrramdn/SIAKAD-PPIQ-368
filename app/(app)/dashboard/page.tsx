@@ -1,16 +1,17 @@
 import Link from "next/link";
+import { getAdmissionsBySubmitter } from "@/lib/admissions";
 import { requireVerifiedUser, userCan } from "@/lib/auth";
 import { BKKH_TIME_SLOTS, countFilledBkkhSlots } from "@/lib/bkkh";
 import {
   getAnnouncements,
   getBkkhDailyReports,
-  getChildReportCards,
   getDashboardData,
   getParentChildren,
   getParentLevels,
   getStaffAttendanceBoard,
   toDateKey,
 } from "@/lib/lms";
+import { getChildRaporSheets } from "@/lib/rapor";
 import {
   Avatar,
   BarChart,
@@ -24,6 +25,7 @@ import {
   initialsFromName,
   type IconKey,
 } from "@/components/ui";
+import { toAdmissionStatusItems } from "../_components/AdmissionStatus";
 import { ParentDashboard } from "./ParentDashboard";
 import { MudirPanel } from "./MudirPanel";
 
@@ -69,13 +71,21 @@ export default async function DashboardPage() {
   let parentSection: React.ReactNode = null;
   if (canMonitorChildren) {
     const levels = await getParentLevels(user.id);
-    const [children, announcements] = await Promise.all([getParentChildren(user.id), getAnnouncements(levels)]);
+    const [children, announcements, admissions] = await Promise.all([
+      getParentChildren(user.id),
+      getAnnouncements(levels),
+      getAdmissionsBySubmitter(user.id),
+    ]);
 
+    // Hanya rapor PUBLISHED yang dikembalikan getChildRaporSheets.
     const reportCardsList = await Promise.all(
       children.map(async (child) => {
-        const cards = await getChildReportCards(user.id, child.childId);
-        return (cards || []).map((c) => ({
-          ...c,
+        const sheets = await getChildRaporSheets(user.id, child.childId);
+        return (sheets ?? []).map((sheet) => ({
+          id: sheet.id,
+          semester: sheet.semester,
+          academicYear: sheet.academicYear,
+          publishedAt: sheet.publishedAt,
           childName: child.name,
           childId: child.childId,
         }));
@@ -88,6 +98,7 @@ export default async function DashboardPage() {
         name={user.name}
         kids={children}
         announcements={announcements.map((a) => ({ id: a.id, title: a.title, level: a.level, createdAt: annFmt.format(a.createdAt) }))}
+        admissions={toAdmissionStatusItems(admissions)}
         publishedReportCards={publishedReportCards.map((rc) => ({
           id: rc.id,
           childName: rc.childName,

@@ -1,37 +1,77 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
 
+// Ikon PWA dibuat dari lambang resmi pondok di public/logo.png. Berkas sumber
+// berlatar hitam, sedangkan lambangnya sendiri bundar dan hampir memenuhi tinggi
+// gambar; jadi kita potong bagian tengah menjadi bujur sangkar lalu memakai topeng
+// lingkaran supaya latar hitam di sudut hilang dan lambang bisa duduk di atas
+// warna apa pun.
+const SOURCE = new URL("../public/logo.png", import.meta.url).pathname;
 const GREEN = "#2f9e57";
-const CAP = ["M22 10v6M2 10l10-5 10 5-10 5z", "M6 12v5c3 3 9 3 12 0v-5"];
 
-function svg(size, { maskable = false } = {}) {
-  const radius = maskable ? 0 : size * 0.22;
-  const scale = maskable ? (size / 24) * 0.5 : (size / 24) * 0.58;
-  const inner = 24 * scale;
-  const off = (size - inner) / 2;
-  const paths = CAP.map(
-    (d) => `<path d="${d}" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />`,
-  ).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <rect width="${size}" height="${size}" rx="${radius}" fill="${GREEN}"/>
-  <g transform="translate(${off} ${off}) scale(${scale})">${paths}</g>
-</svg>`;
+/** Lambang bundar berlatar transparan, ukuran sisi x sisi. */
+async function roundedLogo(size) {
+  const meta = await sharp(SOURCE).metadata();
+  const side = Math.min(meta.width, meta.height);
+  const left = Math.round((meta.width - side) / 2);
+  const top = Math.round((meta.height - side) / 2);
+
+  const logo = await sharp(SOURCE)
+    .extract({ left, top, width: side, height: side })
+    .resize(size, size, { fit: "cover" })
+    .png()
+    .toBuffer();
+
+  // Radius sedikit di bawah setengah sisi supaya cincin putih lambang tidak ikut terpotong.
+  const r = size / 2 - Math.max(1, Math.round(size * 0.005));
+  const mask = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="#fff"/>
+</svg>`,
+  );
+
+  return sharp(logo).composite([{ input: mask, blend: "dest-in" }]).png().toBuffer();
+}
+
+/** Ikon biasa: lambang di atas putih, sudut membulat mengikuti gaya ikon aplikasi. */
+async function icon(size) {
+  const inner = Math.round(size * 0.9);
+  const logo = await roundedLogo(inner);
+  const radius = Math.round(size * 0.22);
+  const plate = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  <rect width="${size}" height="${size}" rx="${radius}" fill="#ffffff"/>
+</svg>`,
+  );
+  const off = Math.round((size - inner) / 2);
+  return sharp(plate).composite([{ input: logo, top: off, left: off }]).png().toBuffer();
+}
+
+/** Ikon maskable: lambang lebih kecil di atas hijau, aman terhadap pemangkasan Android. */
+async function maskableIcon(size) {
+  const inner = Math.round(size * 0.62);
+  const logo = await roundedLogo(inner);
+  const plate = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  <rect width="${size}" height="${size}" fill="${GREEN}"/>
+</svg>`,
+  );
+  const off = Math.round((size - inner) / 2);
+  return sharp(plate).composite([{ input: logo, top: off, left: off }]).png().toBuffer();
 }
 
 await mkdir(new URL("../public/icons", import.meta.url), { recursive: true });
 
 const targets = [
-  { name: "icon-192.png", size: 192 },
-  { name: "icon-512.png", size: 512 },
-  { name: "icon-maskable-512.png", size: 512, maskable: true },
-  { name: "apple-touch-icon.png", size: 180 },
+  { name: "icon-192.png", make: () => icon(192) },
+  { name: "icon-512.png", make: () => icon(512) },
+  { name: "icon-maskable-512.png", make: () => maskableIcon(512) },
+  { name: "apple-touch-icon.png", make: () => icon(180) },
+  { name: "logo-mark.png", make: () => roundedLogo(512) },
 ];
 
 for (const t of targets) {
-  const buf = Buffer.from(svg(t.size, { maskable: t.maskable }));
+  const buf = await t.make();
   await sharp(buf).png().toFile(new URL(`../public/icons/${t.name}`, import.meta.url).pathname);
   console.log("wrote", t.name);
 }
-
-await writeFile(new URL("../public/icon.svg", import.meta.url), svg(64));
-console.log("wrote icon.svg");

@@ -4,28 +4,40 @@ import { getAttendanceBoard } from "@/lib/lms";
 import { Card, Field, Ring, buttonClasses, inputClasses } from "@/components/ui";
 import { createAttendanceSessionAction } from "../actions";
 import { AttendanceGrid } from "./AttendanceGrid";
+import { SessionManager } from "./SessionManager";
 
 const STATUS_META = [
   { key: "PRESENT", label: "Hadir", color: "var(--green)" },
   { key: "EXCUSED", label: "Izin", color: "var(--primary)" },
+  { key: "SICK", label: "Sakit", color: "var(--teal)" },
   { key: "LATE", label: "Terlambat", color: "var(--amber)" },
   { key: "ABSENT", label: "Alpa", color: "var(--red)" },
+  { key: "UNMARKED", label: "Belum ditandai", color: "var(--text-3)" },
 ] as const;
+
+const ERROR_MESSAGE: Record<string, string> = {
+  forbidden: "Anda tidak ditugaskan pada mata pelajaran ini, jadi sesi absensi tidak bisa dibuat.",
+  duplicate: "Sudah ada sesi absensi dengan judul itu di mata pelajaran ini. Gunakan judul lain.",
+  date: "Tanggal & waktu sesi tidak valid. Isi ulang kolom tanggal & waktu.",
+  missing: "Mata pelajaran sudah tidak tersedia. Muat ulang halaman.",
+};
 
 export default async function AbsenPage({ searchParams }: { searchParams: Promise<{ course?: string; error?: string }> }) {
   const [{ course, error }, user] = await Promise.all([searchParams, requirePermission("attendance.record")]);
-  const { courses, activeCourseId, sessions, rows, canEdit } = await getAttendanceBoard(user, course);
+  const { courses, activeCourseId, sessions, rows, canEdit, teacherName } = await getAttendanceBoard(user, course);
 
   const todayCol = sessions.length - 1;
-  const counts: Record<string, number> = { PRESENT: 0, EXCUSED: 0, LATE: 0, ABSENT: 0 };
+  // Santri tanpa catatan masuk ke ember "UNMARKED", bukan dihitung hadir.
+  const counts: Record<string, number> = { PRESENT: 0, EXCUSED: 0, SICK: 0, LATE: 0, ABSENT: 0, UNMARKED: 0 };
   if (todayCol >= 0) {
     for (const r of rows) {
-      const m = r.marks[todayCol] ?? "PRESENT";
-      counts[m] = (counts[m] ?? 0) + 1;
+      const key = r.marks[todayCol] ?? "UNMARKED";
+      counts[key] = (counts[key] ?? 0) + 1;
     }
   }
   const total = rows.length;
-  const rate = total ? Math.round((counts.PRESENT / total) * 100) : 0;
+  const recorded = total - counts.UNMARKED;
+  const rate = recorded ? Math.round((counts.PRESENT / recorded) * 100) : 0;
 
   return (
     <div className="view-enter">
@@ -38,7 +50,7 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
 
       {error ? (
         <div className="mb-4 rounded-xl border border-line bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-          {error === "forbidden" ? "Anda tidak ditugaskan pada mata pelajaran ini." : "Sesi absensi gagal dibuat. Periksa kembali isian Anda."}
+          {ERROR_MESSAGE[error] ?? "Sesi absensi gagal dibuat. Periksa kembali isian Anda."}
         </div>
       ) : null}
 
@@ -56,30 +68,22 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
                 <div>
                   <div className="text-[13px] font-semibold text-ink-3">Sesi Terbaru</div>
                   <div className="mt-1 text-[20px] font-extrabold tracking-tight">
-                    {counts.PRESENT}/{total} santri
+                    {counts.PRESENT}/{recorded} santri
                   </div>
                   <div className="mt-0.5 text-[12.5px] text-ink-3">{todayCol >= 0 ? sessions[todayCol].date : "Belum ada sesi"}</div>
+                  <div className="mt-0.5 text-[12px] text-ink-3">
+                    {todayCol >= 0 ? `${counts.UNMARKED} dari ${total} santri belum ditandai` : "Persentase dihitung dari santri tercatat"}
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-y-4 sm:grid-cols-4">
-                {STATUS_META.map((s, index) => (
-                  <div
-                    key={s.key}
-                    className={
-                      index === 0
-                        ? ""
-                        : index === 1
-                          ? "border-l border-line pl-4"
-                          : index === 2
-                            ? "border-t border-line pt-4 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"
-                            : "border-l border-t border-line pl-4 pt-4 sm:border-t-0 sm:pt-0"
-                    }
-                  >
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+                {STATUS_META.map((s) => (
+                  <div key={s.key} className="rounded-xl bg-surface-2 px-3 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded" style={{ background: s.color }} />
-                      <span className="text-[13px] font-semibold text-ink-2">{s.label}</span>
+                      <span className="h-3 w-3 shrink-0 rounded" style={{ background: s.color }} />
+                      <span className="truncate text-[12.5px] font-semibold text-ink-2">{s.label}</span>
                     </div>
-                    <div className="mt-2 text-[28px] font-extrabold tracking-tight" style={{ color: s.color }}>
+                    <div className="mt-1.5 text-[24px] font-extrabold tracking-tight" style={{ color: s.color }}>
                       {counts[s.key]}
                     </div>
                   </div>
@@ -107,7 +111,7 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
           </div>
 
           {/* add session */}
-          {canEdit && activeCourseId ? (
+          {activeCourseId && canEdit ? (
             <Card pad={16} className="mb-3.5">
               <form action={createAttendanceSessionAction} className="grid gap-3 md:grid-cols-[1fr_0.8fr_auto]">
                 <input type="hidden" name="courseId" value={activeCourseId} />
@@ -126,7 +130,32 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
             </Card>
           ) : null}
 
-          <AttendanceGrid sessions={sessions} rows={rows} canEdit={canEdit} />
+          {/* bukan pengampu: jelaskan, jangan tampilkan form yang pasti ditolak */}
+          {activeCourseId && !canEdit ? (
+            <Card pad={16} className="mb-3.5">
+              <div className="text-[13.5px] font-bold">Hanya pengampu yang dapat membuat sesi absensi</div>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+                Mata pelajaran ini diampu oleh <strong className="text-ink-2">{teacherName ?? "belum ditugaskan"}</strong>. Absensi hanya boleh
+                dicatat oleh pengampu yang ditugaskan. Minta administrasi menugaskan pengampu melalui menu Data Akademik (/akademik).
+              </p>
+            </Card>
+          ) : null}
+
+          {canEdit ? <SessionManager sessions={sessions} /> : null}
+
+          {activeCourseId && rows.length === 0 ? (
+            <Card pad={28}>
+              <div className="text-center">
+                <div className="text-[14px] font-bold">Belum ada santri di mata pelajaran ini</div>
+                <p className="mx-auto mt-1.5 max-w-[520px] text-[13px] leading-relaxed text-ink-3">
+                  Sesi absensi tetap bisa dibuat, tetapi daftar santri masih kosong. Administrasi mendaftarkan santri ke mata pelajaran melalui
+                  menu Data Akademik (/akademik).
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <AttendanceGrid sessions={sessions} rows={rows} canEdit={canEdit} />
+          )}
         </>
       )}
     </div>

@@ -12,10 +12,14 @@ export const PERMISSIONS = [
   "staff_attendance.self", // ustadz mencatat kehadiran sendiri + isi BKKH
   "course.view", // melihat mapel & jadwal internal pesantren
   "course.manage", // CRUD mapel, ustadz pengampu, peserta, slot jadwal
+  "class.manage", // administrasi: kelola kelas, wali kelas, penempatan santri
+  "assessment.configure", // administrasi: kelompok penilaian, nilai maksimal, kriteria sikap, bobot
+  "administration.manage", // administrasi: checklist administrasi santri
   "schedule.view.own", // wali santri melihat jadwal anaknya
   "attendance.record", // absensi santri per sesi pelajaran
   "grade.manage", // pengelolaan nilai komponen
   "report.manage", // wali kelas: generate, catatan, terbitkan rapor
+  "report.approve", // administrasi: ACC rapor kiriman wali kelas
   "report.distribute", // administrasi: pantau & serahkan rapor (read-only)
   "child.monitor", // wali santri: profil, absensi, nilai, rapor anak
   "announcement.view",
@@ -40,6 +44,11 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "user.manage",
     "staff_attendance.view",
     "staff_attendance.record",
+    "course.manage",
+    "class.manage",
+    "assessment.configure",
+    "administration.manage",
+    "report.approve",
     "report.distribute",
     "announcement.view",
     "announcement.manage",
@@ -96,7 +105,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const ROLE_BLURB: Record<Role, string> = {
-  ADMIN: "Kelola pendaftaran, akun, absensi ustadz, dan penerimaan rapor.",
+  ADMIN: "Kelola pendaftaran, akun, absensi ustadz, penyiapan kelas, mapel, kelompok penilaian, checklist administrasi, serta ACC dan penyerahan rapor.",
   TEACHER: "Kelola jadwal & mapel, absensi santri, nilai, serta kehadiran dan BKKH pribadi.",
   HOMEROOM: "Kelola jadwal & mapel, absensi santri, nilai, kehadiran dan BKKH pribadi, serta rapor kelas binaan.",
   MUDIR: "Awasi kehadiran ustadz serta kelola mata pelajaran dan jadwal.",

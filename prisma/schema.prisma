@@ -46,11 +46,13 @@ enum EnrollmentStatus {
   CANCELLED
 }
 
+// PRESENT = Hadir, ABSENT = Alpa, LATE = Terlambat, EXCUSED = Izin, SICK = Sakit.
 enum AttendanceStatus {
   PRESENT
   ABSENT
   LATE
   EXCUSED
+  SICK
 }
 
 enum Semester {
@@ -58,9 +60,28 @@ enum Semester {
   GENAP
 }
 
+// Alur rapor: wali kelas menyusun (DRAFT), mengirim ke administrasi (SUBMITTED),
+// administrasi meng-ACC (APPROVED) atau mengembalikan (REJECTED), lalu terbit (PUBLISHED).
 enum ReportCardStatus {
   DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
   PUBLISHED
+}
+
+// Jenis kelompok penilaian pada rapor: nilai mata pelajaran atau penilaian sikap.
+enum AssessmentGroupKind {
+  COURSE_SCORE
+  BEHAVIOR
+}
+
+// Berkas syarat pendaftaran santri baru.
+enum AdmissionDocumentKind {
+  FAMILY_CARD
+  BIRTH_CERTIFICATE
+  PREVIOUS_REPORT
+  PHOTO
 }
 
 model User {
@@ -84,6 +105,8 @@ model User {
   staffAttendances StaffAttendance[] @relation("StaffAttendanceTeacher")
   recordedStaffAttendances StaffAttendance[] @relation("StaffAttendanceRecorder")
   bkkhReports  BkkhReport[] @relation("BkkhTeacher")
+  homeroomClasses ClassRoom[] @relation("ClassRoomHomeroom")
+  reviewedReportCards ReportCard[] @relation("ReportCardReviewer")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -96,7 +119,10 @@ model StudentProfile {
   name          String
   level         EducationLevel @default(SMP)
   studentNumber String         @unique
+  // Cermin denormalisasi dari classRoom.name; dijaga sinkron saat santri ditempatkan.
   className     String
+  classRoomId   String?
+  classRoom     ClassRoom?     @relation(fields: [classRoomId], references: [id], onDelete: SetNull)
   phone         String?
   address       String?
   parentId      String?
@@ -105,13 +131,65 @@ model StudentProfile {
   attendanceRecords AttendanceRecord[]
   gradeRecords  GradeRecord[]
   reportCards   ReportCard[]
+  administrations StudentAdministration[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([name])
   @@index([className])
+  @@index([classRoomId])
   @@index([level])
   @@index([parentId])
+}
+
+// Kelas sebagai entitas tersendiri sehingga satu wali kelas memiliki satu kelas
+// per tahun ajaran, lengkap dengan santri dan mata pelajarannya.
+model ClassRoom {
+  id                String           @id @default(uuid())
+  name              String
+  level             EducationLevel
+  academicYear      String
+  homeroomTeacherId String?
+  homeroomTeacher   User?            @relation("ClassRoomHomeroom", fields: [homeroomTeacherId], references: [id], onDelete: SetNull)
+  students          StudentProfile[]
+  courses           Course[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([name, academicYear])
+  @@index([homeroomTeacherId])
+  @@index([level])
+}
+
+// Kelompok penilaian pada rapor, mis. "Nilai Ujian Tulis" atau "Penilaian Sikap
+// dan Kedisiplinan". Nilai maksimal bawaan bisa ditimpa per mata pelajaran.
+model AssessmentGroup {
+  id              String              @id @default(uuid())
+  name            String
+  kind            AssessmentGroupKind @default(COURSE_SCORE)
+  defaultMaxScore Int                 @default(7)
+  sortOrder       Int                 @default(0)
+  academicYear    String
+  courses         Course[]
+  criteria        BehaviorCriterion[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([name, academicYear])
+  @@index([academicYear])
+}
+
+// Baris "Penilaian Sikap dan Kedisiplinan" pada rapor.
+model BehaviorCriterion {
+  id        String          @id @default(uuid())
+  groupId   String
+  group     AssessmentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name      String
+  maxScore  Int             @default(7)
+  sortOrder Int             @default(0)
+
+  @@unique([groupId, name])
+  @@index([groupId])
 }
 
 model Session {
@@ -137,6 +215,13 @@ model Course {
   createdBy   User?        @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
   teacherId   String?
   teacher     User?        @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  // Kelompok penilaian rapor (Ujian Tulis, Ekstrakurikuler, Ujian Lisan, ...).
+  assessmentGroupId String?
+  assessmentGroup   AssessmentGroup? @relation(fields: [assessmentGroupId], references: [id], onDelete: SetNull)
+  classRoomId String?
+  classRoom   ClassRoom?   @relation(fields: [classRoomId], references: [id], onDelete: SetNull)
+  // Nilai maksimal rapor khusus mapel ini; null = ikut defaultMaxScore kelompok.
+  reportMaxScore Int?
   enrollments Enrollment[]
   attendanceSessions AttendanceSession[]
   gradeItems GradeItem[]
@@ -149,6 +234,8 @@ model Course {
   @@index([level])
   @@index([createdById])
   @@index([teacherId])
+  @@index([assessmentGroupId])
+  @@index([classRoomId])
 }
 
 model ScheduleSlot {
@@ -223,6 +310,8 @@ model GradeItem {
   title       String
   description String?
   maxScore    Int           @default(100)
+  // Bobot komponen (persen) terhadap nilai akhir mata pelajaran.
+  weight      Int           @default(1)
   dueAt       DateTime?
   semester     Semester @default(GANJIL)
   academicYear String   @default("2026/2027")
@@ -261,27 +350,53 @@ model ReportCard {
   semester     Semester
   academicYear String
   homeroomNote String?
+  // Identitas santri di-snapshot saat rapor disusun agar cetak ulang rapor tahun
+  // lalu tetap menampilkan kelas/nama saat itu, bukan kelas santri sekarang.
+  // Null pada baris lama (sebelum kolom ini ada) — pembaca jatuh ke StudentProfile.
+  studentNameSnapshot   String?
+  studentNumberSnapshot String?
+  classNameSnapshot     String?
+  levelSnapshot         String?
   status       ReportCardStatus @default(DRAFT)
   publishedAt  DateTime?
+  submittedAt  DateTime?
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?            @relation("ReportCardReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  adminNote    String?
+  // Rekap ketidakhadiran sesuai format rapor pondok.
+  sickCount    Int              @default(0)
+  excusedCount Int              @default(0)
+  otherCount   Int              @default(0)
   createdById  String?
   createdBy    User?            @relation("ReportCardCreator", fields: [createdById], references: [id], onDelete: SetNull)
   entries      ReportCardEntry[]
+  behaviorEntries ReportCardBehaviorEntry[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
   @@unique([studentId, semester, academicYear])
   @@index([status])
   @@index([academicYear, semester])
+  @@index([reviewedById])
 }
 
-// Satu baris rapor per mata pelajaran. courseTitle disimpan sebagai snapshot.
+// Satu baris rapor per mata pelajaran. courseTitle & kelompok disimpan sebagai snapshot.
 model ReportCardEntry {
   id           String     @id @default(uuid())
   reportCardId String
   reportCard   ReportCard @relation(fields: [reportCardId], references: [id], onDelete: Cascade)
   courseId     String?
   courseTitle  String
+  // Snapshot kelompok penilaian agar urutan rapor tetap walau master data berubah.
+  groupName    String     @default("")
+  groupSortOrder Int      @default(0)
+  // finalScore = nilai mentah 0-100; scoreValue = nilai pada skala 0..maxScore
+  // sesuai format rapor, scoreWords = terbilang, mis. "Tujuh".
   finalScore   Int
+  maxScore     Int        @default(10)
+  scoreValue   Int        @default(0)
+  scoreWords   String     @default("")
   present      Int        @default(0)
   late         Int        @default(0)
   absent       Int        @default(0)
@@ -289,6 +404,53 @@ model ReportCardEntry {
 
   @@unique([reportCardId, courseTitle])
   @@index([courseId])
+}
+
+// Baris penilaian sikap & kedisiplinan pada rapor (snapshot dari BehaviorCriterion).
+model ReportCardBehaviorEntry {
+  id            String     @id @default(uuid())
+  reportCardId  String
+  reportCard    ReportCard @relation(fields: [reportCardId], references: [id], onDelete: Cascade)
+  criterionName String
+  maxScore      Int        @default(7)
+  scoreValue    Int        @default(0)
+  sortOrder     Int        @default(0)
+
+  @@unique([reportCardId, criterionName])
+  @@index([reportCardId])
+}
+
+// Definisi checklist administrasi santri per periode; jadi syarat ACC rapor.
+model AdministrationItem {
+  id           String                  @id @default(uuid())
+  name         String
+  description  String?
+  academicYear String
+  semester     Semester
+  sortOrder    Int                     @default(0)
+  active       Boolean                 @default(true)
+  records      StudentAdministration[]
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  @@unique([name, academicYear, semester])
+  @@index([academicYear, semester])
+}
+
+// Pemenuhan checklist administrasi per santri.
+model StudentAdministration {
+  id          String             @id @default(uuid())
+  studentId   String
+  student     StudentProfile     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        AdministrationItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  fulfilled   Boolean            @default(false)
+  note        String?
+  updatedById String?
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([studentId, itemId])
+  @@index([itemId])
 }
 
 // Pengumuman / info yang dikirim sekolah ke orang tua. level null = semua jenjang.
@@ -328,10 +490,15 @@ model Admission {
   createdParentId  String?
   submitterId       String?
   submitter         User?           @relation("AdmissionSubmitter", fields: [submitterId], references: [id], onDelete: SetNull)
+  // Dokumen pendukung punya dua jalur: kolom URL di bawah dipakai bila wali santri
+  // mengisi tautan, sedangkan model AdmissionDocument dipakai bila wali mengunggah
+  // berkas. Tepat satu jalur terisi per dokumen (divalidasi di lib/admissions.ts).
+  // (unggahan tersimpan di database). Dibiarkan agar data lama tidak hilang.
   familyCardUrl     String?
   birthCertificateUrl String?
   previousReportUrl String?
   photoUrl          String?
+  documents        AdmissionDocument[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -339,6 +506,23 @@ model Admission {
   @@index([level])
   @@index([submitterId])
   @@index([createdAt])
+}
+
+// Berkas unggahan pendaftaran, disimpan langsung sebagai bytes agar tidak
+// bergantung pada storage eksternal.
+model AdmissionDocument {
+  id          String                @id @default(uuid())
+  admissionId String
+  admission   Admission             @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  kind        AdmissionDocumentKind
+  filename    String
+  mimeType    String
+  size        Int
+  data        Bytes
+  createdAt   DateTime              @default(now())
+
+  @@unique([admissionId, kind])
+  @@index([admissionId])
 }
 
 // Absensi harian ustadz (pengajar & wali kelas).
@@ -357,6 +541,15 @@ model StaffAttendance {
   @@unique([teacherId, date])
   @@index([date])
   @@index([status])
+}
+
+// Pengaturan aplikasi berbentuk kunci-nilai. Dipakai untuk teks yang berubah
+// mengikuti pergantian pengurus pondok (mis. nama penanda tangan rapor) sehingga
+// tidak layak dikeraskan di kode. Kunci yang dipakai ada di lib/rapor.ts.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 // BKKH: laporan kegiatan manual per ustadz dan tanggal. Rentang waktu mengikuti

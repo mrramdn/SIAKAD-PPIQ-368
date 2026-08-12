@@ -1,14 +1,17 @@
 import Link from "next/link";
+import { getAdmissionsBySubmitter } from "@/lib/admissions";
 import { requirePermission } from "@/lib/auth";
 import { getParentChildren } from "@/lib/lms";
-import { Badge, Card, Icons, Ring, scoreColor, type Tone } from "@/components/ui";
+import { Badge, Card, Icons, Ring, SectionTitle, scoreColor, type Tone } from "@/components/ui";
+import { AdmissionStatusCard, AdmissionStatusEmpty, toAdmissionStatusItems } from "../_components/AdmissionStatus";
 
 type Level = "SD" | "SMP" | "SMA";
 const LEVEL_TONE: Record<Level, Tone> = { SD: "accent", SMP: "primary", SMA: "success" };
 
 export default async function AnakPage() {
   const user = await requirePermission("child.monitor");
-  const children = await getParentChildren(user.id);
+  const [children, admissions] = await Promise.all([getParentChildren(user.id), getAdmissionsBySubmitter(user.id)]);
+  const admissionItems = toAdmissionStatusItems(admissions);
 
   return (
     <div className="view-enter">
@@ -58,6 +61,22 @@ export default async function AnakPage() {
           ))}
         </div>
       )}
+
+      <div className="mt-8">
+        <SectionTitle
+          title="Status Pendaftaran"
+          sub="Hasil seleksi pendaftaran santri baru yang Anda kirim melalui sistem."
+        />
+        {admissionItems.length === 0 ? (
+          <AdmissionStatusEmpty />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {admissionItems.map((item) => (
+              <AdmissionStatusCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

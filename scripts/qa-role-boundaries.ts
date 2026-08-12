@@ -51,7 +51,12 @@ function runPermissionAssertions() {
   }
 
   // Product rules requested by the user, as named checks.
-  assert.ok(!adminOnly.has("course.manage"), "ADMIN semestinya tidak punya course.manage.");
+  // Administrasi kini menyiapkan kelas, mapel, dan penilaian, jadi course.manage ikut diberikan.
+  assert.ok(adminOnly.has("course.manage"), "ADMIN semestinya punya course.manage.");
+  assert.ok(adminOnly.has("class.manage"), "ADMIN semestinya punya class.manage.");
+  assert.ok(adminOnly.has("assessment.configure"), "ADMIN semestinya punya assessment.configure.");
+  assert.ok(adminOnly.has("administration.manage"), "ADMIN semestinya punya administration.manage.");
+  assert.ok(adminOnly.has("report.approve"), "ADMIN semestinya punya report.approve.");
   assert.ok(!adminOnly.has("grade.manage"), "ADMIN semestinya tidak punya grade.manage.");
 
   assert.ok(!mudirOnly.has("report.manage"), "MUDIR semestinya tidak punya report.manage.");
@@ -208,39 +213,52 @@ async function runDbAssertions() {
 
   const [admin, homeroom, mudir] = await Promise.all([
     prisma.user.findUniqueOrThrow({
-      where: { email: "admin@pesantren.id" },
+      where: { email: "administrasi@ppiq368.sch.id" },
       select: { id: true },
     }),
     prisma.user.findUniqueOrThrow({
-      where: { email: "walikelas@pesantren.id" },
+      // Wali kelas berperan tunggal (HOMEROOM); akun wali kelas SD-A sengaja
+      // tidak dipakai di sini karena memegang dua peran.
+      where: { email: "salman.ghifari@ppiq368.sch.id" },
       select: { id: true, name: true },
     }),
     prisma.user.findUniqueOrThrow({
-      where: { email: "mudir@pesantren.id" },
+      where: { email: "mudir@ppiq368.sch.id" },
       select: { id: true },
     }),
   ]);
 
-  const [assignedCourse, foreignCourse] = await Promise.all([
-    prisma.course.findFirstOrThrow({
+  const assignedCourse = await prisma.course.findFirstOrThrow({
+    where: { teacherId: homeroom.id, deletedAt: null },
+    select: {
+      id: true,
+      title: true,
+      gradeItems: { take: 1, select: { id: true } },
+      attendanceSessions: { take: 1, select: { id: true } },
+    },
+  });
+
+  // Judul mata pelajaran berulang di setiap kelas (mis. "Ilmu Tajwid" ada di
+  // SD-A, SMP-A, dan SMA-A). Pemeriksaan di bawah membuktikan judul mapel asing
+  // tidak muncul di halaman Nilai, jadi mapel pembanding harus berjudul unik
+  // terhadap seluruh mapel yang memang diampu wali kelas ini; kalau tidak,
+  // asersi bisa gagal hanya karena judulnya kebetulan sama.
+  const ownTitles = (
+    await prisma.course.findMany({
       where: { teacherId: homeroom.id, deletedAt: null },
-      select: {
-        id: true,
-        title: true,
-        gradeItems: { take: 1, select: { id: true } },
-        attendanceSessions: { take: 1, select: { id: true } },
-      },
-    }),
-    prisma.course.findFirstOrThrow({
-      where: { teacherId: { not: homeroom.id }, deletedAt: null },
-      select: {
-        id: true,
-        title: true,
-        gradeItems: { take: 1, select: { id: true } },
-        attendanceSessions: { take: 1, select: { id: true } },
-      },
-    }),
-  ]);
+      select: { title: true },
+    })
+  ).map((course) => course.title);
+
+  const foreignCourse = await prisma.course.findFirstOrThrow({
+    where: { teacherId: { not: homeroom.id }, deletedAt: null, title: { notIn: ownTitles } },
+    select: {
+      id: true,
+      title: true,
+      gradeItems: { take: 1, select: { id: true } },
+      attendanceSessions: { take: 1, select: { id: true } },
+    },
+  });
   assert.ok(assignedCourse.gradeItems[0] && assignedCourse.attendanceSessions[0]);
   assert.ok(foreignCourse.gradeItems[0] && foreignCourse.attendanceSessions[0]);
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card, Icons, Ring, SectionTitle, buttonClasses, scoreColor, type Tone } from "@/components/ui";
+import { AdmissionStatusEmpty, AdmissionStatusRow, type AdmissionStatusItem } from "../_components/AdmissionStatus";
 
 type Level = "SD" | "SMP" | "SMA";
 
@@ -33,11 +34,13 @@ export function ParentDashboard({
   kids,
   announcements,
   publishedReportCards = [],
+  admissions = [],
 }: {
   name: string;
   kids: Child[];
   announcements: Announcement[];
   publishedReportCards?: PublishedReportCard[];
+  admissions?: AdmissionStatusItem[];
 }) {
   const greet = name.split(" ")[0];
   const avgAll = kids.length ? Math.round(kids.reduce((s, c) => s + c.avg, 0) / kids.length) : 0;
@@ -153,6 +156,28 @@ export function ParentDashboard({
                 ))
               )}
             </div>
+          </Card>
+
+          {/* Admission status */}
+          <Card pad={20}>
+            <SectionTitle
+              title="Status Pendaftaran"
+              sub="Pendaftaran santri baru yang Anda kirim"
+              action={
+                <Link href="/anak" className={buttonClasses("ghost", "sm")}>
+                  Rincian
+                </Link>
+              }
+            />
+            {admissions.length === 0 ? (
+              <AdmissionStatusEmpty compact />
+            ) : (
+              <div className="flex flex-col gap-3">
+                {admissions.slice(0, 3).map((item) => (
+                  <AdmissionStatusRow key={item.id} item={item} />
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Published Report Cards */}

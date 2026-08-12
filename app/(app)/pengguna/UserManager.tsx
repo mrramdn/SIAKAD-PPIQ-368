@@ -23,7 +23,7 @@ const TAB_LABEL: Record<Role | "ALL", string> = {
   ALL: "Semua",
   PARENT: "Wali Santri",
   HOMEROOM: "Wali Kelas",
-  TEACHER: "Pengajar",
+  TEACHER: "Ustadz",
   MUDIR: "Mudir",
   ADMIN: "Administrasi",
 };
@@ -81,7 +81,7 @@ function UserForm({ initial, onSave, onClose }: { initial: User | null; onSave: 
   return (
     <Modal
       title={isEdit ? "Edit Pengguna" : "Tambah Pengguna"}
-      sub={isEdit ? "Perbarui data akun pengguna." : "Akun baru memakai kata sandi default password123."}
+      sub={isEdit ? "Perbarui data akun pengguna." : "Akun baru memakai kata sandi awal bawaan sistem. Sampaikan kepada pemiliknya lewat jalur pribadi dan minta segera diganti."}
       onClose={onClose}
     >
       <Field label="Nama lengkap">
@@ -211,7 +211,7 @@ export function UserManager({ users, adminId, readOnly = false }: { users: User[
     { label: "Total Pengguna", value: counts.ALL, icon: Icons.users, tone: "var(--primary)" },
     { label: "Wali Santri", value: counts.PARENT, icon: Icons.users, tone: "var(--amber)" },
     { label: "Wali Kelas", value: counts.HOMEROOM, icon: Icons.award, tone: "var(--teal)" },
-    { label: "Pengajar", value: counts.TEACHER, icon: Icons.award, tone: "var(--green)" },
+    { label: "Ustadz", value: counts.TEACHER, icon: Icons.award, tone: "var(--green)" },
     { label: "Mudir", value: counts.MUDIR, icon: Icons.award, tone: "var(--primary)" },
   ];
 

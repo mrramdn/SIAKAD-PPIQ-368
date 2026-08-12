@@ -1,10 +1,65 @@
 import Link from "next/link";
 import { Card, Icons, inputClasses } from "@/components/ui";
+import {
+  ADMISSION_DOCUMENT_ACCEPT,
+  ADMISSION_DOCUMENT_FIELD,
+  ADMISSION_DOCUMENT_KINDS,
+  ADMISSION_DOCUMENT_LABEL,
+  ADMISSION_DOCUMENT_MAX_BYTES,
+  ADMISSION_DOCUMENT_REQUIRED,
+  ADMISSION_DOCUMENT_URL_FIELD,
+  admissionDocumentIssueMessage,
+  formatFileSize,
+} from "@/lib/admissions";
 import { requirePermission } from "@/lib/auth";
 import { LEVEL_FULL, LEVELS } from "@/lib/brand";
 import { submitAdmissionAction } from "./actions";
+import { DocumentField } from "./DocumentField";
 
-type PageProps = { searchParams: Promise<{ error?: string; success?: string }> };
+type PageProps = { searchParams: Promise<{ error?: string; doc?: string; success?: string }> };
+
+const ISSUE_REASONS = ["required", "size", "type", "mismatch", "empty", "both", "url"] as const;
+
+// Galat per kolom formulir (bukan berkas), memakai gaya pesan yang sama.
+const FIELD_ERROR_MESSAGE: Record<string, string> = {
+  birthDate: "Tanggal lahir tidak valid. Pilih tanggal dari kalender atau isi dengan format tahun-bulan-tanggal.",
+  birthDateFuture: "Tanggal lahir tidak boleh melewati hari ini. Periksa kembali tanggal lahir santri.",
+};
+
+function Required() {
+  return <span className="text-danger"> *</span>;
+}
+
+function Optional() {
+  return <span className="ml-1 text-[11.5px] font-medium text-ink-3">(opsional)</span>;
+}
+
+function SectionHeading({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="sm:col-span-2">
+      <div className="text-[12.5px] font-bold uppercase tracking-wider text-ink-3">{title}</div>
+      {hint ? <p className="mt-1 text-xs leading-relaxed text-ink-3">{hint}</p> : null}
+    </div>
+  );
+}
+
+function errorMessageFrom(params: { error?: string; doc?: string }): string | null {
+  if (!params.error) return null;
+
+  const reason = ISSUE_REASONS.find((r) => r === params.error);
+  const kind = ADMISSION_DOCUMENT_KINDS.find((k) => k === params.doc);
+
+  if (reason && kind) {
+    return admissionDocumentIssueMessage({ kind, reason });
+  }
+
+  const fieldMessage = FIELD_ERROR_MESSAGE[params.error];
+  if (fieldMessage) {
+    return fieldMessage;
+  }
+
+  return "Periksa kembali data wajib: nama lengkap santri dan jenjang harus terisi.";
+}
 
 export default async function PendaftaranPage({ searchParams }: PageProps) {
   const [params, user] = await Promise.all([searchParams, requirePermission("admission.submit")]);
@@ -21,8 +76,8 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
           </span>
           <h1 className="mt-5 text-2xl font-extrabold tracking-tight text-balance">Pendaftaran terkirim</h1>
           <p className="mt-3 text-[14.5px] leading-relaxed text-ink-2 text-pretty">
-            Data pendaftaran santri sudah kami terima. Administrasi akan meninjau pendaftaran; setelah diterima, anak akan
-            muncul di menu Anak Saya.
+            Data pendaftaran santri beserta berkasnya sudah kami terima. Administrasi akan meninjau pendaftaran; setelah
+            diterima, anak akan muncul di menu Anak Saya.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link href="/anak" className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary-600">
@@ -37,7 +92,8 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
     );
   }
 
-  const errorMessage = params.error ? "Periksa kembali data wajib: nama santri, jenjang, dan format URL dokumen." : null;
+  const errorMessage = errorMessageFrom(params);
+  const maxSizeLabel = formatFileSize(ADMISSION_DOCUMENT_MAX_BYTES);
 
   return (
     <div className="view-enter mx-auto flex w-full max-w-3xl flex-col" style={{ gap: 20 }}>
@@ -45,6 +101,9 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
         <h1 className="text-[26px] font-extrabold tracking-tight">Pendaftaran Santri Baru</h1>
         <p className="mt-1 text-sm text-ink-3">
           Diajukan oleh <strong className="text-ink">{user.name}</strong> ({user.email}). Data wali diambil dari akun login.
+        </p>
+        <p className="mt-1 text-sm text-ink-3">
+          Kolom bertanda <span className="text-danger">*</span> wajib diisi.
         </p>
       </div>
 
@@ -54,12 +113,19 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
 
       <Card pad={24}>
         <form action={submitAdmissionAction} className="grid gap-5 sm:grid-cols-2">
+          <SectionHeading title="Data Santri" hint="Isi sesuai dokumen resmi (kartu keluarga / akta kelahiran)." />
           <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Nama lengkap santri *</span>
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Nama lengkap santri
+              <Required />
+            </span>
             <input name="childName" required className={inputClasses} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Jenjang *</span>
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Jenjang
+              <Required />
+            </span>
             <select name="level" required defaultValue="" className={inputClasses}>
               <option value="" disabled>
                 Pilih jenjang
@@ -72,7 +138,10 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Jenis kelamin</span>
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Jenis kelamin
+              <Optional />
+            </span>
             <select name="gender" defaultValue="" className={inputClasses}>
               <option value="">-</option>
               <option value="L">Laki-laki</option>
@@ -80,53 +149,64 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Tempat lahir</span>
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Tempat lahir
+              <Optional />
+            </span>
             <input name="birthPlace" className={inputClasses} />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Tanggal lahir</span>
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Tanggal lahir
+              <Optional />
+            </span>
             <input name="birthDate" type="date" className={inputClasses} />
           </label>
           <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Asal sekolah</span>
-            <input name="previousSchool" className={inputClasses} />
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Asal sekolah
+              <Optional />
+            </span>
+            <input name="previousSchool" placeholder="Contoh: MI Al-Hikmah" className={inputClasses} />
           </label>
 
+          <div className="sm:col-span-2 border-t border-line" />
+          <SectionHeading title="Alamat & Catatan" hint="Alamat tempat tinggal santri dan hal lain yang perlu diketahui administrasi." />
           <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Alamat</span>
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Alamat
+              <Optional />
+            </span>
             <textarea name="address" rows={2} className={inputClasses} />
           </label>
           <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Catatan</span>
-            <textarea name="note" rows={2} className={inputClasses} />
+            <span className="mb-1.5 block text-sm font-semibold text-ink-2">
+              Catatan
+              <Optional />
+            </span>
+            <textarea name="note" rows={2} placeholder="Riwayat kesehatan, kebutuhan khusus, dll." className={inputClasses} />
           </label>
 
-          <div className="sm:col-span-2 mt-1 border-t border-line pt-4 text-[12.5px] font-bold uppercase tracking-wider text-ink-3">
-            Dokumen Pendukung
-          </div>
-          <p className="sm:col-span-2 -mt-3 text-xs leading-relaxed text-ink-3">
-            Sementara isi URL dokumen. Integrasi upload Cloudinary dapat memakai field yang sama nanti.
-          </p>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Kartu Keluarga</span>
-            <input name="familyCardUrl" type="url" placeholder="https://..." className={inputClasses} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Akta Kelahiran</span>
-            <input name="birthCertificateUrl" type="url" placeholder="https://..." className={inputClasses} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Rapor Terakhir</span>
-            <input name="previousReportUrl" type="url" placeholder="https://..." className={inputClasses} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-ink-2">Pas Foto</span>
-            <input name="photoUrl" type="url" placeholder="https://..." className={inputClasses} />
-          </label>
+          <div className="sm:col-span-2 border-t border-line" />
+          <SectionHeading
+            title="Dokumen Pendukung"
+            hint={`Untuk setiap dokumen, pilih salah satu: unggah berkas hasil pindai/foto (JPG, PNG, atau PDF, maksimal ${maxSizeLabel}) atau isi tautan ke berkas tersebut. Cukup satu cara per dokumen.`}
+          />
+          {ADMISSION_DOCUMENT_KINDS.map((kind) => (
+            <DocumentField
+              key={kind}
+              label={ADMISSION_DOCUMENT_LABEL[kind]}
+              required={ADMISSION_DOCUMENT_REQUIRED[kind]}
+              fileField={ADMISSION_DOCUMENT_FIELD[kind]}
+              urlField={ADMISSION_DOCUMENT_URL_FIELD[kind]}
+              accept={ADMISSION_DOCUMENT_ACCEPT}
+              maxSizeLabel={maxSizeLabel}
+            />
+          ))}
 
           <button
             type="submit"
-            className="rounded-xl bg-primary px-5 py-3 font-semibold text-white transition hover:bg-primary-600 active:scale-[0.99] sm:col-span-2"
+            className="mt-1 rounded-xl bg-primary px-5 py-3 font-semibold text-white transition hover:bg-primary-600 active:scale-[0.99] sm:col-span-2"
           >
             Kirim Pendaftaran
           </button>

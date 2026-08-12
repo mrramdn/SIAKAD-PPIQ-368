@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { inputClasses } from "@/components/ui";
 import { AuthShell } from "@/components/AuthShell";
-import { DEMO_ACCOUNTS } from "@/lib/demo-accounts";
 import { loginAction } from "@/app/login/actions";
 
 type LoginPageProps = {
@@ -29,19 +28,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       eyebrow="Akses portal pesantren"
       title="Satu pintu untuk setiap peran di pesantren."
       description="Wali memantau perkembangan anak, ustadz mengelola pembelajaran, Administrasi menangani operasional, dan Mudir mengawasi kegiatan harian."
-      asideFooter={
-        <div className="mono border-t border-white/15 pt-5 text-xs leading-6 text-white/70">
-          <p className="font-sans font-semibold text-white/85">Akun demo</p>
-          <div className="mt-2 grid gap-2">
-            {DEMO_ACCOUNTS.map((account) => (
-              <div key={account.email}>
-                <p className="font-sans text-[11px] font-semibold uppercase tracking-wider text-white/60">{account.role}</p>
-                <p>{account.email} · {account.password}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      }
     >
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-700">Selamat datang kembali</p>
       <h1 className="mt-3 text-3xl font-extrabold tracking-[-0.035em] sm:text-4xl">Masuk ke akun</h1>
@@ -69,18 +55,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           Masuk
         </button>
       </form>
-
-      <details className="mono mt-7 border-y border-line py-3 text-xs text-ink-3 lg:hidden">
-        <summary className="cursor-pointer font-sans text-sm font-semibold text-ink-2">Lihat akun demo</summary>
-        <div className="mt-3 grid gap-2 leading-6">
-          {DEMO_ACCOUNTS.map((account) => (
-            <div key={account.email}>
-              <p className="font-sans text-[11px] font-semibold uppercase tracking-wider text-ink-3">{account.role}</p>
-              <p>{account.email} · {account.password}</p>
-            </div>
-          ))}
-        </div>
-      </details>
 
       <p className="mt-7 text-center text-sm text-ink-3">
         Belum punya akun wali?{" "}

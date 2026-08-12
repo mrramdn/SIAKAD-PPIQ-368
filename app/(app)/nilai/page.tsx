@@ -4,10 +4,19 @@ import { getGradebook } from "@/lib/lms";
 import { Avatar, Badge, Card, Field, buttonClasses, inputClasses, scoreColor, PASS_THRESHOLD } from "@/components/ui";
 import { createGradeItemAction } from "../actions";
 import { Gradebook } from "./Gradebook";
+import { GradeItemManager } from "./GradeItemManager";
+
+const ERROR_MESSAGE: Record<string, string> = {
+  forbidden: "Anda tidak ditugaskan pada mata pelajaran ini, jadi komponen nilai tidak bisa dibuat.",
+  duplicate: "Sudah ada komponen nilai dengan judul itu di mata pelajaran ini. Gunakan judul lain.",
+  date: "Tenggat tidak valid. Isi ulang kolom tenggat.",
+  maxscore: "Nilai maksimal terlalu besar. Gunakan bilangan bulat 1-1000.",
+  missing: "Mata pelajaran sudah tidak tersedia. Muat ulang halaman.",
+};
 
 export default async function NilaiPage({ searchParams }: { searchParams: Promise<{ course?: string; error?: string }> }) {
   const [{ course, error }, user] = await Promise.all([searchParams, requirePermission("grade.manage")]);
-  const { courses, activeCourseId, columns, rows, canEdit } = await getGradebook(user, course);
+  const { courses, activeCourseId, columns, rows, canEdit, teacherName, weightTotal } = await getGradebook(user, course);
 
   const classAvg = rows.length ? Math.round(rows.reduce((s, r) => s + r.avg, 0) / rows.length) : 0;
   const passing = rows.filter((r) => r.avg >= PASS_THRESHOLD).length;
@@ -24,7 +33,7 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
 
       {error ? (
         <div className="mb-4 rounded-xl border border-line bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">
-          {error === "forbidden" ? "Anda tidak ditugaskan pada mata pelajaran ini." : "Komponen nilai gagal dibuat. Periksa kembali isian Anda."}
+          {ERROR_MESSAGE[error] ?? "Komponen nilai gagal dibuat. Periksa kembali isian Anda."}
         </div>
       ) : null}
 
@@ -95,15 +104,18 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
           </div>
 
           {/* add component */}
-          {canEdit && activeCourseId ? (
+          {activeCourseId && canEdit ? (
             <Card pad={16} className="mb-3.5">
-              <form action={createGradeItemAction} className="grid gap-3 md:grid-cols-[1fr_0.5fr_0.7fr_auto]">
+              <form action={createGradeItemAction} className="grid gap-3 md:grid-cols-[1fr_0.45fr_0.45fr_0.7fr_auto]">
                 <input type="hidden" name="courseId" value={activeCourseId} />
                 <Field label="Komponen baru">
                   <input name="title" required placeholder="cth. UH 1" className={inputClasses} />
                 </Field>
                 <Field label="Nilai maks">
-                  <input name="maxScore" type="number" min={1} defaultValue={100} className={inputClasses} />
+                  <input name="maxScore" type="number" min={1} max={1000} defaultValue={100} className={inputClasses} />
+                </Field>
+                <Field label={`Bobot % (kini ${weightTotal}%)`}>
+                  <input name="weight" type="number" min={0} max={100} defaultValue={0} className={inputClasses} />
                 </Field>
                 <Field label="Tenggat (opsional)">
                   <input name="dueAt" type="date" className={inputClasses} />
@@ -117,7 +129,32 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
             </Card>
           ) : null}
 
-          <Gradebook columns={columns} rows={rows} canEdit={canEdit} />
+          {/* bukan pengampu: jelaskan, jangan tampilkan form yang pasti ditolak */}
+          {activeCourseId && !canEdit ? (
+            <Card pad={16} className="mb-3.5">
+              <div className="text-[13.5px] font-bold">Hanya pengampu yang dapat mengelola nilai</div>
+              <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+                Mata pelajaran ini diampu oleh <strong className="text-ink-2">{teacherName ?? "belum ditugaskan"}</strong>. Nilai hanya boleh diisi
+                dan diubah oleh pengampu yang ditugaskan. Minta administrasi menugaskan pengampu melalui menu Data Akademik (/akademik).
+              </p>
+            </Card>
+          ) : null}
+
+          {canEdit ? <GradeItemManager items={columns} weightTotal={weightTotal} /> : null}
+
+          {activeCourseId && rows.length === 0 ? (
+            <Card pad={28}>
+              <div className="text-center">
+                <div className="text-[14px] font-bold">Belum ada santri di mata pelajaran ini</div>
+                <p className="mx-auto mt-1.5 max-w-[520px] text-[13px] leading-relaxed text-ink-3">
+                  Komponen nilai tetap bisa dibuat, tetapi daftar santri masih kosong. Administrasi mendaftarkan santri ke mata pelajaran melalui
+                  menu Data Akademik (/akademik).
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <Gradebook columns={columns} rows={rows} canEdit={canEdit} />
+          )}
         </>
       )}
     </div>

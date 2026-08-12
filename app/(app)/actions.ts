@@ -10,14 +10,13 @@ import {
   CourseStatus,
   EducationLevel,
   EnrollmentStatus,
-  ReportCardStatus,
-  Semester,
+  Prisma,
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client";
 import { requirePermission, requireVerifiedUser, userCan, type AuthUser } from "@/lib/auth";
 import { BKKH_TIME_SLOTS, type BkkhActivityField } from "@/lib/bkkh";
-import { computeReportEntries, dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
+import { dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
 import { ROLE_PRECEDENCE, type Role } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -43,6 +42,40 @@ function toNullableString(value: FormDataEntryValue | null) {
 
 function canEditAssignedCourse(user: AuthUser, teacherId: string | null) {
   return teacherId === user.id;
+}
+
+/** Tanggal dari input form; null bila kosong atau tidak bisa diurai (Invalid Date). */
+function parseDateInput(value: FormDataEntryValue | string | null): Date | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Galat Prisma yang sudah diperkirakan dan punya pesan ramah di UI. */
+type PrismaFailure = "duplicate" | "missing";
+
+function knownPrismaFailure(error: unknown): PrismaFailure | null {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
+  if (error.code === "P2002") return "duplicate"; // melanggar unique constraint
+  if (error.code === "P2025" || error.code === "P2003") return "missing"; // baris/relasi sudah hilang
+  return null;
+}
+
+/**
+ * Menjalankan satu mutasi Prisma. Galat yang sudah diperkirakan (mis. judul
+ * duplikat) dikembalikan sebagai kode supaya pemanggil bisa menampilkan pesan
+ * yang manusiawi; galat lain tetap dilempar.
+ */
+async function runPrismaMutation(mutate: () => Promise<unknown>): Promise<PrismaFailure | null> {
+  try {
+    await mutate();
+    return null;
+  } catch (error) {
+    const failure = knownPrismaFailure(error);
+    if (!failure) throw error;
+    return failure;
+  }
 }
 
 async function isValidTeachingStaff(userId: string) {
@@ -137,10 +170,13 @@ export async function createAttendanceSessionAction(formData: FormData) {
   const user = await requirePermission("attendance.record");
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
-  const heldAtValue = String(formData.get("heldAt") ?? "");
+  const heldAt = parseDateInput(formData.get("heldAt"));
 
-  if (!courseId || !title || !heldAtValue) {
+  if (!courseId || !title) {
     redirect(`/absen?course=${courseId}&error=attendance`);
+  }
+  if (!heldAt) {
+    redirect(`/absen?course=${courseId}&error=date`);
   }
 
   const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true } });
@@ -148,25 +184,75 @@ export async function createAttendanceSessionAction(formData: FormData) {
     redirect(`/absen?course=${courseId}&error=forbidden`);
   }
 
-  const period = getCurrentPeriod(new Date(heldAtValue));
-  const session = await prisma.attendanceSession.create({
-    data: { courseId, title, heldAt: new Date(heldAtValue), semester: period.semester, academicYear: period.academicYear },
-    select: { id: true },
-  });
-
-  const enrollments = await prisma.enrollment.findMany({
-    where: { courseId, status: EnrollmentStatus.ACTIVE },
-    select: { studentId: true },
-  });
-
-  if (enrollments.length > 0) {
-    await prisma.attendanceRecord.createMany({
-      data: enrollments.map((e) => ({ attendanceSessionId: session.id, studentId: e.studentId, status: AttendanceStatus.PRESENT })),
-      skipDuplicates: true,
-    });
+  // Sengaja tidak membuat AttendanceRecord di muka: santri tanpa catatan tampil
+  // sebagai "belum ditandai", bukan hadir. Catatan dibuat saat sel ditandai.
+  const period = getCurrentPeriod(heldAt);
+  const failure = await runPrismaMutation(() =>
+    prisma.attendanceSession.create({
+      data: { courseId, title, heldAt, semester: period.semester, academicYear: period.academicYear },
+    }),
+  );
+  if (failure) {
+    redirect(`/absen?course=${courseId}&error=${failure}`);
   }
 
   revalidateCourseAreas(courseId);
+}
+
+export async function updateAttendanceSessionAction(input: {
+  sessionId: string;
+  title: string;
+  heldAt: string;
+}): Promise<ActionResult> {
+  const user = await requirePermission("attendance.record");
+  const title = input.title.trim();
+  const heldAt = parseDateInput(input.heldAt);
+  if (!input.sessionId || !title) return { ok: false, message: "Judul sesi wajib diisi." };
+  if (!heldAt) return { ok: false, message: "Tanggal & waktu sesi tidak valid." };
+
+  const session = await prisma.attendanceSession.findUnique({
+    where: { id: input.sessionId },
+    select: { courseId: true, course: { select: { teacherId: true } } },
+  });
+  if (!session) return { ok: false, message: "Sesi absensi tidak ditemukan." };
+  if (!canEditAssignedCourse(user, session.course.teacherId)) {
+    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  }
+
+  const period = getCurrentPeriod(heldAt);
+  const failure = await runPrismaMutation(() =>
+    prisma.attendanceSession.update({
+      where: { id: input.sessionId },
+      data: { title, heldAt, semester: period.semester, academicYear: period.academicYear },
+    }),
+  );
+  if (failure === "duplicate") {
+    return { ok: false, message: `Sudah ada sesi absensi berjudul "${title}" di mata pelajaran ini. Pakai judul lain.` };
+  }
+  if (failure) return { ok: false, message: "Sesi absensi sudah dihapus." };
+
+  revalidateCourseAreas(session.courseId);
+  return { ok: true };
+}
+
+export async function deleteAttendanceSessionAction(sessionId: string): Promise<ActionResult> {
+  const user = await requirePermission("attendance.record");
+  if (!sessionId) return { ok: false, message: "Sesi absensi tidak ditemukan." };
+
+  const session = await prisma.attendanceSession.findUnique({
+    where: { id: sessionId },
+    select: { courseId: true, course: { select: { teacherId: true } } },
+  });
+  if (!session) return { ok: false, message: "Sesi absensi tidak ditemukan." };
+  if (!canEditAssignedCourse(user, session.course.teacherId)) {
+    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  }
+
+  const failure = await runPrismaMutation(() => prisma.attendanceSession.delete({ where: { id: sessionId } }));
+  if (failure) return { ok: false, message: "Sesi absensi sudah dihapus." };
+
+  revalidateCourseAreas(session.courseId);
+  return { ok: true };
 }
 
 export async function setAttendanceStatusAction(input: {
@@ -199,11 +285,14 @@ export async function setAttendanceStatusAction(input: {
   if (session.course.enrollments.length === 0) {
     return { ok: false, message: "Santri tidak terdaftar pada mata pelajaran ini." };
   }
-  await prisma.attendanceRecord.upsert({
-    where: { attendanceSessionId_studentId: { attendanceSessionId: input.sessionId, studentId: input.studentId } },
-    update: { status: input.status },
-    create: { attendanceSessionId: input.sessionId, studentId: input.studentId, status: input.status },
-  });
+  const failure = await runPrismaMutation(() =>
+    prisma.attendanceRecord.upsert({
+      where: { attendanceSessionId_studentId: { attendanceSessionId: input.sessionId, studentId: input.studentId } },
+      update: { status: input.status },
+      create: { attendanceSessionId: input.sessionId, studentId: input.studentId, status: input.status },
+    }),
+  );
+  if (failure) return { ok: false, message: "Sesi absensi atau santri sudah tidak ada. Muat ulang halaman." };
   revalidatePath("/absen");
   return { ok: true };
 }
@@ -213,20 +302,45 @@ export async function markAllPresentAction(sessionId: string): Promise<ActionRes
   if (!sessionId) return { ok: false, message: "Sesi tidak ditemukan." };
   const session = await prisma.attendanceSession.findUnique({
     where: { id: sessionId },
-    select: { course: { select: { teacherId: true } } },
+    select: { courseId: true, course: { select: { teacherId: true } } },
   });
   if (!session || !canEditAssignedCourse(user, session.course.teacherId)) {
     return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
   }
-  await prisma.attendanceRecord.updateMany({
-    where: { attendanceSessionId: sessionId },
-    data: { status: AttendanceStatus.PRESENT },
+  // Catatan kehadiran tidak lagi dibuat di muka, jadi tandai-semua harus membuat
+  // baris yang belum ada (updateMany akan diam-diam tidak mengubah apa pun).
+  const enrollments = await prisma.enrollment.findMany({
+    where: { courseId: session.courseId, status: EnrollmentStatus.ACTIVE },
+    select: { studentId: true },
   });
+  if (enrollments.length === 0) {
+    return { ok: false, message: "Belum ada santri terdaftar pada mata pelajaran ini." };
+  }
+  const failure = await runPrismaMutation(() =>
+    prisma.$transaction(
+      enrollments.map((e) =>
+        prisma.attendanceRecord.upsert({
+          where: { attendanceSessionId_studentId: { attendanceSessionId: sessionId, studentId: e.studentId } },
+          update: { status: AttendanceStatus.PRESENT },
+          create: { attendanceSessionId: sessionId, studentId: e.studentId, status: AttendanceStatus.PRESENT },
+        }),
+      ),
+    ),
+  );
+  if (failure) return { ok: false, message: "Sesi absensi sudah dihapus. Muat ulang halaman." };
   revalidatePath("/absen");
   return { ok: true };
 }
 
 /* ------------------------- grades (academic staff) ------------------------- */
+
+/**
+ * Batas atas skala komponen nilai. Kolom maxScore bertipe int4 di Postgres,
+ * jadi angka raksasa (mis. 3.000.000.000) gagal di level basis data dengan
+ * galat yang tidak punya pesan ramah. Batas ini masih jauh lebih longgar dari
+ * skala yang wajar dipakai (100, 200, 1000).
+ */
+const MAX_GRADE_MAX_SCORE = 1000;
 
 export async function createGradeItemAction(formData: FormData) {
   const user = await requirePermission("grade.manage");
@@ -234,10 +348,18 @@ export async function createGradeItemAction(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const description = toNullableString(formData.get("description"));
   const maxScore = Number(formData.get("maxScore") ?? 100);
-  const dueValue = String(formData.get("dueAt") ?? "");
+  const weight = Number(formData.get("weight") ?? 0);
+  const dueValue = String(formData.get("dueAt") ?? "").trim();
+  const dueAt = parseDateInput(dueValue);
 
-  if (!courseId || !title || !Number.isFinite(maxScore) || maxScore < 1) {
+  if (!courseId || !title || !Number.isInteger(maxScore) || maxScore < 1 || !Number.isInteger(weight) || weight < 0 || weight > 100) {
     redirect(`/nilai?course=${courseId}&error=grade`);
+  }
+  if (maxScore > MAX_GRADE_MAX_SCORE) {
+    redirect(`/nilai?course=${courseId}&error=maxscore`);
+  }
+  if (dueValue && !dueAt) {
+    redirect(`/nilai?course=${courseId}&error=date`);
   }
 
   const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true } });
@@ -246,19 +368,139 @@ export async function createGradeItemAction(formData: FormData) {
   }
 
   const period = getCurrentPeriod();
-  await prisma.gradeItem.create({
-    data: {
-      courseId,
-      title,
-      description,
-      maxScore,
-      dueAt: dueValue ? new Date(dueValue) : null,
-      semester: period.semester,
-      academicYear: period.academicYear,
-    },
-  });
+  const failure = await runPrismaMutation(() =>
+    prisma.gradeItem.create({
+      data: {
+        courseId,
+        title,
+        description,
+        maxScore,
+        weight,
+        dueAt,
+        semester: period.semester,
+        academicYear: period.academicYear,
+      },
+    }),
+  );
+  if (failure) {
+    redirect(`/nilai?course=${courseId}&error=${failure}`);
+  }
 
   revalidateCourseAreas(courseId);
+}
+
+/**
+ * Menskalakan ulang nilai tersimpan ke skala baru. Nilai disimpan pada skala
+ * komponennya, jadi mengubah maxScore tanpa ini membuat nilai lama terbaca
+ * salah (mis. 85 pada skala 100 akan terbaca 850% pada skala 10).
+ * Pembulatan memang mengurangi presisi saat skala diperkecil.
+ * null = skala lama tidak sah, baris dilewati (bukan dinolkan).
+ */
+function rescaleScore(score: number, oldMax: number, newMax: number): number | null {
+  if (!(oldMax > 0)) return null;
+  return Math.max(0, Math.min(newMax, Math.round((score / oldMax) * newMax)));
+}
+
+export async function updateGradeItemAction(input: {
+  gradeItemId: string;
+  title: string;
+  maxScore: number;
+  weight: number;
+  dueAt: string;
+}): Promise<ActionResult & { rescaled?: number }> {
+  const user = await requirePermission("grade.manage");
+  const title = input.title.trim();
+  const dueAt = parseDateInput(input.dueAt);
+  if (!input.gradeItemId || !title) return { ok: false, message: "Nama komponen wajib diisi." };
+  if (!Number.isInteger(input.maxScore) || input.maxScore < 1 || input.maxScore > MAX_GRADE_MAX_SCORE) {
+    return { ok: false, message: `Nilai maksimal harus bilangan bulat 1-${MAX_GRADE_MAX_SCORE}.` };
+  }
+  if (!Number.isInteger(input.weight) || input.weight < 0 || input.weight > 100) {
+    return { ok: false, message: "Bobot harus bilangan bulat 0-100 persen." };
+  }
+  if (input.dueAt.trim() && !dueAt) return { ok: false, message: "Tenggat tidak valid." };
+
+  const item = await prisma.gradeItem.findUnique({
+    where: { id: input.gradeItemId },
+    // maxScore lama sengaja tidak dibaca di sini: nilainya diambil ulang di
+    // dalam transaksi di bawah, saat barisnya sudah terkunci.
+    select: { courseId: true, course: { select: { teacherId: true } } },
+  });
+  if (!item) return { ok: false, message: "Komponen nilai tidak ditemukan." };
+  if (!canEditAssignedCourse(user, item.course.teacherId)) {
+    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  }
+
+  // Nilai lama harus dibaca DAN dipindah skala di dalam transaksi yang sama
+  // dengan perubahan maxScore: kalau dibaca di luar, nilai yang masuk di sela
+  // pembacaan dan transaksi tidak ikut diskalakan dan tertinggal pada skala
+  // lama. Baris gradeItem dikunci lebih dulu (FOR UPDATE) dan saveGradeAction
+  // menahan FOR SHARE pada baris yang sama sebelum menulis nilai, jadi selama
+  // transaksi ini berjalan tidak ada nilai baru yang bisa masuk pada skala lama.
+  // Urutan kunci sama di kedua action (gradeItem dulu, baru gradeRecord) supaya
+  // tidak saling deadlock.
+  let rescaled = 0;
+  const failure = await runPrismaMutation(() =>
+    prisma.$transaction(async (tx) => {
+      rescaled = 0;
+      const [locked] = await tx.$queryRaw<{ maxScore: number }[]>`
+        SELECT "maxScore" FROM "GradeItem" WHERE "id" = ${input.gradeItemId} FOR UPDATE
+      `;
+      await tx.gradeItem.update({
+        where: { id: input.gradeItemId },
+        data: { title, maxScore: input.maxScore, weight: input.weight, dueAt },
+      });
+      // locked pasti ada di sini: kalau komponennya sudah dihapus, update di atas
+      // sudah melempar P2025 lebih dulu.
+      if (!locked || locked.maxScore === input.maxScore) return;
+
+      const records = await tx.gradeRecord.findMany({
+        where: { gradeItemId: input.gradeItemId },
+        select: { id: true, score: true },
+      });
+      // Dikelompokkan per nilai baru dan ditandai lewat id, bukan lewat nilai lama,
+      // agar baris yang sudah diskalakan tidak ikut tersapu update berikutnya.
+      const idsByNewScore = new Map<number, string[]>();
+      for (const record of records) {
+        const next = rescaleScore(record.score, locked.maxScore, input.maxScore);
+        if (next === null || next === record.score) continue;
+        const ids = idsByNewScore.get(next) ?? [];
+        ids.push(record.id);
+        idsByNewScore.set(next, ids);
+        rescaled += 1;
+      }
+      for (const [score, ids] of idsByNewScore) {
+        await tx.gradeRecord.updateMany({ where: { id: { in: ids } }, data: { score } });
+      }
+    }),
+  );
+  if (failure === "duplicate") {
+    return { ok: false, message: `Sudah ada komponen nilai berjudul "${title}" di mata pelajaran ini. Pakai judul lain.` };
+  }
+  if (failure) return { ok: false, message: "Komponen nilai sudah dihapus." };
+
+  revalidateCourseAreas(item.courseId);
+  return { ok: true, rescaled };
+}
+
+export async function deleteGradeItemAction(gradeItemId: string): Promise<ActionResult> {
+  const user = await requirePermission("grade.manage");
+  if (!gradeItemId) return { ok: false, message: "Komponen nilai tidak ditemukan." };
+
+  const item = await prisma.gradeItem.findUnique({
+    where: { id: gradeItemId },
+    select: { courseId: true, course: { select: { teacherId: true } } },
+  });
+  if (!item) return { ok: false, message: "Komponen nilai tidak ditemukan." };
+  if (!canEditAssignedCourse(user, item.course.teacherId)) {
+    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  }
+
+  const failure = await runPrismaMutation(() => prisma.gradeItem.delete({ where: { id: gradeItemId } }));
+  if (failure) return { ok: false, message: "Komponen nilai sudah dihapus." };
+
+  revalidateCourseAreas(item.courseId);
+  return { ok: true };
 }
 
 export async function saveGradeAction(input: {
@@ -293,12 +535,26 @@ export async function saveGradeAction(input: {
     return { ok: false, message: "Santri tidak terdaftar pada mata pelajaran ini." };
   }
   const clamped = Math.max(0, Math.min(100, Math.round(input.value)));
-  const score = Math.round((clamped / 100) * item.maxScore);
-  await prisma.gradeRecord.upsert({
-    where: { gradeItemId_studentId: { gradeItemId: input.gradeItemId, studentId: input.studentId } },
-    update: { score },
-    create: { gradeItemId: input.gradeItemId, studentId: input.studentId, score },
-  });
+  // maxScore dibaca ulang di dalam transaksi sambil mengunci baris komponennya
+  // (FOR SHARE). updateGradeItemAction mengunci baris yang sama secara eksklusif
+  // saat menskalakan ulang, jadi nilai ini tidak akan pernah tersimpan pada
+  // skala lama yang sudah keburu diganti.
+  const failure = await runPrismaMutation(() =>
+    prisma.$transaction(async (tx) => {
+      const [locked] = await tx.$queryRaw<{ maxScore: number }[]>`
+        SELECT "maxScore" FROM "GradeItem" WHERE "id" = ${input.gradeItemId} FOR SHARE
+      `;
+      // Komponen sudah dihapus: upsert di bawah melempar P2003 dan dipetakan ke
+      // pesan "sudah tidak ada" seperti sebelumnya.
+      const score = Math.round((clamped / 100) * (locked?.maxScore ?? item.maxScore));
+      await tx.gradeRecord.upsert({
+        where: { gradeItemId_studentId: { gradeItemId: input.gradeItemId, studentId: input.studentId } },
+        update: { score },
+        create: { gradeItemId: input.gradeItemId, studentId: input.studentId, score },
+      });
+    }),
+  );
+  if (failure) return { ok: false, message: "Komponen nilai atau santri sudah tidak ada. Muat ulang halaman." };
   revalidatePath("/nilai");
   return { ok: true };
 }
@@ -327,127 +583,6 @@ export async function deleteScheduleSlotAction(id: string): Promise<ActionResult
   await prisma.scheduleSlot.delete({ where: { id } });
   revalidatePath("/jadwal");
   revalidatePath("/dashboard");
-  return { ok: true };
-}
-
-/* ----------------------- report card (homeroom) ----------------------------- */
-
-export async function generateReportCardAction(input: {
-  studentId: string;
-  semester: Semester;
-  academicYear: string;
-}): Promise<ActionResult> {
-  const user = await requirePermission("report.manage");
-  const academicYear = input.academicYear.trim();
-  if (!input.studentId || !Object.values(Semester).includes(input.semester) || !/^\d{4}\/\d{4}$/.test(academicYear)) {
-    return { ok: false, message: "Data rapor tidak valid." };
-  }
-
-  const student = await prisma.studentProfile.findUnique({ where: { id: input.studentId }, select: { id: true } });
-  if (!student) return { ok: false, message: "Santri tidak ditemukan." };
-
-  const existing = await prisma.reportCard.findUnique({
-    where: {
-      studentId_semester_academicYear: { studentId: input.studentId, semester: input.semester, academicYear },
-    },
-    select: { id: true, status: true },
-  });
-  if (existing?.status === ReportCardStatus.PUBLISHED) {
-    return { ok: false, message: "Rapor periode ini sudah terbit dan tidak bisa dibuat ulang." };
-  }
-
-  const entries = await computeReportEntries(input.studentId, { semester: input.semester, academicYear });
-  if (entries.length === 0) {
-    return { ok: false, message: "Santri belum terdaftar di mata pelajaran mana pun." };
-  }
-
-  if (existing) {
-    await prisma.$transaction([
-      prisma.reportCardEntry.deleteMany({ where: { reportCardId: existing.id } }),
-      prisma.reportCardEntry.createMany({ data: entries.map((e) => ({ ...e, reportCardId: existing.id })) }),
-      prisma.reportCard.update({ where: { id: existing.id }, data: { createdById: user.id } }),
-    ]);
-  } else {
-    await prisma.reportCard.create({
-      data: {
-        studentId: input.studentId,
-        semester: input.semester,
-        academicYear,
-        createdById: user.id,
-        entries: { createMany: { data: entries } },
-      },
-    });
-  }
-
-  revalidatePath("/rapor");
-  return { ok: true };
-}
-
-export async function saveHomeroomNoteAction(input: { reportCardId: string; note: string }): Promise<ActionResult> {
-  await requirePermission("report.manage");
-  if (!input.reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
-
-  const card = await prisma.reportCard.findUnique({ where: { id: input.reportCardId }, select: { status: true } });
-  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
-  if (card.status === ReportCardStatus.PUBLISHED) {
-    return { ok: false, message: "Rapor sudah terbit, catatan tidak bisa diubah." };
-  }
-
-  await prisma.reportCard.update({
-    where: { id: input.reportCardId },
-    data: { homeroomNote: input.note.trim() || null },
-  });
-  revalidatePath("/rapor");
-  return { ok: true };
-}
-
-export async function publishReportCardAction(reportCardId: string): Promise<ActionResult> {
-  await requirePermission("report.manage");
-  if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
-
-  const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
-  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
-  if (card.status === ReportCardStatus.PUBLISHED) return { ok: false, message: "Rapor sudah terbit." };
-
-  await prisma.reportCard.update({
-    where: { id: reportCardId },
-    data: { status: ReportCardStatus.PUBLISHED, publishedAt: new Date() },
-  });
-  revalidatePath("/rapor");
-  revalidatePath("/anak");
-  return { ok: true };
-}
-
-export async function unpublishReportCardAction(reportCardId: string): Promise<ActionResult> {
-  await requirePermission("report.manage");
-  if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
-
-  const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
-  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
-  if (card.status !== ReportCardStatus.PUBLISHED) return { ok: false, message: "Rapor belum terbit." };
-
-  await prisma.reportCard.update({
-    where: { id: reportCardId },
-    data: { status: ReportCardStatus.DRAFT, publishedAt: null },
-  });
-  revalidatePath("/rapor");
-  revalidatePath("/anak");
-  return { ok: true };
-}
-
-export async function deleteReportCardAction(reportCardId: string): Promise<ActionResult> {
-  await requirePermission("report.manage");
-  if (!reportCardId) return { ok: false, message: "Rapor tidak ditemukan." };
-
-  const card = await prisma.reportCard.findUnique({ where: { id: reportCardId }, select: { status: true } });
-  if (!card) return { ok: false, message: "Rapor tidak ditemukan." };
-  if (card.status === ReportCardStatus.PUBLISHED) {
-    return { ok: false, message: "Rapor yang sudah terbit tidak bisa dihapus." };
-  }
-
-  await prisma.reportCard.delete({ where: { id: reportCardId } });
-  revalidatePath("/rapor");
-  revalidatePath("/anak");
   return { ok: true };
 }
 

@@ -19,7 +19,7 @@ export default async function PendingPage() {
       PENDING: "Akun kamu menunggu verifikasi admin.",
       REJECTED: "Akun kamu belum disetujui admin.",
       SUSPENDED: "Akun kamu sedang dinonaktifkan.",
-    }[user.status] ?? "Akun kamu belum bisa mengakses LMS.";
+    }[user.status] ?? "Akun kamu belum bisa mengakses sistem.";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg px-6 py-12 text-ink">
@@ -28,7 +28,7 @@ export default async function PendingPage() {
           <Icons.clock size={26} />
         </span>
         <p className="mt-5 text-sm font-semibold uppercase tracking-[0.2em] text-primary-700">Verifikasi admin</p>
-        <h1 className="mt-3 text-3xl font-extrabold tracking-tight">Belum bisa masuk kelas</h1>
+        <h1 className="mt-3 text-3xl font-extrabold tracking-tight">Belum bisa mengakses sistem</h1>
         <p className="mt-4 text-ink-2">{statusText}</p>
         <p className="mono mt-3 text-sm text-ink-3">{user.email}</p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">

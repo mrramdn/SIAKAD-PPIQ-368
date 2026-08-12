@@ -5,7 +5,6 @@ import {
   CourseStatus,
   EducationLevel,
   EnrollmentStatus,
-  ReportCardStatus,
   Semester,
   UserRole,
   UserStatus,
@@ -24,6 +23,22 @@ const WEEK_BARS = [1, 2, 3, 4, 5, 6] as const;
 /** Ustadz/wali kelas berpengampu mata pelajaran sendiri (dulu role TEACHER/HOMEROOM). */
 function isTeachingStaff(user: AuthUser) {
   return userCan(user, "grade.manage") || userCan(user, "attendance.record");
+}
+
+/** Nilai untuk <input type="datetime-local"> (waktu lokal server). */
+function toDateTimeInput(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Persen 0-100 dari nilai mentah pada skala komponennya. Diklem sebagai
+ * pertahanan berlapis: data lama yang terlanjur melebihi maxScore (mis. karena
+ * maxScore pernah diubah tanpa penskalaan ulang) tidak boleh tampil di atas 100.
+ */
+function scorePercent(score: number, maxScore: number): number {
+  if (!(maxScore > 0)) return 0;
+  return Math.min(100, Math.max(0, (score / maxScore) * 100));
 }
 
 export function formatRelative(date: Date): string {
@@ -158,7 +173,9 @@ export const getDashboardData = cache(async (user: AuthUser) => {
         where: { deletedAt: null, status: CourseStatus.PUBLISHED, ...teacherScope },
         orderBy: { createdAt: "desc" },
         take: 6,
-        select: { id: true, title: true, _count: { select: { enrollments: true } } },
+        // Hanya enrolmen ACTIVE yang dihitung: santri yang enrolmennya dibatalkan
+        // sudah hilang dari rapor & papan nilai, jadi tidak boleh ikut terhitung.
+        select: { id: true, title: true, _count: { select: { enrollments: { where: { status: EnrollmentStatus.ACTIVE } } } } },
       }),
       prisma.attendanceRecord.groupBy({
         by: ["status"],
@@ -197,7 +214,7 @@ export const getDashboardData = cache(async (user: AuthUser) => {
   type FeedItem = { who: string; text: string; at: Date; tag: string };
   const feedRaw: FeedItem[] = [
     ...recentGradeItems.map((g) => ({
-      who: g.course.teacher?.name ?? "Pengajar",
+      who: g.course.teacher?.name ?? "Ustadz",
       text: `menambahkan komponen nilai "${g.title}" di ${g.course.title}`,
       at: g.createdAt,
       tag: "Nilai",
@@ -312,7 +329,9 @@ export const getCourseOverview = cache(async (user: AuthUser) => {
       level: true,
       teacherId: true,
       teacher: { select: { name: true } },
-      _count: { select: { enrollments: true, scheduleSlots: true } },
+      // Jumlah santri = enrolmen ACTIVE saja, sama seperti daftar peserta di
+      // halaman detail mapel dan penilaian.
+      _count: { select: { enrollments: { where: { status: EnrollmentStatus.ACTIVE } }, scheduleSlots: true } },
     },
   });
 
@@ -388,19 +407,55 @@ async function courseTabsFor(user: AuthUser) {
   });
 }
 
+export type GradeColumn = {
+  id: string;
+  title: string;
+  maxScore: number;
+  weight: number;
+  /** Nilai untuk <input type="date">, "" bila tanpa tenggat. */
+  dueAt: string;
+  recordCount: number;
+};
+export type GradeRow = {
+  studentId: string;
+  name: string;
+  studentNumber: string;
+  scores: (number | null)[];
+  avg: number;
+};
+
 export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = userCan(user, "grade.manage");
 
   if (!activeCourseId) {
-    return { courses, activeCourseId: null, columns: [], rows: [], canEdit };
+    return {
+      courses,
+      activeCourseId: null,
+      columns: [] as GradeColumn[],
+      rows: [] as GradeRow[],
+      canEdit: false,
+      teacherName: null as string | null,
+      weightTotal: 0,
+    };
   }
 
   const course = await prisma.course.findUnique({
     where: { id: activeCourseId },
     select: {
-      gradeItems: { orderBy: { createdAt: "asc" }, select: { id: true, title: true, maxScore: true, records: { select: { studentId: true, score: true } } } },
+      teacherId: true,
+      teacher: { select: { name: true } },
+      gradeItems: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          title: true,
+          maxScore: true,
+          weight: true,
+          dueAt: true,
+          records: { select: { studentId: true, score: true } },
+        },
+      },
       enrollments: {
         where: { status: EnrollmentStatus.ACTIVE },
         orderBy: { student: { name: "asc" } },
@@ -409,14 +464,25 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
     },
   });
 
-  const columns = (course?.gradeItems ?? []).map((g) => ({ id: g.id, title: g.title, maxScore: g.maxScore }));
+  // Hanya pengampu yang ditugaskan pada mapel ini yang boleh mengubah nilai,
+  // sama persis dengan pagar di server action-nya.
+  const canEdit = userCan(user, "grade.manage") && course?.teacherId === user.id;
+
+  const columns: GradeColumn[] = (course?.gradeItems ?? []).map((g) => ({
+    id: g.id,
+    title: g.title,
+    maxScore: g.maxScore,
+    weight: g.weight,
+    dueAt: g.dueAt ? toDateKey(g.dueAt) : "",
+    recordCount: g.records.length,
+  }));
   const recordsByGradeItem = new Map(
     (course?.gradeItems ?? []).map((g) => [g.id, new Map(g.records.map((record) => [record.studentId, record.score]))]),
   );
-  const rows = (course?.enrollments ?? []).map((e) => {
+  const rows: GradeRow[] = (course?.enrollments ?? []).map((e) => {
     const scores = (course?.gradeItems ?? []).map((g) => {
       const score = recordsByGradeItem.get(g.id)?.get(e.student.id);
-      return score === undefined ? null : Math.round((score / g.maxScore) * 100);
+      return score === undefined ? null : Math.round(scorePercent(score, g.maxScore));
     });
     const present = scores.filter((s): s is number => s !== null);
     const avg = present.length ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : 0;
@@ -429,25 +495,57 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
     };
   });
 
-  return { courses, activeCourseId, columns, rows, canEdit };
+  return {
+    courses,
+    activeCourseId,
+    columns,
+    rows,
+    canEdit,
+    teacherName: course?.teacher?.name ?? null,
+    weightTotal: columns.reduce((sum, c) => sum + c.weight, 0),
+  };
 });
 
 /* -------------------------------------------------------------------------- */
 /*                                 attendance                                  */
 /* -------------------------------------------------------------------------- */
 
+export type AttendanceSessionColumn = {
+  id: string;
+  title: string;
+  date: string;
+  /** Nilai untuk <input type="datetime-local">. */
+  heldAt: string;
+  recordCount: number;
+};
+export type AttendanceRow = {
+  studentId: string;
+  name: string;
+  studentNumber: string;
+  /** null = belum ditandai sama sekali (bukan hadir). */
+  marks: (AttendanceStatus | null)[];
+};
+
 export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string) => {
   const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
-  const canEdit = userCan(user, "attendance.record");
 
   if (!activeCourseId) {
-    return { courses, activeCourseId: null, sessions: [], rows: [], canEdit };
+    return {
+      courses,
+      activeCourseId: null,
+      sessions: [] as AttendanceSessionColumn[],
+      rows: [] as AttendanceRow[],
+      canEdit: false,
+      teacherName: null as string | null,
+    };
   }
 
   const course = await prisma.course.findUnique({
     where: { id: activeCourseId },
     select: {
+      teacherId: true,
+      teacher: { select: { name: true } },
       attendanceSessions: {
         orderBy: { heldAt: "asc" },
         select: { id: true, title: true, heldAt: true, records: { select: { studentId: true, status: true } } },
@@ -460,22 +558,28 @@ export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string
     },
   });
 
-  const sessions = (course?.attendanceSessions ?? []).map((s) => ({
+  // Hanya pengampu yang ditugaskan pada mapel ini yang boleh mencatat absensi,
+  // sama persis dengan pagar di server action-nya.
+  const canEdit = userCan(user, "attendance.record") && course?.teacherId === user.id;
+
+  const sessions: AttendanceSessionColumn[] = (course?.attendanceSessions ?? []).map((s) => ({
     id: s.id,
     title: s.title,
     date: new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(s.heldAt),
+    heldAt: toDateTimeInput(s.heldAt),
+    recordCount: s.records.length,
   }));
   const recordsBySession = new Map(
     (course?.attendanceSessions ?? []).map((s) => [s.id, new Map(s.records.map((record) => [record.studentId, record.status]))]),
   );
-  const rows = (course?.enrollments ?? []).map((e) => {
+  const rows: AttendanceRow[] = (course?.enrollments ?? []).map((e) => {
     const marks = (course?.attendanceSessions ?? []).map((s) => {
       return recordsBySession.get(s.id)?.get(e.student.id) ?? null;
     });
     return { studentId: e.student.id, name: e.student.name, studentNumber: e.student.studentNumber, marks };
   });
 
-  return { courses, activeCourseId, sessions, rows, canEdit };
+  return { courses, activeCourseId, sessions, rows, canEdit, teacherName: course?.teacher?.name ?? null };
 });
 
 /* -------------------------------------------------------------------------- */
@@ -532,42 +636,52 @@ export const getParentChildren = cache(async (parentId: string) => {
       level: true,
       className: true,
       studentNumber: true,
-      _count: { select: { enrollments: true } },
+      // Hanya enrolmen ACTIVE: mapel yang enrolmennya dibatalkan sudah tidak
+      // muncul di rapor maupun di halaman rincian anak.
+      _count: { select: { enrollments: { where: { status: EnrollmentStatus.ACTIVE } } } },
     },
   });
   const childIds = children.map((child) => child.id);
-  const [gradeRecords, attendanceGroups] = childIds.length
+  const [activeEnrollments, gradeRecords, attendanceRecords] = childIds.length
     ? await Promise.all([
+        prisma.enrollment.findMany({
+          where: { studentId: { in: childIds }, status: EnrollmentStatus.ACTIVE },
+          select: { studentId: true, courseId: true },
+        }),
         prisma.gradeRecord.findMany({
           where: { studentId: { in: childIds } },
-          select: { studentId: true, score: true, gradeItem: { select: { maxScore: true } } },
+          select: { studentId: true, score: true, gradeItem: { select: { courseId: true, maxScore: true } } },
         }),
-        prisma.attendanceRecord.groupBy({
-          by: ["studentId", "status"],
+        prisma.attendanceRecord.findMany({
           where: { studentId: { in: childIds } },
-          _count: { status: true },
+          select: { studentId: true, status: true, attendanceSession: { select: { courseId: true } } },
         }),
       ])
-    : [[], []];
-  const gradesByChild = new Map<string, typeof gradeRecords>();
+    : [[], [], []];
+  // Catatan nilai/kehadiran milik enrolmen yang dibatalkan tetap tersimpan, tapi
+  // tidak boleh ikut dirata-rata: mapelnya sudah tidak diikuti santri ini lagi.
+  const enrollmentKey = (studentId: string, courseId: string) => `${studentId}:${courseId}`;
+  const activeCourses = new Set(activeEnrollments.map((e) => enrollmentKey(e.studentId, e.courseId)));
+  const gradesByChild = new Map<string, { sum: number; count: number }>();
   for (const record of gradeRecords) {
-    const rows = gradesByChild.get(record.studentId) ?? [];
-    rows.push(record);
-    gradesByChild.set(record.studentId, rows);
+    if (!activeCourses.has(enrollmentKey(record.studentId, record.gradeItem.courseId))) continue;
+    const current = gradesByChild.get(record.studentId) ?? { sum: 0, count: 0 };
+    current.sum += scorePercent(record.score, record.gradeItem.maxScore);
+    current.count += 1;
+    gradesByChild.set(record.studentId, current);
   }
   const attendanceByChild = new Map<string, { present: number; total: number }>();
-  for (const group of attendanceGroups) {
-    const current = attendanceByChild.get(group.studentId) ?? { present: 0, total: 0 };
-    current.total += group._count.status;
-    if (group.status === AttendanceStatus.PRESENT) current.present += group._count.status;
-    attendanceByChild.set(group.studentId, current);
+  for (const record of attendanceRecords) {
+    if (!activeCourses.has(enrollmentKey(record.studentId, record.attendanceSession.courseId))) continue;
+    const current = attendanceByChild.get(record.studentId) ?? { present: 0, total: 0 };
+    current.total += 1;
+    if (record.status === AttendanceStatus.PRESENT) current.present += 1;
+    attendanceByChild.set(record.studentId, current);
   }
 
   return children.map((c) => {
-    const grades = gradesByChild.get(c.id) ?? [];
-    const avg = grades.length
-      ? Math.round(grades.reduce((s, r) => s + (r.score / r.gradeItem.maxScore) * 100, 0) / grades.length)
-      : 0;
+    const grades = gradesByChild.get(c.id) ?? { sum: 0, count: 0 };
+    const avg = grades.count ? Math.round(grades.sum / grades.count) : 0;
     const att = attendanceByChild.get(c.id) ?? { present: 0, total: 0 };
     return {
       childId: c.id,
@@ -598,7 +712,10 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
   if (!profile) return null;
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { studentId: childId, course: { deletedAt: null } },
+    // Hanya enrolmen ACTIVE — sama seperti buildReportDraft. Mapel yang
+    // enrolmennya dibatalkan tidak boleh tampil di portal wali padahal sudah
+    // hilang dari rapor cetak.
+    where: { studentId: childId, status: EnrollmentStatus.ACTIVE, course: { deletedAt: null } },
     orderBy: { course: { title: "asc" } },
     select: {
       course: {
@@ -627,7 +744,7 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
   const courses = enrollments.map((e) => {
     const grades = e.course.gradeItems.map((g) => {
       const rec = g.records[0];
-      const value = rec ? Math.round((rec.score / g.maxScore) * 100) : null;
+      const value = rec ? Math.round(scorePercent(rec.score, g.maxScore)) : null;
       if (value !== null) {
         gradeSum += value;
         gradeCount += 1;
@@ -637,7 +754,7 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
     const present = grades.filter((g) => g.value !== null);
     const courseAvg = present.length ? Math.round(present.reduce((s, g) => s + (g.value as number), 0) / present.length) : 0;
 
-    const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<AttendanceStatus, number>;
+    const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0, SICK: 0 } satisfies Record<AttendanceStatus, number>;
     for (const s of e.course.attendanceSessions) {
       const rec = s.records[0];
       if (rec) {
@@ -646,7 +763,7 @@ export const getChildDetail = cache(async (parentId: string, childId: string) =>
         if (rec.status === AttendanceStatus.PRESENT) attPresent += 1;
       }
     }
-    const courseAttTotal = marks.PRESENT + marks.LATE + marks.ABSENT + marks.EXCUSED;
+    const courseAttTotal = marks.PRESENT + marks.LATE + marks.ABSENT + marks.EXCUSED + marks.SICK;
 
     return {
       id: e.course.id,
@@ -774,145 +891,6 @@ export const getParentScheduleBoard = cache(async (parentId: string) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/*                                rapor (staff)                               */
-/* -------------------------------------------------------------------------- */
-
-/** Rekap nilai + absensi per mapel untuk satu santri pada satu periode. */
-export async function computeReportEntries(studentId: string, period: Period) {
-  const enrollments = await prisma.enrollment.findMany({
-    where: { studentId, course: { deletedAt: null } },
-    orderBy: { course: { title: "asc" } },
-    select: {
-      course: {
-        select: {
-          id: true,
-          title: true,
-          gradeItems: {
-            where: { semester: period.semester, academicYear: period.academicYear },
-            select: { maxScore: true, records: { where: { studentId }, select: { score: true } } },
-          },
-          attendanceSessions: {
-            where: { semester: period.semester, academicYear: period.academicYear },
-            select: { records: { where: { studentId }, select: { status: true } } },
-          },
-        },
-      },
-    },
-  });
-
-  return enrollments.map(({ course }) => {
-    const values = course.gradeItems
-      .filter((g) => g.records.length > 0)
-      .map((g) => Math.round((g.records[0].score / g.maxScore) * 100));
-    const finalScore = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
-
-    const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<AttendanceStatus, number>;
-    for (const session of course.attendanceSessions) {
-      const rec = session.records[0];
-      if (rec) marks[rec.status] += 1;
-    }
-
-    return {
-      courseId: course.id,
-      courseTitle: course.title,
-      finalScore,
-      present: marks.PRESENT,
-      late: marks.LATE,
-      absent: marks.ABSENT,
-      excused: marks.EXCUSED,
-    };
-  });
-}
-
-/** Daftar santri satu kelas + status rapor mereka pada periode itu. */
-export const getReportBoard = cache(async (period: Period, className?: string) => {
-  const classRows = await prisma.studentProfile.findMany({
-    distinct: ["className"],
-    orderBy: { className: "asc" },
-    select: { className: true },
-  });
-  const classes = classRows.map((row) => row.className);
-  const activeClass = className && classes.includes(className) ? className : classes[0] ?? null;
-
-  if (!activeClass) {
-    return { classes, activeClass: null, students: [] };
-  }
-
-  const students = await prisma.studentProfile.findMany({
-    where: { className: activeClass },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      studentNumber: true,
-      level: true,
-      reportCards: {
-        where: { semester: period.semester, academicYear: period.academicYear },
-        select: { id: true, status: true, publishedAt: true },
-      },
-    },
-  });
-
-  return {
-    classes,
-    activeClass,
-    students: students.map((s) => ({
-      studentId: s.id,
-      name: s.name,
-      studentNumber: s.studentNumber,
-      level: s.level,
-      reportCard: s.reportCards[0] ?? null,
-    })),
-  };
-});
-
-/** Detail satu rapor untuk staf (semua status) berikut barisnya. */
-export const getReportCardDetail = cache(async (reportCardId: string) => {
-  return prisma.reportCard.findUnique({
-    where: { id: reportCardId },
-    select: {
-      id: true,
-      semester: true,
-      academicYear: true,
-      homeroomNote: true,
-      status: true,
-      publishedAt: true,
-      createdBy: { select: { name: true } },
-      student: { select: { id: true, name: true, studentNumber: true, className: true, level: true } },
-      entries: {
-        orderBy: { courseTitle: "asc" },
-        select: { id: true, courseTitle: true, finalScore: true, present: true, late: true, absent: true, excused: true },
-      },
-    },
-  });
-});
-
-/** Rapor PUBLISHED milik satu anak, hanya jika anak itu milik wali peminta. */
-export const getChildReportCards = cache(async (parentId: string, childId: string) => {
-  const child = await prisma.studentProfile.findFirst({
-    where: { id: childId, parentId },
-    select: { id: true },
-  });
-  if (!child) return null;
-
-  return prisma.reportCard.findMany({
-    where: { studentId: childId, status: ReportCardStatus.PUBLISHED },
-    orderBy: [{ academicYear: "desc" }, { semester: "desc" }],
-    select: {
-      id: true,
-      semester: true,
-      academicYear: true,
-      homeroomNote: true,
-      publishedAt: true,
-      entries: {
-        orderBy: { courseTitle: "asc" },
-        select: { id: true, courseTitle: true, finalScore: true, present: true, late: true, absent: true, excused: true },
-      },
-    },
-  });
-});
-
-/* -------------------------------------------------------------------------- */
 /*                          announcements (informasi)                         */
 /* -------------------------------------------------------------------------- */
 
@@ -940,37 +918,6 @@ export const getParentLevels = cache(async (parentId: string) => {
   const rows = await prisma.studentProfile.findMany({ where: { parentId }, select: { level: true } });
   const set = new Set(rows.map((r) => r.level));
   return [...set];
-});
-
-/* -------------------------------------------------------------------------- */
-/*                           admissions (pendaftaran)                         */
-/* -------------------------------------------------------------------------- */
-
-export const getAdmissions = cache(async () => {
-  return prisma.admission.findMany({
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    take: 100,
-    select: {
-      id: true,
-      childName: true,
-      level: true,
-      gender: true,
-      birthPlace: true,
-      birthDate: true,
-      previousSchool: true,
-      parentName: true,
-      parentPhone: true,
-      parentEmail: true,
-      address: true,
-      note: true,
-      familyCardUrl: true,
-      birthCertificateUrl: true,
-      previousReportUrl: true,
-      photoUrl: true,
-      status: true,
-      createdAt: true,
-    },
-  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -1034,7 +981,7 @@ export const getStaffAttendanceRecap = cache(async (dateKey: string) => {
     }),
   ]);
 
-  const empty = () => ({ present: 0, late: 0, absent: 0, excused: 0 });
+  const empty = () => ({ present: 0, late: 0, absent: 0, excused: 0, sick: 0 });
   const byTeacher = new Map(teachers.map((t) => [t.id, empty()]));
   for (const r of records) {
     const c = byTeacher.get(r.teacherId);
@@ -1042,6 +989,7 @@ export const getStaffAttendanceRecap = cache(async (dateKey: string) => {
     if (r.status === AttendanceStatus.PRESENT) c.present += 1;
     else if (r.status === AttendanceStatus.LATE) c.late += 1;
     else if (r.status === AttendanceStatus.ABSENT) c.absent += 1;
+    else if (r.status === AttendanceStatus.SICK) c.sick += 1;
     else c.excused += 1;
   }
 

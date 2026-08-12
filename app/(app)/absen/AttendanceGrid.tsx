@@ -5,17 +5,26 @@ import { useRouter } from "next/navigation";
 import { Avatar, Button, Card, Icons } from "@/components/ui";
 import { markAllPresentAction, setAttendanceStatusAction } from "../actions";
 
-type Status = "PRESENT" | "EXCUSED" | "LATE" | "ABSENT";
+type Status = "PRESENT" | "EXCUSED" | "SICK" | "LATE" | "ABSENT";
 type Row = { studentId: string; name: string; studentNumber: string; marks: (Status | null)[] };
 type Session = { id: string; title: string; date: string };
 
-const META: Record<Status, { code: string; label: string; color: string; soft: string }> = {
+type Mark = { code: string; label: string; color: string; soft: string };
+
+const META: Record<Status, Mark> = {
   PRESENT: { code: "H", label: "Hadir", color: "var(--green)", soft: "var(--green-soft)" },
   EXCUSED: { code: "I", label: "Izin", color: "var(--primary)", soft: "var(--primary-soft)" },
+  SICK: { code: "S", label: "Sakit", color: "var(--teal)", soft: "var(--teal-soft)" },
   LATE: { code: "T", label: "Terlambat", color: "var(--amber)", soft: "var(--amber-soft)" },
   ABSENT: { code: "A", label: "Alpa", color: "var(--red)", soft: "var(--red-soft)" },
 };
-const ORDER: Status[] = ["PRESENT", "EXCUSED", "LATE", "ABSENT"];
+/** Santri tanpa catatan sama sekali: netral, jelas berbeda dari "Hadir". */
+const UNMARKED: Mark = { code: "–", label: "Belum ditandai", color: "var(--text-3)", soft: "var(--surface-2)" };
+const ORDER: Status[] = ["PRESENT", "EXCUSED", "SICK", "LATE", "ABSENT"];
+
+function markOf(status: Status | null): Mark {
+  return status === null ? UNMARKED : META[status];
+}
 
 export function AttendanceGrid({
   sessions,
@@ -34,8 +43,9 @@ export function AttendanceGrid({
   function cycle(rowIdx: number, colIdx: number) {
     if (!canEdit) return;
     const session = sessions[colIdx];
-    const cur = rows[rowIdx].marks[colIdx] ?? "PRESENT";
-    const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
+    const cur = rows[rowIdx].marks[colIdx];
+    // Dari "belum ditandai" ketukan pertama menandai Hadir, lalu berputar seperti biasa.
+    const next = cur === null ? ORDER[0] : ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
     setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, marks: r.marks.map((m, c) => (c === colIdx ? next : m)) } : r)));
     startTransition(async () => {
       await setAttendanceStatusAction({ sessionId: session.id, studentId: rows[rowIdx].studentId, status: next });
@@ -46,7 +56,8 @@ export function AttendanceGrid({
     if (!canEdit || todayCol < 0) return;
     setRows((prev) => prev.map((r) => ({ ...r, marks: r.marks.map((m, c) => (c === todayCol ? "PRESENT" : m)) })));
     startTransition(async () => {
-      await markAllPresentAction(sessions[todayCol].id);
+      const res = await markAllPresentAction(sessions[todayCol].id);
+      if (!res.ok) alert(res.message ?? "Gagal menandai kehadiran.");
       router.refresh();
     });
   }
@@ -92,8 +103,10 @@ export function AttendanceGrid({
             </thead>
             <tbody>
               {rows.map((r, ri) => {
+                // Persentase hanya atas sesi yang benar-benar tercatat, bukan seluruh sesi.
+                const recorded = r.marks.filter((m) => m !== null).length;
                 const present = r.marks.filter((m) => m === "PRESENT").length;
-                const pct = r.marks.length ? Math.round((present / r.marks.length) * 100) : 0;
+                const pct = recorded ? Math.round((present / recorded) * 100) : null;
                 return (
                   <tr key={r.studentId} className="border-t border-line">
                     <td className="sticky left-0 z-[1] bg-surface px-3.5 py-2.5">
@@ -104,12 +117,13 @@ export function AttendanceGrid({
                       </div>
                     </td>
                     {r.marks.map((m, ci) => {
-                      const meta = META[m ?? "PRESENT"];
+                      const meta = markOf(m);
                       return (
                         <td key={ci} className="px-1.5 py-2 text-center">
                           <button
                             onClick={() => cycle(ri, ci)}
                             disabled={!canEdit}
+                            title={`${sessions[ci].title} — ${meta.label}`}
                             className="grid h-[30px] w-[30px] place-items-center rounded-lg text-[12.5px] font-bold transition active:scale-90"
                             style={{
                               background: meta.soft,
@@ -124,12 +138,16 @@ export function AttendanceGrid({
                       );
                     })}
                     <td className="px-3.5 py-2.5 text-center">
-                      <span
-                        className="text-[13.5px] font-bold"
-                        style={{ color: pct >= 90 ? "var(--green)" : pct >= 75 ? "var(--amber)" : "var(--red)" }}
-                      >
-                        {pct}%
-                      </span>
+                      {pct === null ? (
+                        <span className="text-[13.5px] font-bold text-ink-3">–</span>
+                      ) : (
+                        <span
+                          className="text-[13.5px] font-bold"
+                          style={{ color: pct >= 90 ? "var(--green)" : pct >= 75 ? "var(--amber)" : "var(--red)" }}
+                        >
+                          {pct}%
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -137,18 +155,19 @@ export function AttendanceGrid({
             </tbody>
           </table>
         </div>
-        <div className="flex flex-wrap gap-4 border-t border-line bg-surface-2 px-4 py-3">
-          {ORDER.map((s) => (
-            <div key={s} className="flex items-center gap-2 text-[12.5px] text-ink-2">
+        <div className="flex flex-wrap items-center gap-4 border-t border-line bg-surface-2 px-4 py-3">
+          {[...ORDER.map((s) => META[s]), UNMARKED].map((meta) => (
+            <div key={meta.label} className="flex items-center gap-2 text-[12.5px] text-ink-2">
               <span
                 className="grid h-[22px] w-[22px] place-items-center rounded-md text-[11px] font-bold"
-                style={{ background: META[s].soft, color: META[s].color }}
+                style={{ background: meta.soft, color: meta.color, border: meta.code === "–" ? "1px solid var(--border)" : "none" }}
               >
-                {META[s].code}
+                {meta.code}
               </span>
-              {META[s].label}
+              {meta.label}
             </div>
           ))}
+          <span className="text-[12px] text-ink-3">% dihitung dari sesi yang sudah ditandai saja.</span>
         </div>
       </Card>
     </>

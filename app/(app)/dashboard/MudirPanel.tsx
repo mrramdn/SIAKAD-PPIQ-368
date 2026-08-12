@@ -9,15 +9,16 @@ type AttentionItem = {
   issues: string[];
 };
 
-const STATUS_META: Record<string, { label: string; tone: "success" | "primary" | "warning" | "danger" }> = {
+const STATUS_META: Record<string, { label: string; tone: "success" | "primary" | "warning" | "danger" | "accent" }> = {
   PRESENT: { label: "Hadir", tone: "success" },
   EXCUSED: { label: "Izin", tone: "primary" },
+  SICK: { label: "Sakit", tone: "accent" },
   LATE: { label: "Terlambat", tone: "warning" },
   ABSENT: { label: "Alpa", tone: "danger" },
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  TEACHER: "Pengajar",
+  TEACHER: "Ustadz",
   HOMEROOM: "Wali Kelas",
 };
 

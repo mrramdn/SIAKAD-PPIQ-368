@@ -9,20 +9,22 @@ import {
   getStaffAttendanceRecap,
   toDateKey,
 } from "@/lib/lms";
+import { ROLE_LABEL, type Role } from "@/lib/permissions";
 import { Badge, Card, Field, Icons, buttonClasses, inputClasses } from "@/components/ui";
 import { saveBkkhReportAction, saveStaffAttendanceAction } from "../actions";
 
+// Harus memuat seluruh AttendanceStatus yang bisa disimpan lewat
+// saveStaffAttendanceAction, termasuk Sakit, supaya badge-nya tidak kosong.
 const STATUS_META = [
   { key: "PRESENT", label: "Hadir", color: "var(--green)" },
   { key: "EXCUSED", label: "Izin", color: "var(--primary)" },
+  { key: "SICK", label: "Sakit", color: "var(--teal)" },
   { key: "LATE", label: "Terlambat", color: "var(--amber)" },
   { key: "ABSENT", label: "Alpa", color: "var(--red)" },
 ] as const;
 
-const ROLE_LABEL: Record<string, string> = { TEACHER: "Pengajar", HOMEROOM: "Wali Kelas" };
-
 function roleLabel(roles: readonly string[]): string {
-  return roles.map((r) => ROLE_LABEL[r] ?? r).join(" & ");
+  return roles.map((r) => ROLE_LABEL[r as Role] ?? r).join(" & ");
 }
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -145,7 +147,7 @@ export default async function AbsenUstadzPage({
         </div>
 
         {board.length === 0 ? (
-          <p className="py-8 text-center text-sm text-ink-3">Belum ada akun pengajar atau wali kelas terverifikasi.</p>
+          <p className="py-8 text-center text-sm text-ink-3">Belum ada akun ustadz atau wali kelas terverifikasi.</p>
         ) : (
           <div className="divide-y divide-line">
             {board.map((row) => {
@@ -240,7 +242,7 @@ export default async function AbsenUstadzPage({
                   required
                   maxLength={120}
                   defaultValue={myReport?.assignment ?? ""}
-                  placeholder="Contoh: Pengasuhan santri atau pengajar tahfiz"
+                  placeholder="Contoh: Pengasuhan santri atau ustadz tahfiz"
                   className={inputClasses}
                 />
               </Field>
@@ -332,6 +334,7 @@ export default async function AbsenUstadzPage({
                   </td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--green)" }}>{row.present}</td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--primary)" }}>{row.excused}</td>
+                  <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--teal)" }}>{row.sick}</td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--amber)" }}>{row.late}</td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums" style={{ color: "var(--red)" }}>{row.absent}</td>
                   <td className="px-4 py-3 text-center text-sm font-extrabold tabular-nums text-ink-2">{bkkhMonthly.get(row.id) ?? 0}</td>

@@ -2,7 +2,9 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import {
+  AdmissionDocumentKind,
   AdmissionStatus,
+  AssessmentGroupKind,
   AttendanceStatus,
   CourseStatus,
   EducationLevel,
@@ -22,7 +24,6 @@ if (!connectionString) {
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 const DAY = 24 * 60 * 60 * 1000;
-const GRADE_COLS = ["Tugas", "UH 1", "UH 2", "UTS", "Proyek"];
 
 /** Periode berjalan: Juli-Desember = GANJIL tahun berjalan, Januari-Juni = GENAP tahun sebelumnya. */
 function currentPeriod(now = new Date()) {
@@ -33,117 +34,511 @@ function currentPeriod(now = new Date()) {
 }
 const PERIOD = currentPeriod();
 
-/* deterministic helpers so reseeding stays stable */
-function det(a: number, b: number) {
-  return Math.max(55, Math.min(98, Math.round(80 + Math.sin(a * 1.3 + b * 0.7) * 14)));
+/* Data demo Pondok Pesantren Integritas Qur'ani 368 (PPIQ-368), Jl. Ciwaruga,
+   Parongpong, Bandung Barat. Skalanya sengaja kecil (3 kelas, 12 santri berkelas)
+   tapi isinya masuk akal, dan setiap skenario uji black-box punya baris datanya
+   sendiri — pemetaannya ada di SKENARIO-UJI.md. */
+
+/** Satu kata sandi demo untuk semua akun; sengaja tidak ditampilkan di aplikasi. */
+const DEMO_PASSWORD = "password123";
+const EMAIL_DOMAIN = "ppiq368.sch.id";
+
+function slugify(title: string) {
+  return title
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
-function attStatus(seed: number): AttendanceStatus {
-  const r = (Math.sin(seed) + 1) / 2;
-  if (r > 0.92) return AttendanceStatus.ABSENT;
-  if (r > 0.84) return AttendanceStatus.LATE;
-  if (r > 0.76) return AttendanceStatus.EXCUSED;
-  return AttendanceStatus.PRESENT;
+
+/** Hash string sederhana; dipakai agar angka demo tetap sama tiap kali seed diulang. */
+function hashCode(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  return Math.abs(hash);
 }
+
+/** Nilai komponen 62-96 yang deterministik terhadap santri + mapel + komponen. */
+function det(...parts: string[]) {
+  return 62 + (hashCode(parts.join("|")) % 35);
+}
+
+const TERBILANG = [
+  "Nol",
+  "Satu",
+  "Dua",
+  "Tiga",
+  "Empat",
+  "Lima",
+  "Enam",
+  "Tujuh",
+  "Delapan",
+  "Sembilan",
+  "Sepuluh",
+] as const;
+
+/** Terbilang 0-10; cukup untuk skala rapor pondok (maksimal 7). Selaras dengan lib/rapor.ts. */
+function terbilang(value: number) {
+  return TERBILANG[value] ?? String(value);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                akun pengguna                               */
+/* -------------------------------------------------------------------------- */
+
+type StaffDef = { key: string; email: string; name: string; roles: UserRole[]; phone: string };
+
+/** 1 administrasi, 1 mudir, dan 6 ustadz (tiga di antaranya wali kelas). */
+const STAFF: StaffDef[] = [
+  {
+    key: "admin",
+    email: `administrasi@${EMAIL_DOMAIN}`,
+    name: "Ustadz Rahmat Hidayat, S.Pd.",
+    roles: [UserRole.ADMIN],
+    phone: "0812-2145-6601",
+  },
+  {
+    key: "mudir",
+    email: `mudir@${EMAIL_DOMAIN}`,
+    name: "Ustadz Abdurrahman Fauzi, Lc.",
+    roles: [UserRole.MUDIR],
+    phone: "0812-2145-6602",
+  },
+  // Skenario dua peran dalam satu akun: mengajar mapel sendiri sekaligus wali kelas SD-A.
+  {
+    key: "hamdan",
+    email: `hamdan.mutaqin@${EMAIL_DOMAIN}`,
+    name: "Ustadz Hamdan Mutaqin, S.Pd.",
+    roles: [UserRole.TEACHER, UserRole.HOMEROOM],
+    phone: "0813-9420-1187",
+  },
+  {
+    key: "salman",
+    email: `salman.ghifari@${EMAIL_DOMAIN}`,
+    name: "Ustadz Salman Al Ghifari, Lc.",
+    roles: [UserRole.HOMEROOM],
+    phone: "0813-9420-1188",
+  },
+  {
+    key: "ridwan",
+    email: `ridwan.nurhakim@${EMAIL_DOMAIN}`,
+    name: "Ustadz Ridwan Nurhakim, S.Pd.",
+    roles: [UserRole.HOMEROOM],
+    phone: "0813-9420-1189",
+  },
+  {
+    key: "taufiq",
+    email: `taufiq.ramadhan@${EMAIL_DOMAIN}`,
+    name: "Ustadz Taufiq Ramadhan, Lc.",
+    roles: [UserRole.TEACHER],
+    phone: "0821-1730-4455",
+  },
+  {
+    key: "hafidz",
+    email: `hafidz.maulana@${EMAIL_DOMAIN}`,
+    name: "Ustadz Hafidz Maulana, S.Pd.",
+    roles: [UserRole.TEACHER],
+    phone: "0821-1730-4456",
+  },
+  {
+    key: "imron",
+    email: `imron.nawawi@${EMAIL_DOMAIN}`,
+    name: "Ustadz Imron Nawawi, S.Pd.I.",
+    roles: [UserRole.TEACHER],
+    phone: "0821-1730-4457",
+  },
+];
+
+/** Ustadz (pengajar & wali kelas) — dipakai untuk absensi ustadz dan BKKH. */
+const TEACHING_KEYS = ["hamdan", "salman", "ridwan", "taufiq", "hafidz", "imron"] as const;
+
+type ParentDef = { key: string; email: string; name: string; phone: string; address: string };
+
+/** 8 wali santri di sekitar Parongpong / Bandung Barat. */
+const PARENTS: ParentDef[] = [
+  {
+    key: "hasan",
+    email: `wali.hasan@${EMAIL_DOMAIN}`,
+    name: "Bapak Hasan Basri",
+    phone: "0813-2244-7781",
+    address: "Kp. Ciwaruga RT 02/RW 05, Parongpong, Bandung Barat",
+  },
+  {
+    key: "mahmud",
+    email: `wali.mahmud@${EMAIL_DOMAIN}`,
+    name: "Bapak Mahmud Sanusi",
+    phone: "0852-2093-1164",
+    address: "Jl. Kolonel Masturi No. 112, Cihanjuang Rahayu, Parongpong",
+  },
+  {
+    key: "iskandar",
+    email: `wali.iskandar@${EMAIL_DOMAIN}`,
+    name: "Bapak Iskandar Ali",
+    phone: "0857-2311-8890",
+    address: "Kp. Cigugur Girang RT 03/RW 08, Parongpong, Bandung Barat",
+  },
+  {
+    key: "rosyid",
+    email: `wali.rosyid@${EMAIL_DOMAIN}`,
+    name: "Bapak Rosyid Anwar",
+    phone: "0812-2077-3345",
+    address: "Jl. Sersan Bajuri No. 45, Cihideung, Parongpong",
+  },
+  {
+    key: "jamaludin",
+    email: `wali.jamaludin@${EMAIL_DOMAIN}`,
+    name: "Bapak Jamaludin Akbar",
+    phone: "0896-5512-7702",
+    address: "Kp. Panyandaan RT 04/RW 09, Cihideung, Parongpong",
+  },
+  {
+    key: "sofyan",
+    email: `wali.sofyan@${EMAIL_DOMAIN}`,
+    name: "Bapak Sofyan Hadi",
+    phone: "0877-3120-6654",
+    address: "Komplek Permata Cimahi Blok C2 No. 7, Ngamprah, Bandung Barat",
+  },
+  {
+    key: "nurhayati",
+    email: `wali.nurhayati@${EMAIL_DOMAIN}`,
+    name: "Ibu Nurhayati Sri Wahyuni",
+    phone: "0895-3388-2210",
+    address: "Kp. Sukamaju RT 01/RW 04, Cisarua, Bandung Barat",
+  },
+  {
+    key: "dewi",
+    email: `wali.dewi@${EMAIL_DOMAIN}`,
+    name: "Ibu Dewi Ratnasari",
+    phone: "0821-1600-4478",
+    address: "Jl. Raya Lembang No. 88, Lembang, Bandung Barat",
+  },
+];
+
+/* -------------------------------------------------------------------------- */
+/*                               kelas & santri                               */
+/* -------------------------------------------------------------------------- */
+
+type ClassDef = { key: string; name: string; level: EducationLevel; homeroomKey: string };
+
+const CLASSES: ClassDef[] = [
+  { key: "sd", name: "SD-A", level: EducationLevel.SD, homeroomKey: "hamdan" },
+  { key: "smp", name: "SMP-A", level: EducationLevel.SMP, homeroomKey: "salman" },
+  { key: "sma", name: "SMA-A", level: EducationLevel.SMA, homeroomKey: "ridwan" },
+];
+
+type StudentDef = {
+  studentNumber: string;
+  name: string;
+  level: EducationLevel;
+  /** null = belum ditempatkan di kelas mana pun (skenario uji). */
+  classKey: string | null;
+  /** null = wali santri belum memiliki akun aplikasi. */
+  parentKey: string | null;
+  phone: string;
+  address: string;
+};
+
+/**
+ * Nomor induk santri (NIS) 8 digit: 4 digit tahun masuk, 1 digit kode jenjang
+ * (1=SD, 2=SMP, 3=SMA), 3 digit nomor urut.
+ */
+const STUDENTS: StudentDef[] = [
+  // SD-A
+  {
+    studentNumber: "20261001",
+    name: "Zaid Abdullah Basri",
+    level: EducationLevel.SD,
+    classKey: "sd",
+    parentKey: "hasan",
+    phone: "0813-2244-7781",
+    address: "Kp. Ciwaruga RT 02/RW 05, Parongpong, Bandung Barat",
+  },
+  {
+    studentNumber: "20261002",
+    name: "Ibrahim Alfarizi",
+    level: EducationLevel.SD,
+    classKey: "sd",
+    parentKey: "mahmud",
+    phone: "0852-2093-1164",
+    address: "Jl. Kolonel Masturi No. 112, Cihanjuang Rahayu, Parongpong",
+  },
+  {
+    studentNumber: "20261003",
+    name: "Naufal Hakim Ramadhan",
+    level: EducationLevel.SD,
+    classKey: "sd",
+    parentKey: "iskandar",
+    phone: "0857-2311-8890",
+    address: "Kp. Cigugur Girang RT 03/RW 08, Parongpong, Bandung Barat",
+  },
+  {
+    studentNumber: "20261004",
+    name: "Yusuf Maulana Sidik",
+    level: EducationLevel.SD,
+    classKey: "sd",
+    parentKey: null,
+    phone: "0813-8842-9017",
+    address: "Kp. Karyawangi RT 05/RW 12, Parongpong, Bandung Barat",
+  },
+  // SMP-A
+  {
+    studentNumber: "20262001",
+    name: "Fatih Ahmad Basri",
+    level: EducationLevel.SMP,
+    classKey: "smp",
+    parentKey: "hasan",
+    phone: "0813-2244-7781",
+    address: "Kp. Ciwaruga RT 02/RW 05, Parongpong, Bandung Barat",
+  },
+  {
+    studentNumber: "20262002",
+    name: "Rifqi Nur Hidayat",
+    level: EducationLevel.SMP,
+    classKey: "smp",
+    parentKey: "rosyid",
+    phone: "0812-2077-3345",
+    address: "Jl. Sersan Bajuri No. 45, Cihideung, Parongpong",
+  },
+  {
+    studentNumber: "20262003",
+    name: "Ilham Baihaqi",
+    level: EducationLevel.SMP,
+    classKey: "smp",
+    parentKey: "jamaludin",
+    phone: "0896-5512-7702",
+    address: "Kp. Panyandaan RT 04/RW 09, Cihideung, Parongpong",
+  },
+  {
+    studentNumber: "20262004",
+    name: "Ahmad Zaki Mubarok",
+    level: EducationLevel.SMP,
+    classKey: "smp",
+    parentKey: null,
+    phone: "0857-9911-3376",
+    address: "Kp. Cihanjuang RT 02/RW 03, Parongpong, Bandung Barat",
+  },
+  // SMA-A
+  {
+    studentNumber: "20263001",
+    name: "Umar Faruq Wibowo",
+    level: EducationLevel.SMA,
+    classKey: "sma",
+    parentKey: "sofyan",
+    phone: "0877-3120-6654",
+    address: "Komplek Permata Cimahi Blok C2 No. 7, Ngamprah, Bandung Barat",
+  },
+  {
+    studentNumber: "20263002",
+    name: "Hafizh Abdul Aziz",
+    level: EducationLevel.SMA,
+    classKey: "sma",
+    parentKey: "nurhayati",
+    phone: "0895-3388-2210",
+    address: "Kp. Sukamaju RT 01/RW 04, Cisarua, Bandung Barat",
+  },
+  {
+    studentNumber: "20263003",
+    name: "Aqil Farhan Nugraha",
+    level: EducationLevel.SMA,
+    classKey: "sma",
+    parentKey: null,
+    phone: "0812-9043-5528",
+    address: "Jl. Cihanjuang No. 210, Cimahi Utara, Bandung Barat",
+  },
+  {
+    studentNumber: "20263004",
+    name: "Salim Fadhlurrahman",
+    level: EducationLevel.SMA,
+    classKey: "sma",
+    parentKey: null,
+    phone: "0821-2255-9014",
+    address: "Kp. Gunung Putri RT 03/RW 07, Lembang, Bandung Barat",
+  },
+  // Santri baru hasil PPDB yang sudah diterima tapi belum ditempatkan di kelas.
+  {
+    studentNumber: "20262005",
+    name: "Bilal Arrahman Saputra",
+    level: EducationLevel.SMP,
+    classKey: null,
+    parentKey: "dewi",
+    phone: "0821-1600-4478",
+    address: "Jl. Raya Lembang No. 88, Lembang, Bandung Barat",
+  },
+];
+
+/* -------------------------------------------------------------------------- */
+/*                          kurikulum & format rapor                          */
+/* -------------------------------------------------------------------------- */
 
 type CourseDef = {
   title: string;
-  slug: string;
-  description: string;
-  teacher: string;
-  className: string;
-  schedule: { dayOfWeek: number; startTime: string; room: string }[];
+  maxScore: number;
+  /** Kunci akun ustadz, atau "wali" untuk wali kelas kelas yang bersangkutan. */
+  teacherKey: string;
 };
 
-const COURSES: Record<EducationLevel, CourseDef[]> = {
-  SD: [
-    {
-      title: "Tematik Kelas 5",
-      slug: "tematik-kelas-5",
-      description: "Pembelajaran tematik terpadu: lingkungan, kesehatan, dan kebersamaan.",
-      teacher: "walikelas@pesantren.id",
-      className: "5A",
-      schedule: [{ dayOfWeek: 1, startTime: "07:30", room: "Kelas 5A" }, { dayOfWeek: 3, startTime: "07:30", room: "Kelas 5A" }],
-    },
-    {
-      title: "Tahfidz Juz 30",
-      slug: "tahfidz-juz-30",
-      description: "Hafalan dan tahsin surat-surat pendek Juz 30.",
-      teacher: "guru@pesantren.id",
-      className: "5A",
-      schedule: [{ dayOfWeek: 2, startTime: "09:00", room: "Aula" }],
-    },
-    {
-      title: "Matematika SD",
-      slug: "matematika-sd",
-      description: "Operasi pecahan, bangun datar, dan pengukuran dasar.",
-      teacher: "guru3@pesantren.id",
-      className: "5A",
-      schedule: [{ dayOfWeek: 4, startTime: "08:15", room: "Kelas 5A" }],
-    },
-  ],
-  SMP: [
-    {
-      title: "Matematika Kelas 8",
-      slug: "matematika-kelas-8",
-      description: "Sistem persamaan linear, teorema Pythagoras, dan statistika dasar.",
-      teacher: "guru3@pesantren.id",
-      className: "8A",
-      schedule: [{ dayOfWeek: 1, startTime: "07:30", room: "Ruang 8A" }, { dayOfWeek: 3, startTime: "07:30", room: "Ruang 8A" }],
-    },
-    {
-      title: "Bahasa Arab",
-      slug: "bahasa-arab-smp",
-      description: "Mufrodat, percakapan harian, dan kaidah nahwu dasar.",
-      teacher: "guru@pesantren.id",
-      className: "8A",
-      schedule: [{ dayOfWeek: 2, startTime: "10:00", room: "Ruang 8A" }],
-    },
-    {
-      title: "IPA Terpadu",
-      slug: "ipa-terpadu-smp",
-      description: "Sistem gerak, zat dan perubahannya, serta energi.",
-      teacher: "guru2@pesantren.id",
-      className: "8A",
-      schedule: [{ dayOfWeek: 4, startTime: "09:15", room: "Lab IPA" }],
-    },
-  ],
-  SMA: [
-    {
-      title: "Matematika Peminatan",
-      slug: "matematika-peminatan",
-      description: "Trigonometri, limit, dan turunan fungsi aljabar.",
-      teacher: "guru3@pesantren.id",
-      className: "11 IPA",
-      schedule: [{ dayOfWeek: 1, startTime: "08:00", room: "Ruang 11 IPA" }, { dayOfWeek: 3, startTime: "08:00", room: "Ruang 11 IPA" }],
-    },
-    {
-      title: "Fisika",
-      slug: "fisika-sma",
-      description: "Hukum Newton, usaha dan energi, serta momentum.",
-      teacher: "guru2@pesantren.id",
-      className: "11 IPA",
-      schedule: [{ dayOfWeek: 2, startTime: "09:15", room: "Lab Fisika" }, { dayOfWeek: 4, startTime: "09:15", room: "Lab Fisika" }],
-    },
-    {
-      title: "Tafsir & Hadits",
-      slug: "tafsir-hadits",
-      description: "Kajian tafsir ayat pilihan dan hadits arba'in.",
-      teacher: "guru@pesantren.id",
-      className: "11 IPA",
-      schedule: [{ dayOfWeek: 5, startTime: "07:30", room: "Aula" }],
-    },
-  ],
+type GroupDef = {
+  name: string;
+  kind: AssessmentGroupKind;
+  defaultMaxScore: number;
+  sortOrder: number;
+  courses: CourseDef[];
+  criteria: { name: string; maxScore: number }[];
 };
 
-const STUDENT_NAMES: Record<EducationLevel, string[]> = {
-  SD: ["Hafiz Maulana", "Aisyah Putri", "Rizky Ramadhan", "Nabila Zahra", "Faris Abdullah", "Khadijah Salma"],
-  SMP: ["Ahmad Fauzan", "Dimas Pratama", "Salsabila Hana", "Ridho Hidayat", "Maryam Lestari", "Ilham Nugroho"],
-  SMA: ["Siti Aminah", "Yusuf Maulana", "Annisa Rahma", "Fadhil Kurnia", "Zahwa Aulia", "Rafi Saputra"],
-};
+/**
+ * Komponen penilaian mengikuti naskah BAB III: Akademik, Akhlak, Tahfidz, dan
+ * Ekstrakurikuler. Nilai maksimal per mapel (7 atau 6) tetap seperti formulir
+ * rapor pondok. Kelompok ini master data biasa — administrasi boleh mengubahnya
+ * lewat /akademik tanpa perlu ubah kode.
+ */
+const GROUPS: GroupDef[] = [
+  {
+    name: "Akademik",
+    kind: AssessmentGroupKind.COURSE_SCORE,
+    defaultMaxScore: 7,
+    sortOrder: 1,
+    courses: [
+      { title: "Latihan Bahasa", maxScore: 7, teacherKey: "imron" },
+      { title: "Peribahasa Arab", maxScore: 7, teacherKey: "imron" },
+      { title: "Analisis / Membaca Kitab", maxScore: 7, teacherKey: "imron" },
+      { title: "Terjemah", maxScore: 7, teacherKey: "imron" },
+      { title: "Imla' / Dikte", maxScore: 7, teacherKey: "imron" },
+      { title: "Kaidah Bahasa", maxScore: 7, teacherKey: "imron" },
+      { title: "Bahasa Arab", maxScore: 7, teacherKey: "imron" },
+      { title: "Praktik Ibadah", maxScore: 7, teacherKey: "imron" },
+      { title: "Akidah & Akhlak", maxScore: 6, teacherKey: "imron" },
+      { title: "Ilmu Fikih", maxScore: 6, teacherKey: "imron" },
+      { title: "Bahasa Inggris / Tata Bahasa", maxScore: 7, teacherKey: "hafidz" },
+      { title: "Bahasa Inggris", maxScore: 7, teacherKey: "hafidz" },
+      { title: "Conversation", maxScore: 6, teacherKey: "hafidz" },
+      { title: "Reading Time", maxScore: 6, teacherKey: "hafidz" },
+      { title: "Sejarah Islam", maxScore: 6, teacherKey: "hafidz" },
+      { title: "Matematika", maxScore: 6, teacherKey: "hafidz" },
+      { title: "Fisika", maxScore: 6, teacherKey: "hafidz" },
+      { title: "IPA Terpadu", maxScore: 6, teacherKey: "hafidz" },
+      { title: "Komputer", maxScore: 6, teacherKey: "hafidz" },
+    ],
+    criteria: [],
+  },
+  {
+    name: "Akhlak",
+    kind: AssessmentGroupKind.BEHAVIOR,
+    defaultMaxScore: 7,
+    sortOrder: 2,
+    courses: [],
+    criteria: [
+      { name: "Kebersihan", maxScore: 7 },
+      { name: "Tata Tertib", maxScore: 7 },
+      { name: "Budaya / Perilaku", maxScore: 7 },
+      { name: "Jumlah Keseluruhan", maxScore: 7 },
+    ],
+  },
+  {
+    name: "Tahfidz",
+    kind: AssessmentGroupKind.COURSE_SCORE,
+    defaultMaxScore: 7,
+    sortOrder: 3,
+    courses: [
+      { title: "Hafalan Al-Qur'an", maxScore: 7, teacherKey: "taufiq" },
+      { title: "Membaca Al-Qur'an", maxScore: 7, teacherKey: "taufiq" },
+      { title: "Ilmu Tajwid", maxScore: 7, teacherKey: "taufiq" },
+      { title: "Tafsir", maxScore: 7, teacherKey: "taufiq" },
+      { title: "Hadis", maxScore: 7, teacherKey: "taufiq" },
+      { title: "Al-Qur'an-Hadis", maxScore: 6, teacherKey: "taufiq" },
+    ],
+    criteria: [],
+  },
+  {
+    name: "Ekstrakurikuler",
+    kind: AssessmentGroupKind.COURSE_SCORE,
+    defaultMaxScore: 6,
+    sortOrder: 4,
+    courses: [
+      { title: "Memanah", maxScore: 6, teacherKey: "wali" },
+      { title: "Berenang", maxScore: 6, teacherKey: "wali" },
+      { title: "Berkuda", maxScore: 6, teacherKey: "wali" },
+      { title: "Bela Diri", maxScore: 6, teacherKey: "wali" },
+      { title: "Olahraga", maxScore: 6, teacherKey: "wali" },
+      { title: "Pramuka", maxScore: 6, teacherKey: "wali" },
+    ],
+    criteria: [],
+  },
+];
 
-const LEVELS: EducationLevel[] = [EducationLevel.SD, EducationLevel.SMP, EducationLevel.SMA];
+/** Dua komponen nilai per mapel, berbobot sesuai kebiasaan pondok (total 100%). */
+const GRADE_COMPONENTS = [
+  { title: "UTS", weight: 40 },
+  { title: "UAS", weight: 60 },
+];
+
+const SLOT_TIMES = ["07:30", "09:00", "10:30", "13:00", "15:30", "19:30"];
+
+/* --------------------------- skenario uji khusus ---------------------------- */
+
+/** Mapel tanpa ustadz pengampu. */
+const COURSE_WITHOUT_TEACHER = { classKey: "sd", title: "Komputer" };
+/** Mapel tanpa peserta terdaftar. */
+const COURSE_WITHOUT_STUDENTS = { classKey: "sma", title: "Berkuda" };
+/** Mapel yang total bobot komponen nilainya tidak 100% (40 + 50 = 90). */
+const COURSE_WITH_BROKEN_WEIGHTS = { classKey: "smp", title: "Fisika", weights: [40, 50] };
+
+function isCourse(target: { classKey: string; title: string }, classKey: string, title: string) {
+  return target.classKey === classKey && target.title === title;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              palang data asli                              */
+/* -------------------------------------------------------------------------- */
+
+const SEEDED_EMAILS: readonly string[] = [...STAFF.map((s) => s.email), ...PARENTS.map((p) => p.email)];
+const SEEDED_STUDENT_NUMBERS: readonly string[] = STUDENTS.map((s) => s.studentNumber);
+
+/** Dilempar bila database tampak berisi data asli; pesannya dicetak apa adanya. */
+class SeedAbortError extends Error {}
+
+/**
+ * Palang data asli. Seed menulis dengan upsert pada kunci alami (nomor induk
+ * santri, email akun, slug mapel, nama kelas), sehingga menjalankannya di
+ * database pondok yang sudah berisi data sungguhan akan menimpa nama, wali,
+ * kelas, dan nomor telepon dengan data demo. Karena itu seed menolak berjalan
+ * begitu menemukan baris yang bukan buatannya sendiri.
+ */
+async function assertSeedableDatabase() {
+  if (process.env.SEED_FORCE === "1") {
+    console.warn(
+      "SEED_FORCE=1: palang data asli dilewati. Baris dengan kunci alami yang sama akan ditimpa data demo.",
+    );
+    return;
+  }
+
+  const [foreignStudents, foreignUsers] = await Promise.all([
+    prisma.studentProfile.count({ where: { studentNumber: { notIn: [...SEEDED_STUDENT_NUMBERS] } } }),
+    prisma.user.count({ where: { email: { notIn: [...SEEDED_EMAILS] } } }),
+  ]);
+  if (foreignStudents === 0 && foreignUsers === 0) return;
+
+  const found = [
+    foreignStudents > 0 ? `${foreignStudents} santri di luar nomor induk demo` : null,
+    foreignUsers > 0 ? `${foreignUsers} akun pengguna di luar akun demo` : null,
+  ]
+    .filter(Boolean)
+    .join(" dan ");
+
+  throw new SeedAbortError(
+    `Seed dibatalkan: database ini tampak berisi data asli (${found}).\n` +
+      `Seed menimpa baris lewat kunci alami (nomor induk santri, email akun, nama kelas, slug mapel), ` +
+      `sehingga baris pondok yang memakai kunci sama akan berganti menjadi data demo.\n` +
+      `Jalankan seed hanya pada database pengembangan. Bila Anda benar-benar yakin, ulangi dengan: SEED_FORCE=1 pnpm db:seed`,
+  );
+}
 
 async function upsertUser(email: string, name: string, roles: UserRole[], passwordHash: string, phone?: string) {
+  // Jaga agar SEEDED_EMAILS tetap jadi daftar lengkap akun seed; kalau tidak,
+  // palang di atas akan mengira akun demo baru sebagai data asli.
+  if (!SEEDED_EMAILS.includes(email)) {
+    throw new Error(`Akun seed ${email} belum terdaftar di SEEDED_EMAILS.`);
+  }
   return prisma.user.upsert({
     where: { email },
     update: { name, phone: phone ?? null, passwordHash, roles, status: UserStatus.VERIFIED, verifiedAt: new Date() },
@@ -152,300 +547,724 @@ async function upsertUser(email: string, name: string, roles: UserRole[], passwo
   });
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                  absensi                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Pola kehadiran per santri (indeks dalam kelasnya) untuk tiga pertemuan yang
+ * diabsen. Sengaja mencakup kelima status agar rekap rapor (Sakit/Izin/Lain-lain)
+ * dan grafik kehadiran punya isi.
+ */
+const ATTENDANCE_PATTERNS: AttendanceStatus[][] = [
+  [AttendanceStatus.PRESENT, AttendanceStatus.SICK, AttendanceStatus.PRESENT],
+  [AttendanceStatus.EXCUSED, AttendanceStatus.PRESENT, AttendanceStatus.PRESENT],
+  [AttendanceStatus.PRESENT, AttendanceStatus.PRESENT, AttendanceStatus.LATE],
+  [AttendanceStatus.PRESENT, AttendanceStatus.ABSENT, AttendanceStatus.PRESENT],
+];
+const SESSION_COUNT = ATTENDANCE_PATTERNS[0].length;
+
+function attendancePattern(indexInClass: number) {
+  return ATTENDANCE_PATTERNS[indexInClass % ATTENDANCE_PATTERNS.length];
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                    seed                                    */
+/* -------------------------------------------------------------------------- */
+
+type SeededCourse = {
+  id: string;
+  title: string;
+  classKey: string;
+  groupName: string;
+  groupSortOrder: number;
+  maxScore: number;
+  weights: { title: string; weight: number }[];
+  enrolled: boolean;
+};
+
 async function main() {
-  const passwordHash = await bcrypt.hash("password123", 12);
+  await assertSeedableDatabase();
 
-  const admin = await upsertUser("admin@pesantren.id", "Administrasi Pesantren", [UserRole.ADMIN], passwordHash);
-  await upsertUser("mudir@pesantren.id", "Mudir Ma'had", [UserRole.MUDIR], passwordHash);
-  const homeroom = await upsertUser("walikelas@pesantren.id", "Ustadzah Nur Wali Kelas", [UserRole.HOMEROOM], passwordHash);
-  // Dual-role demo account: makes the union-of-permissions behaviour visible without touching the DB by hand.
-  await upsertUser("admin.mudir@pesantren.id", "Ustadz Admin & Mudir", [UserRole.ADMIN, UserRole.MUDIR], passwordHash);
+  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
 
-  const teachers = [
-    { email: "guru@pesantren.id", name: "Ustadz Ahmad" },
-    { email: "guru2@pesantren.id", name: "Ustadzah Fatimah" },
-    { email: "guru3@pesantren.id", name: "Ustadz Yusuf" },
-  ];
-  const teacherIds = new Map<string, string>();
-  for (const t of teachers) {
-    const row = await upsertUser(t.email, t.name, [UserRole.TEACHER], passwordHash);
-    teacherIds.set(t.email, row.id);
+  /* ------------------------------- akun ---------------------------------- */
+  const userIdByKey = new Map<string, string>();
+  for (const staff of STAFF) {
+    const user = await upsertUser(staff.email, staff.name, staff.roles, passwordHash, staff.phone);
+    userIdByKey.set(staff.key, user.id);
   }
-  const academicStaffIds = new Map(teacherIds);
-  academicStaffIds.set("walikelas@pesantren.id", homeroom.id);
+  for (const parent of PARENTS) {
+    const user = await upsertUser(parent.email, parent.name, [UserRole.PARENT], passwordHash, parent.phone);
+    userIdByKey.set(parent.key, user.id);
+  }
+  const adminId = userIdByKey.get("admin")!;
 
-  // Demo parent owns two children across levels.
-  const demoParent = await upsertUser("wali@pesantren.id", "Bapak Hadi Santoso", [UserRole.PARENT], passwordHash, "0812-0000-1111");
-
-  // Courses + schedule + grade items, grouped by level.
-  const coursesByLevel = new Map<EducationLevel, { id: string; gradeItemIds: string[] }[]>();
-  for (const level of LEVELS) {
-    const list: { id: string; gradeItemIds: string[] }[] = [];
-    for (const def of COURSES[level]) {
-      const teacherId = academicStaffIds.get(def.teacher);
-      if (!teacherId) throw new Error(`Pengampu seed tidak ditemukan: ${def.teacher}`);
-      const course = await prisma.course.upsert({
-        where: { slug: def.slug },
-        update: { title: def.title, description: def.description, level, status: CourseStatus.PUBLISHED, createdById: admin.id, teacherId },
-        create: { title: def.title, slug: def.slug, description: def.description, level, status: CourseStatus.PUBLISHED, createdById: admin.id, teacherId },
-        select: { id: true },
-      });
-
-      await prisma.scheduleSlot.deleteMany({ where: { courseId: course.id } });
-      await prisma.scheduleSlot.createMany({
-        data: def.schedule.map((s) => ({ courseId: course.id, dayOfWeek: s.dayOfWeek, startTime: s.startTime, room: s.room })),
-      });
-
-      const gradeItemIds: string[] = [];
-      for (let gi = 0; gi < GRADE_COLS.length; gi++) {
-        const item = await prisma.gradeItem.upsert({
-          where: { courseId_title: { courseId: course.id, title: GRADE_COLS[gi] } },
-          update: { maxScore: 100, dueAt: new Date(Date.now() + (gi * 3 + 4) * DAY), semester: PERIOD.semester, academicYear: PERIOD.academicYear },
-          create: { courseId: course.id, title: GRADE_COLS[gi], description: `${GRADE_COLS[gi]} ${def.title}`, maxScore: 100, dueAt: new Date(Date.now() + (gi * 3 + 4) * DAY), semester: PERIOD.semester, academicYear: PERIOD.academicYear },
-          select: { id: true },
-        });
-        gradeItemIds.push(item.id);
-      }
-      list.push({ id: course.id, gradeItemIds });
-    }
-    coursesByLevel.set(level, list);
+  /* ------------------------------- kelas --------------------------------- */
+  const classByKey = new Map<string, { id: string; name: string; def: ClassDef }>();
+  for (const def of CLASSES) {
+    const homeroomTeacherId = userIdByKey.get(def.homeroomKey)!;
+    const classRoom = await prisma.classRoom.upsert({
+      where: { name_academicYear: { name: def.name, academicYear: PERIOD.academicYear } },
+      update: { level: def.level, homeroomTeacherId },
+      create: { name: def.name, level: def.level, academicYear: PERIOD.academicYear, homeroomTeacherId },
+      select: { id: true, name: true },
+    });
+    classByKey.set(def.key, { id: classRoom.id, name: classRoom.name, def });
   }
 
-  // Santri per level. First santri of SMP & SMA belongs to the demo parent.
-  let studentCounter = 0;
-  const studentsByLevel = new Map<EducationLevel, string[]>();
-  for (const level of LEVELS) {
-    const ids: string[] = [];
-    const names = STUDENT_NAMES[level];
-    const className = COURSES[level][0].className;
-    for (let i = 0; i < names.length; i++) {
-      studentCounter += 1;
-      const studentNumber = `${level}-${String(i + 1).padStart(3, "0")}`;
+  /* ------------------------------ santri --------------------------------- */
+  const studentByNumber = new Map<string, { id: string; name: string; def: StudentDef; indexInClass: number }>();
+  const indexCounter = new Map<string, number>();
+  for (const def of STUDENTS) {
+    const classRoom = def.classKey ? classByKey.get(def.classKey)! : null;
+    const parentId = def.parentKey ? userIdByKey.get(def.parentKey)! : null;
+    const shared = {
+      name: def.name,
+      level: def.level,
+      // className tetap terisi walau santri belum berkelas, sesuai kolom wajib skema.
+      className: classRoom?.name ?? "Belum Ditempatkan",
+      classRoomId: classRoom?.id ?? null,
+      parentId,
+      phone: def.phone,
+      address: def.address,
+    };
+    const student = await prisma.studentProfile.upsert({
+      where: { studentNumber: def.studentNumber },
+      update: shared,
+      create: { ...shared, studentNumber: def.studentNumber },
+      select: { id: true, name: true },
+    });
 
-      let parentId: string;
-      if ((level === EducationLevel.SMP || level === EducationLevel.SMA) && i === 0) {
-        parentId = demoParent.id;
-      } else {
-        const parent = await upsertUser(`wali.${level.toLowerCase()}.${i + 1}@pesantren.id`, `Wali ${names[i]}`, [UserRole.PARENT], passwordHash, "0812-3456-7890");
-        parentId = parent.id;
-      }
-
-      const student = await prisma.studentProfile.upsert({
-        where: { studentNumber },
-        update: { name: names[i], level, className, parentId, phone: "0812-3456-7890" },
-        create: { name: names[i], level, studentNumber, className, parentId, phone: "0812-3456-7890" },
-        select: { id: true },
-      });
-      ids.push(student.id);
-    }
-    studentsByLevel.set(level, ids);
+    const key = def.classKey ?? "-";
+    const indexInClass = indexCounter.get(key) ?? 0;
+    indexCounter.set(key, indexInClass + 1);
+    studentByNumber.set(def.studentNumber, { id: student.id, name: student.name, def, indexInClass });
   }
 
-  // Enrollments + grade records + attendance, scoped to each level's courses.
-  for (const level of LEVELS) {
-    const students = studentsByLevel.get(level) ?? [];
-    const courses = coursesByLevel.get(level) ?? [];
-    for (let ci = 0; ci < courses.length; ci++) {
-      const course = courses[ci];
-
-      for (let si = 0; si < students.length; si++) {
-        await prisma.enrollment.upsert({
-          where: { studentId_courseId: { studentId: students[si], courseId: course.id } },
-          update: { status: EnrollmentStatus.ACTIVE },
-          create: { studentId: students[si], courseId: course.id, status: EnrollmentStatus.ACTIVE },
-        });
-      }
-
-      for (let gi = 0; gi < course.gradeItemIds.length; gi++) {
-        for (let si = 0; si < students.length; si++) {
-          const score = det(si * 2.3 + gi * 1.7 + ci, gi);
-          await prisma.gradeRecord.upsert({
-            where: { gradeItemId_studentId: { gradeItemId: course.gradeItemIds[gi], studentId: students[si] } },
-            update: { score },
-            create: { gradeItemId: course.gradeItemIds[gi], studentId: students[si], score },
-          });
-        }
-      }
-
-      for (let se = 0; se < 6; se++) {
-        const heldAt = new Date(Date.now() - (6 - se) * DAY);
-        const session = await prisma.attendanceSession.upsert({
-          where: { courseId_title: { courseId: course.id, title: `Pertemuan ${se + 1}` } },
-          update: { heldAt, semester: PERIOD.semester, academicYear: PERIOD.academicYear },
-          create: { courseId: course.id, title: `Pertemuan ${se + 1}`, heldAt, semester: PERIOD.semester, academicYear: PERIOD.academicYear },
-          select: { id: true },
-        });
-        for (let si = 0; si < students.length; si++) {
-          const status = attStatus(si * 1.7 + se * 2.1 + ci);
-          await prisma.attendanceRecord.upsert({
-            where: { attendanceSessionId_studentId: { attendanceSessionId: session.id, studentId: students[si] } },
-            update: { status },
-            create: { attendanceSessionId: session.id, studentId: students[si], status },
-          });
-        }
-      }
-    }
+  const studentsByClass = new Map<string, { id: string; name: string; def: StudentDef; indexInClass: number }[]>();
+  for (const student of studentByNumber.values()) {
+    if (!student.def.classKey) continue;
+    const list = studentsByClass.get(student.def.classKey) ?? [];
+    list.push(student);
+    studentsByClass.set(student.def.classKey, list);
   }
 
-  // Rapor demo untuk anak wali demo: anak SMA terbit, anak SMP masih draf.
-  const demoReportTargets = [
-    { studentId: studentsByLevel.get(EducationLevel.SMA)?.[0], publish: true },
-    { studentId: studentsByLevel.get(EducationLevel.SMP)?.[0], publish: false },
-  ];
-  for (const target of demoReportTargets) {
-    if (!target.studentId) continue;
-
-    const enrollments = await prisma.enrollment.findMany({
-      where: { studentId: target.studentId, course: { deletedAt: null } },
-      orderBy: { course: { title: "asc" } },
-      select: {
-        course: {
-          select: {
-            id: true,
-            title: true,
-            gradeItems: {
-              where: { semester: PERIOD.semester, academicYear: PERIOD.academicYear },
-              select: { maxScore: true, records: { where: { studentId: target.studentId }, select: { score: true } } },
-            },
-            attendanceSessions: {
-              where: { semester: PERIOD.semester, academicYear: PERIOD.academicYear },
-              select: { records: { where: { studentId: target.studentId }, select: { status: true } } },
-            },
-          },
-        },
+  /* ------------------- kelompok penilaian & kriteria sikap ---------------- */
+  const groupIdByName = new Map<string, string>();
+  for (const def of GROUPS) {
+    const group = await prisma.assessmentGroup.upsert({
+      where: { name_academicYear: { name: def.name, academicYear: PERIOD.academicYear } },
+      update: { kind: def.kind, defaultMaxScore: def.defaultMaxScore, sortOrder: def.sortOrder },
+      create: {
+        name: def.name,
+        kind: def.kind,
+        defaultMaxScore: def.defaultMaxScore,
+        sortOrder: def.sortOrder,
+        academicYear: PERIOD.academicYear,
       },
+      select: { id: true },
     });
+    groupIdByName.set(def.name, group.id);
 
-    const entries = enrollments.map(({ course }) => {
-      const values = course.gradeItems
-        .filter((g) => g.records.length > 0)
-        .map((g) => Math.round((g.records[0].score / g.maxScore) * 100));
-      const finalScore = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
-      const marks = { PRESENT: 0, LATE: 0, ABSENT: 0, EXCUSED: 0 } as Record<AttendanceStatus, number>;
-      for (const session of course.attendanceSessions) {
-        const rec = session.records[0];
-        if (rec) marks[rec.status] += 1;
+    for (let ci = 0; ci < def.criteria.length; ci += 1) {
+      const criterion = def.criteria[ci];
+      await prisma.behaviorCriterion.upsert({
+        where: { groupId_name: { groupId: group.id, name: criterion.name } },
+        update: { maxScore: criterion.maxScore, sortOrder: ci + 1 },
+        create: { groupId: group.id, name: criterion.name, maxScore: criterion.maxScore, sortOrder: ci + 1 },
+      });
+    }
+  }
+
+  /* ---------------------------- mapel per kelas --------------------------- */
+  const courses: SeededCourse[] = [];
+  for (const classDef of CLASSES) {
+    const classRoom = classByKey.get(classDef.key)!;
+    const classSlug = slugify(classDef.name);
+    let slotIndex = 0;
+
+    for (const group of GROUPS) {
+      for (const courseDef of group.courses) {
+        const teacherKey = courseDef.teacherKey === "wali" ? classDef.homeroomKey : courseDef.teacherKey;
+        const teacherId = isCourse(COURSE_WITHOUT_TEACHER, classDef.key, courseDef.title)
+          ? null
+          : userIdByKey.get(teacherKey)!;
+
+        const slug = `${slugify(courseDef.title)}-${classSlug}`;
+        const shared = {
+          title: courseDef.title,
+          description: `${courseDef.title} — kelompok ${group.name}, kelas ${classRoom.name}.`,
+          level: classDef.level,
+          status: CourseStatus.PUBLISHED,
+          createdById: adminId,
+          teacherId,
+          assessmentGroupId: groupIdByName.get(group.name)!,
+          classRoomId: classRoom.id,
+          reportMaxScore: courseDef.maxScore,
+        };
+        const course = await prisma.course.upsert({
+          where: { slug },
+          update: shared,
+          create: { ...shared, slug },
+          select: { id: true },
+        });
+
+        const dayOfWeek = 1 + (slotIndex % 6);
+        const startTime = SLOT_TIMES[Math.floor(slotIndex / 6) % SLOT_TIMES.length];
+        slotIndex += 1;
+        // Buat bila belum ada; jadwal tambahan buatan pengguna tidak dihapus.
+        const existingSlot = await prisma.scheduleSlot.findFirst({
+          where: { courseId: course.id, dayOfWeek, startTime },
+          select: { id: true },
+        });
+        if (existingSlot) {
+          await prisma.scheduleSlot.update({ where: { id: existingSlot.id }, data: { room: classRoom.name } });
+        } else {
+          await prisma.scheduleSlot.create({
+            data: { courseId: course.id, dayOfWeek, startTime, room: classRoom.name },
+          });
+        }
+
+        const weights = isCourse(COURSE_WITH_BROKEN_WEIGHTS, classDef.key, courseDef.title)
+          ? GRADE_COMPONENTS.map((component, index) => ({
+              title: component.title,
+              weight: COURSE_WITH_BROKEN_WEIGHTS.weights[index],
+            }))
+          : GRADE_COMPONENTS.map((component) => ({ title: component.title, weight: component.weight }));
+
+        courses.push({
+          id: course.id,
+          title: courseDef.title,
+          classKey: classDef.key,
+          groupName: group.name,
+          groupSortOrder: group.sortOrder,
+          maxScore: courseDef.maxScore,
+          weights,
+          enrolled: !isCourse(COURSE_WITHOUT_STUDENTS, classDef.key, courseDef.title),
+        });
       }
-      return {
-        courseId: course.id,
-        courseTitle: course.title,
-        finalScore,
-        present: marks.PRESENT,
-        late: marks.LATE,
-        absent: marks.ABSENT,
-        excused: marks.EXCUSED,
-      };
-    });
-    if (entries.length === 0) continue;
+    }
+  }
 
-    const card = await prisma.reportCard.upsert({
-      where: {
-        studentId_semester_academicYear: {
-          studentId: target.studentId,
+  /* ------------------------ peserta mapel (enrolment) --------------------- */
+  for (const classDef of CLASSES) {
+    const students = studentsByClass.get(classDef.key) ?? [];
+    const classCourses = courses.filter((course) => course.classKey === classDef.key && course.enrolled);
+    const pairs = students.flatMap((student) =>
+      classCourses.map((course) => ({ studentId: student.id, courseId: course.id })),
+    );
+    if (pairs.length === 0) continue;
+
+    await prisma.enrollment.createMany({ data: pairs, skipDuplicates: true });
+    await prisma.enrollment.updateMany({
+      where: { studentId: { in: students.map((s) => s.id) }, courseId: { in: classCourses.map((c) => c.id) } },
+      data: { status: EnrollmentStatus.ACTIVE },
+    });
+  }
+
+  /* ------------------------- komponen & nilai santri ---------------------- */
+  const finalScoreByStudentCourse = new Map<string, number>();
+  const gradeRecords: { gradeItemId: string; studentId: string; score: number }[] = [];
+
+  for (const course of courses) {
+    const students = course.enrolled ? studentsByClass.get(course.classKey) ?? [] : [];
+
+    for (let gi = 0; gi < course.weights.length; gi += 1) {
+      const component = course.weights[gi];
+      const dueAt = new Date(Date.now() + (gi * 21 + 14) * DAY);
+      const item = await prisma.gradeItem.upsert({
+        where: { courseId_title: { courseId: course.id, title: component.title } },
+        update: {
+          maxScore: 100,
+          weight: component.weight,
+          dueAt,
           semester: PERIOD.semester,
           academicYear: PERIOD.academicYear,
         },
+        create: {
+          courseId: course.id,
+          title: component.title,
+          description: `${component.title} (bobot ${component.weight}%)`,
+          maxScore: 100,
+          weight: component.weight,
+          dueAt,
+          semester: PERIOD.semester,
+          academicYear: PERIOD.academicYear,
+        },
+        select: { id: true },
+      });
+
+      for (const student of students) {
+        const score = det(student.def.studentNumber, course.classKey, course.title, component.title);
+        gradeRecords.push({ gradeItemId: item.id, studentId: student.id, score });
+      }
+    }
+
+    // Nilai akhir 0-100 = rata-rata berbobot komponen, sama seperti lib/rapor.ts.
+    for (const student of students) {
+      const totalWeight = course.weights.reduce((sum, w) => sum + w.weight, 0);
+      const weighted = course.weights.reduce(
+        (sum, w) => sum + det(student.def.studentNumber, course.classKey, course.title, w.title) * (w.weight / totalWeight),
+        0,
+      );
+      finalScoreByStudentCourse.set(`${student.id}:${course.id}`, Math.round(weighted));
+    }
+  }
+  for (let i = 0; i < gradeRecords.length; i += 500) {
+    await prisma.gradeRecord.createMany({ data: gradeRecords.slice(i, i + 500), skipDuplicates: true });
+  }
+
+  /* ------------------------------- absensi -------------------------------- */
+  const sessionDates = [21, 14, 7].map((back) => new Date(Date.now() - back * DAY));
+  const attendanceRecords: { attendanceSessionId: string; studentId: string; status: AttendanceStatus }[] = [];
+
+  for (const course of courses) {
+    const students = course.enrolled ? studentsByClass.get(course.classKey) ?? [] : [];
+    for (let se = 0; se < SESSION_COUNT; se += 1) {
+      const heldAt = sessionDates[se];
+      const session = await prisma.attendanceSession.upsert({
+        where: { courseId_title: { courseId: course.id, title: `Pertemuan ${se + 1}` } },
+        update: { heldAt, semester: PERIOD.semester, academicYear: PERIOD.academicYear },
+        create: {
+          courseId: course.id,
+          title: `Pertemuan ${se + 1}`,
+          heldAt,
+          semester: PERIOD.semester,
+          academicYear: PERIOD.academicYear,
+        },
+        select: { id: true },
+      });
+
+      for (const student of students) {
+        attendanceRecords.push({
+          attendanceSessionId: session.id,
+          studentId: student.id,
+          status: attendancePattern(student.indexInClass)[se],
+        });
+      }
+    }
+  }
+  for (let i = 0; i < attendanceRecords.length; i += 500) {
+    await prisma.attendanceRecord.createMany({ data: attendanceRecords.slice(i, i + 500), skipDuplicates: true });
+  }
+
+  /* --------------------------- administrasi santri ------------------------ */
+  const ADMIN_ITEMS = [
+    { name: "SPP Semester Berjalan", description: "Pembayaran SPP semester berjalan telah lunas.", sortOrder: 1 },
+    { name: "Daftar Ulang", description: "Formulir daftar ulang dan berkas pendukung sudah diserahkan.", sortOrder: 2 },
+    { name: "Infaq Kegiatan Santri", description: "Infaq kegiatan pondok semester berjalan telah dibayarkan.", sortOrder: 3 },
+  ];
+  /** Skenario palang ACC: santri ini menyisakan satu item administrasi. */
+  const OUTSTANDING = { studentNumber: "20262002", itemName: "Daftar Ulang" };
+
+  for (const def of ADMIN_ITEMS) {
+    const item = await prisma.administrationItem.upsert({
+      where: {
+        name_academicYear_semester: {
+          name: def.name,
+          academicYear: PERIOD.academicYear,
+          semester: PERIOD.semester,
+        },
       },
-      update: {
-        status: target.publish ? ReportCardStatus.PUBLISHED : ReportCardStatus.DRAFT,
-        publishedAt: target.publish ? new Date() : null,
-        homeroomNote: target.publish ? "Alhamdulillah perkembangan baik. Tingkatkan murojaah dan kedisiplinan waktu." : null,
-        createdById: homeroom.id,
-      },
+      update: { description: def.description, sortOrder: def.sortOrder, active: true },
       create: {
-        studentId: target.studentId,
-        semester: PERIOD.semester,
+        name: def.name,
+        description: def.description,
         academicYear: PERIOD.academicYear,
-        status: target.publish ? ReportCardStatus.PUBLISHED : ReportCardStatus.DRAFT,
-        publishedAt: target.publish ? new Date() : null,
-        homeroomNote: target.publish ? "Alhamdulillah perkembangan baik. Tingkatkan murojaah dan kedisiplinan waktu." : null,
-        createdById: homeroom.id,
+        semester: PERIOD.semester,
+        sortOrder: def.sortOrder,
+        active: true,
       },
       select: { id: true },
     });
 
-    await prisma.reportCardEntry.deleteMany({ where: { reportCardId: card.id } });
-    await prisma.reportCardEntry.createMany({ data: entries.map((e) => ({ ...e, reportCardId: card.id })) });
+    for (const student of studentByNumber.values()) {
+      const fulfilled = !(student.def.studentNumber === OUTSTANDING.studentNumber && def.name === OUTSTANDING.itemName);
+      const note = fulfilled ? null : "Formulir daftar ulang belum diserahkan ke bagian administrasi.";
+      await prisma.studentAdministration.upsert({
+        where: { studentId_itemId: { studentId: student.id, itemId: item.id } },
+        update: { fulfilled, note, updatedById: adminId },
+        create: { studentId: student.id, itemId: item.id, fulfilled, note, updatedById: adminId },
+      });
+    }
   }
 
-  // Announcements.
-  await prisma.announcement.deleteMany({});
-  await prisma.announcement.createMany({
-    data: [
-      { title: "Selamat Datang Tahun Ajaran Baru", body: "Kegiatan belajar mengajar dimulai Senin pekan depan. Mohon wali memastikan kelengkapan santri.", level: null, pinned: true, authorId: admin.id },
-      { title: "Jadwal Ujian Tengah Semester", body: "UTS dilaksanakan dua pekan lagi. Jadwal lengkap dapat dilihat melalui guru kelas masing-masing.", level: null, pinned: false, authorId: admin.id },
-      { title: "Lomba Mewarnai Tingkat SD", body: "Diadakan lomba mewarnai untuk santri SD pada hari Jumat. Peserta menghubungi wali kelas.", level: EducationLevel.SD, pinned: false, authorId: teacherIds.get("guru2@pesantren.id") ?? admin.id },
-      { title: "Pesantren Kilat SMP", body: "Program pesantren kilat khusus santri SMP akan berlangsung selama libur tengah semester.", level: EducationLevel.SMP, pinned: false, authorId: teacherIds.get("guru@pesantren.id") ?? admin.id },
-      { title: "Sosialisasi Kampus untuk SMA", body: "Bimbingan pemilihan kampus dan jurusan untuk santri SMA kelas akhir. Wajib diikuti.", level: EducationLevel.SMA, pinned: false, authorId: teacherIds.get("guru3@pesantren.id") ?? admin.id },
-    ],
-  });
+  /* ---------------------------------- rapor ------------------------------- */
+  const REPORT_CARDS: {
+    studentNumber: string;
+    status: ReportCardStatus;
+    homeroomNote: string | null;
+    adminNote: string | null;
+  }[] = [
+    {
+      studentNumber: "20262004",
+      status: ReportCardStatus.DRAFT,
+      homeroomNote: null,
+      adminNote: null,
+    },
+    {
+      studentNumber: "20262002",
+      status: ReportCardStatus.SUBMITTED,
+      homeroomNote: "Hafalan berkembang baik, kedisiplinan salat berjamaah perlu ditingkatkan.",
+      adminNote: null,
+    },
+    {
+      studentNumber: "20262003",
+      status: ReportCardStatus.APPROVED,
+      homeroomNote: "Aktif di kegiatan asrama dan konsisten menyetorkan hafalan.",
+      adminNote: "Administrasi lengkap, rapor disetujui.",
+    },
+    {
+      studentNumber: "20263001",
+      status: ReportCardStatus.REJECTED,
+      homeroomNote: "Perlu pendampingan pada mata pelajaran bahasa.",
+      adminNote: "Rekap ketidakhadiran belum sesuai buku absensi asrama, mohon disusun ulang.",
+    },
+    {
+      studentNumber: "20262001",
+      status: ReportCardStatus.PUBLISHED,
+      homeroomNote: "Alhamdulillah, hafalan dan akhlak berkembang baik. Pertahankan.",
+      adminNote: "Administrasi lengkap, rapor disetujui.",
+    },
+    {
+      studentNumber: "20261001",
+      status: ReportCardStatus.PUBLISHED,
+      homeroomNote: "Mulai lancar membaca Al-Qur'an. Terus dibiasakan murajaah di rumah.",
+      adminNote: "Administrasi lengkap, rapor disetujui.",
+    },
+  ];
 
-  // Admissions (PPDB) demo rows.
-  await prisma.admission.deleteMany({});
-  await prisma.admission.createMany({
-    data: [
-      { childName: "Bilal Arrahman", level: EducationLevel.SD, gender: "L", birthPlace: "Bandung", previousSchool: "TK Al-Hikmah", parentName: "Bapak Sulaiman", parentPhone: "0813-1111-2222", parentEmail: "sulaiman@example.com", address: "Jl. Melati No. 10", note: "Mendaftar gelombang 1", status: AdmissionStatus.PENDING },
-      { childName: "Khaira Nayla", level: EducationLevel.SMP, gender: "P", birthPlace: "Bekasi", previousSchool: "SDN 1 Bekasi", parentName: "Ibu Maryani", parentPhone: "0813-3333-4444", parentEmail: "maryani@example.com", address: "Jl. Anggrek No. 5", status: AdmissionStatus.PENDING },
-      { childName: "Umar Faruq", level: EducationLevel.SMA, gender: "L", birthPlace: "Depok", previousSchool: "MTs Darul Ulum", parentName: "Bapak Ridwan", parentPhone: "0813-5555-6666", parentEmail: "ridwan@example.com", status: AdmissionStatus.ACCEPTED, reviewedAt: new Date(), reviewedById: admin.id },
-      { childName: "Laila Husna", level: EducationLevel.SMP, gender: "P", previousSchool: "SD Islam Terpadu", parentName: "Ibu Sahara", parentPhone: "0813-7777-8888", parentEmail: "sahara@example.com", status: AdmissionStatus.REJECTED, reviewedAt: new Date(), reviewedById: admin.id },
-    ],
-  });
+  const behaviorCriteria = GROUPS.flatMap((group) =>
+    group.kind === AssessmentGroupKind.BEHAVIOR ? group.criteria : [],
+  );
 
-  // Absensi ustadz: seminggu terakhir (kecuali Ahad), mayoritas hadir.
-  const staffIds = [homeroom.id, ...teacherIds.values()];
-  const staffAttendanceRows: { teacherId: string; date: Date; status: AttendanceStatus; recordedById: string }[] = [];
-  const now = new Date();
-  for (let back = 0; back < 7; back++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - back);
-    if (d.getDay() === 0) continue;
-    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    staffIds.forEach((teacherId, idx) => {
-      let status: AttendanceStatus = AttendanceStatus.PRESENT;
-      if (back === 2 && idx === 1) status = AttendanceStatus.EXCUSED;
-      if (back === 4 && idx === 2) status = AttendanceStatus.LATE;
-      if (back === 5 && idx === 3) status = AttendanceStatus.ABSENT;
-      staffAttendanceRows.push({ teacherId, date, status, recordedById: admin.id });
+  for (const def of REPORT_CARDS) {
+    const student = studentByNumber.get(def.studentNumber)!;
+    const classKey = student.def.classKey!;
+    const homeroomId = userIdByKey.get(classByKey.get(classKey)!.def.homeroomKey)!;
+    const submitted = def.status !== ReportCardStatus.DRAFT;
+    const reviewed = def.status === ReportCardStatus.APPROVED || def.status === ReportCardStatus.REJECTED || def.status === ReportCardStatus.PUBLISHED;
+    const published = def.status === ReportCardStatus.PUBLISHED;
+
+    const marks = attendancePattern(student.indexInClass);
+    const recap = {
+      sickCount: marks.filter((m) => m === AttendanceStatus.SICK).length,
+      excusedCount: marks.filter((m) => m === AttendanceStatus.EXCUSED).length,
+      otherCount: marks.filter((m) => m === AttendanceStatus.ABSENT || m === AttendanceStatus.LATE).length,
+    };
+
+    const shared = {
+      semester: PERIOD.semester,
+      academicYear: PERIOD.academicYear,
+      status: def.status,
+      homeroomNote: def.homeroomNote,
+      adminNote: def.adminNote,
+      studentNameSnapshot: student.def.name,
+      studentNumberSnapshot: student.def.studentNumber,
+      classNameSnapshot: classByKey.get(classKey)!.name,
+      levelSnapshot: student.def.level as string,
+      submittedAt: submitted ? new Date(Date.now() - 6 * DAY) : null,
+      reviewedAt: reviewed ? new Date(Date.now() - 4 * DAY) : null,
+      reviewedById: reviewed ? adminId : null,
+      publishedAt: published ? new Date(Date.now() - 2 * DAY) : null,
+      createdById: homeroomId,
+      ...recap,
+    };
+
+    const card = await prisma.reportCard.upsert({
+      where: {
+        studentId_semester_academicYear: {
+          studentId: student.id,
+          semester: PERIOD.semester,
+          academicYear: PERIOD.academicYear,
+        },
+      },
+      update: shared,
+      create: { studentId: student.id, ...shared },
+      select: { id: true },
     });
-  }
-  await prisma.staffAttendance.deleteMany({});
-  await prisma.staffAttendance.createMany({ data: staffAttendanceRows });
 
-  // BKKH: laporan kegiatan manual berdasarkan enam rentang waktu tetap.
-  const bkkhReportRows: Array<{
-    teacherId: string;
-    date: Date;
-    assignment: string;
-    activity03000715: string | null;
-    activity07150900: string | null;
-    activity09301200: string | null;
-    activity12301430: string | null;
-    activity15301700: string | null;
-    activity18002100: string | null;
-  }> = [];
-  for (let back = 0; back < 7; back++) {
-    const d = new Date(now);
+    const entries = courses
+      .filter((course) => course.classKey === classKey && course.enrolled)
+      .map((course) => {
+        const finalScore = finalScoreByStudentCourse.get(`${student.id}:${course.id}`) ?? 0;
+        const scoreValue = Math.min(course.maxScore, Math.max(0, Math.round((finalScore / 100) * course.maxScore)));
+        return {
+          reportCardId: card.id,
+          courseId: course.id,
+          courseTitle: course.title,
+          groupName: course.groupName,
+          groupSortOrder: course.groupSortOrder,
+          finalScore,
+          maxScore: course.maxScore,
+          scoreValue,
+          scoreWords: terbilang(scoreValue),
+          present: marks.filter((m) => m === AttendanceStatus.PRESENT).length,
+          late: marks.filter((m) => m === AttendanceStatus.LATE).length,
+          absent: marks.filter((m) => m === AttendanceStatus.ABSENT).length,
+          excused: marks.filter((m) => m === AttendanceStatus.EXCUSED).length,
+        };
+      });
+
+    // Nilai sikap diisi manual wali kelas; rapor yang masih DRAFT sengaja kosong.
+    const behaviorEntries = behaviorCriteria.map((criterion, index) => ({
+      reportCardId: card.id,
+      criterionName: criterion.name,
+      maxScore: criterion.maxScore,
+      scoreValue:
+        def.status === ReportCardStatus.DRAFT
+          ? 0
+          : Math.min(criterion.maxScore, 5 + (hashCode(`${student.def.studentNumber}|${criterion.name}`) % 3)),
+      sortOrder: index + 1,
+    }));
+
+    await prisma.$transaction([
+      prisma.reportCardEntry.deleteMany({ where: { reportCardId: card.id } }),
+      prisma.reportCardBehaviorEntry.deleteMany({ where: { reportCardId: card.id } }),
+      prisma.reportCardEntry.createMany({ data: entries }),
+      prisma.reportCardBehaviorEntry.createMany({ data: behaviorEntries }),
+    ]);
+  }
+
+  /* ------------------------------ pengumuman ------------------------------ */
+  const ANNOUNCEMENTS = [
+    {
+      title: "Awal Kegiatan Belajar Semester Ganjil",
+      body: "Kegiatan belajar mengajar semester ganjil dimulai Senin pekan depan. Mohon wali santri memastikan perlengkapan dan kitab santri sudah lengkap sebelum keberangkatan.",
+      level: null,
+      pinned: true,
+      authorId: adminId,
+    },
+    {
+      title: "Jadwal Ujian Tengah Semester",
+      body: "Ujian tengah semester dilaksanakan dua pekan lagi. Jadwal per mata pelajaran dapat ditanyakan kepada wali kelas masing-masing.",
+      level: EducationLevel.SMP,
+      pinned: false,
+      authorId: userIdByKey.get("salman")!,
+    },
+    {
+      title: "Kunjungan Wali Santri",
+      body: "Kunjungan wali santri dibuka setiap Ahad pekan kedua dan keempat, pukul 09.00-15.00 di aula pondok. Mohon melapor ke bagian administrasi saat tiba.",
+      level: null,
+      pinned: false,
+      authorId: adminId,
+    },
+  ];
+  for (const def of ANNOUNCEMENTS) {
+    const existing = await prisma.announcement.findFirst({ where: { title: def.title }, select: { id: true } });
+    if (existing) await prisma.announcement.update({ where: { id: existing.id }, data: def });
+    else await prisma.announcement.create({ data: def });
+  }
+
+  /* ------------------------------ PPDB / admisi --------------------------- */
+  // Berkas unggahan demo: PNG 1x1 piksel, cukup untuk menguji alur unduh berkas.
+  const DEMO_FILE = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  const newStudent = studentByNumber.get("20262005")!;
+  type AdmissionSeed = {
+    childName: string;
+    level: EducationLevel;
+    gender: string;
+    birthPlace: string;
+    birthDate: Date;
+    previousSchool: string;
+    parentName: string;
+    parentPhone: string;
+    parentEmail: string;
+    address: string;
+    note: string;
+    status: AdmissionStatus;
+    reviewedAt?: Date;
+    reviewedById?: string;
+    createdStudentId?: string;
+    createdParentId?: string;
+    submitterId?: string;
+  };
+  const ADMISSIONS: {
+    data: AdmissionSeed;
+    documents: { kind: AdmissionDocumentKind; filename: string }[];
+  }[] = [
+    {
+      // Pendaftaran menunggu tinjauan, lengkap dengan berkas unggahan.
+      data: {
+        childName: "Zaidan Arkan Pratama",
+        level: EducationLevel.SMP,
+        gender: "L",
+        birthPlace: "Bandung",
+        birthDate: new Date("2013-04-17"),
+        previousSchool: "SDN Ciwaruga 2",
+        parentName: "Bapak Hasan Basri",
+        parentPhone: "0812-2210-8845",
+        parentEmail: `wali.hasan@${EMAIL_DOMAIN}`,
+        address: "Kp. Ciwaruga RT 04/RW 06, Parongpong, Bandung Barat",
+        note: "Mendaftar gelombang 1, berkas diunggah lengkap.",
+        status: AdmissionStatus.PENDING,
+        // Diajukan lewat akun wali sendiri, sehingga kartu "Status Pendaftaran"
+        // di dasbor wali santri punya isi untuk ditampilkan.
+        submitterId: userIdByKey.get("hasan")!,
+      },
+      documents: [
+        { kind: AdmissionDocumentKind.FAMILY_CARD, filename: "kartu-keluarga.png" },
+        { kind: AdmissionDocumentKind.BIRTH_CERTIFICATE, filename: "akta-kelahiran.png" },
+      ],
+    },
+    {
+      // Pendaftaran tanpa berkas, sudah diterima dan menghasilkan santri baru
+      // yang belum ditempatkan di kelas.
+      data: {
+        childName: "Bilal Arrahman Saputra",
+        level: EducationLevel.SMP,
+        gender: "L",
+        birthPlace: "Cimahi",
+        birthDate: new Date("2013-09-02"),
+        previousSchool: "SDIT Al Fajar Lembang",
+        parentName: "Ibu Dewi Ratnasari",
+        parentPhone: "0821-1600-4478",
+        parentEmail: `wali.dewi@${EMAIL_DOMAIN}`,
+        address: "Jl. Raya Lembang No. 88, Lembang, Bandung Barat",
+        note: "Berkas menyusul, diserahkan langsung ke administrasi.",
+        status: AdmissionStatus.ACCEPTED,
+        reviewedAt: new Date(Date.now() - 9 * DAY),
+        reviewedById: adminId,
+        createdStudentId: newStudent.id,
+        createdParentId: userIdByKey.get("dewi")!,
+        submitterId: userIdByKey.get("dewi")!,
+      },
+      documents: [],
+    },
+    {
+      data: {
+        childName: "Hanif Ramadhan Yusuf",
+        level: EducationLevel.SMA,
+        gender: "L",
+        birthPlace: "Subang",
+        birthDate: new Date("2010-01-25"),
+        previousSchool: "SMP Negeri 1 Subang",
+        parentName: "Ibu Dewi Ratnasari",
+        parentPhone: "0821-1600-4478",
+        parentEmail: `wali.dewi@${EMAIL_DOMAIN}`,
+        address: "Jl. Raya Lembang No. 88, Lembang, Bandung Barat",
+        note: "Kuota jenjang SMA sudah penuh pada gelombang ini.",
+        status: AdmissionStatus.REJECTED,
+        reviewedAt: new Date(Date.now() - 5 * DAY),
+        reviewedById: adminId,
+        submitterId: userIdByKey.get("dewi")!,
+      },
+      documents: [],
+    },
+  ];
+
+  for (const admission of ADMISSIONS) {
+    // Satu wali bisa mendaftarkan lebih dari satu anak, jadi kunci pencocokan
+    // harus memakai email wali DAN nama calon santri; memakai email saja membuat
+    // pendaftaran kedua menimpa yang pertama saat seed dijalankan ulang.
+    const parentEmail = admission.data.parentEmail;
+    const existing = await prisma.admission.findFirst({
+      where: { parentEmail, childName: admission.data.childName },
+      select: { id: true },
+    });
+    const row = existing
+      ? await prisma.admission.update({ where: { id: existing.id }, data: admission.data, select: { id: true } })
+      : await prisma.admission.create({ data: admission.data, select: { id: true } });
+
+    for (const doc of admission.documents) {
+      const shared = { filename: doc.filename, mimeType: "image/png", size: DEMO_FILE.length, data: DEMO_FILE };
+      await prisma.admissionDocument.upsert({
+        where: { admissionId_kind: { admissionId: row.id, kind: doc.kind } },
+        update: shared,
+        create: { admissionId: row.id, kind: doc.kind, ...shared },
+      });
+    }
+  }
+
+  /* ------------------------- absensi ustadz & BKKH ------------------------ */
+  const staffDates = [0, 1, 2].map((back) => {
+    const d = new Date();
     d.setDate(d.getDate() - back);
-    if (d.getDay() === 0) continue;
-    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    staffIds.forEach((teacherId, idx) => {
-      bkkhReportRows.push({
-        teacherId,
-        date,
-        assignment: idx === 0 ? "Wali kelas dan pendamping santri" : "Pengajar dan pembina asrama",
-        activity03000715: "Mendampingi qiyamul lail, salat Subuh berjamaah, dan halaqah pagi.",
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  });
+  for (let idx = 0; idx < TEACHING_KEYS.length; idx += 1) {
+    const teacherId = userIdByKey.get(TEACHING_KEYS[idx])!;
+    const isHomeroom = CLASSES.some((c) => c.homeroomKey === TEACHING_KEYS[idx]);
+
+    for (let di = 0; di < staffDates.length; di += 1) {
+      const date = staffDates[di];
+      // Satu ustadz izin dan satu sakit pada hari tertentu agar rekap tidak seragam.
+      const status =
+        idx === 1 && di === 1
+          ? AttendanceStatus.EXCUSED
+          : idx === 4 && di === 2
+            ? AttendanceStatus.SICK
+            : AttendanceStatus.PRESENT;
+      await prisma.staffAttendance.upsert({
+        where: { teacherId_date: { teacherId, date } },
+        update: { status, recordedById: adminId },
+        create: { teacherId, date, status, recordedById: adminId },
+      });
+
+      if (status !== AttendanceStatus.PRESENT) continue;
+      const bkkh = {
+        assignment: isHomeroom ? "Wali kelas dan pendamping asrama" : "Pengajar mata pelajaran dan pembina asrama",
+        activity03000715: "Mendampingi qiyamul lail, salat Subuh berjamaah, dan halaqah tahfidz pagi.",
         activity07150900: "Persiapan pembelajaran dan pengarahan kebersihan kamar santri.",
         activity09301200: "Mengajar sesuai jadwal dan mencatat perkembangan belajar santri.",
         activity12301430: "Mendampingi salat Zuhur, makan siang, dan istirahat santri.",
-        activity15301700: "Pendampingan kegiatan sore dan evaluasi hafalan.",
-        activity18002100: (back + idx) % 4 === 0 ? null : "Mendampingi salat Magrib, kajian malam, dan persiapan istirahat.",
+        activity15301700: "Pendampingan kegiatan sore dan evaluasi setoran hafalan.",
+        activity18002100: "Mendampingi salat Magrib, kajian malam, dan persiapan istirahat santri.",
+      };
+      await prisma.bkkhReport.upsert({
+        where: { teacherId_date: { teacherId, date } },
+        update: bkkh,
+        create: { teacherId, date, ...bkkh },
       });
+    }
+  }
+
+  /* --------------------- penanda tangan lembar rapor ---------------------- */
+  // Nama pejabat pondok tidak dikeraskan di kode; administrasi menggantinya
+  // lewat /akademik?tab=penandatangan.
+  const APP_SETTINGS = [
+    { key: "report.signatory.mudir.title", value: "Mudir Ma'had" },
+    { key: "report.signatory.mudir.name", value: "Ustadz Abdurrahman Fauzi, Lc." },
+    { key: "report.signatory.exam_chair.title", value: "Ketua Panitia Ujian" },
+    { key: "report.signatory.exam_chair.name", value: "Ustadz Taufiq Ramadhan, Lc." },
+  ];
+  for (const setting of APP_SETTINGS) {
+    await prisma.appSetting.upsert({
+      where: { key: setting.key },
+      update: { value: setting.value },
+      create: setting,
     });
   }
-  await prisma.bkkhReport.deleteMany({});
-  await prisma.bkkhReport.createMany({ data: bkkhReportRows });
 
-  console.log(`Seeded ${teachers.length} teachers, ${studentCounter} students across ${LEVELS.length} levels, with parents, announcements, admissions, and ${staffAttendanceRows.length} staff attendance rows.`);
+  /* ------------------------------- ringkasan ------------------------------ */
+  const [classCount, studentCount, unplacedCount, teacherCount, parentCount, groupRows, statusRows] = await Promise.all([
+    prisma.classRoom.count(),
+    prisma.studentProfile.count(),
+    prisma.studentProfile.count({ where: { classRoomId: null } }),
+    prisma.user.count({ where: { roles: { hasSome: [UserRole.TEACHER, UserRole.HOMEROOM] } } }),
+    prisma.user.count({ where: { roles: { has: UserRole.PARENT } } }),
+    prisma.assessmentGroup.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { name: true, _count: { select: { courses: true } } },
+    }),
+    prisma.reportCard.groupBy({ by: ["status"], _count: { _all: true } }),
+  ]);
+
+  console.log(
+    [
+      `Kelas: ${classCount}`,
+      `Santri: ${studentCount} (${unplacedCount} belum ditempatkan)`,
+      `Ustadz: ${teacherCount}`,
+      `Wali santri: ${parentCount}`,
+      `Mapel per kelompok: ${groupRows.map((g) => `${g.name}=${g._count.courses}`).join(", ")}`,
+      `Rapor per status: ${statusRows.map((r) => `${r.status}=${r._count._all}`).join(", ")}`,
+    ].join("\n"),
+  );
 }
 
 main()
@@ -453,7 +1272,7 @@ main()
     await prisma.$disconnect();
   })
   .catch(async (error) => {
-    console.error(error);
+    console.error(error instanceof SeedAbortError ? error.message : error);
     await prisma.$disconnect();
     process.exit(1);
   });

@@ -1,6 +1,6 @@
-# Pesantren Digital
+# SIAKAD PPIQ-368
 
-Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS. Aplikasi menghubungkan pesantren dengan **wali santri**: wali membuat akun, mendaftarkan anak, lalu memantau jadwal, nilai, kehadiran, dan rapor anaknya.
+Sistem informasi akademik Pondok Pesantren Integritas Qur'ani 368 berbasis Next.js, Prisma, PostgreSQL, dan Tailwind CSS. Aplikasi menghubungkan pesantren dengan **wali santri**: wali membuat akun, mendaftarkan anak, lalu memantau jadwal, nilai, kehadiran, dan rapor anaknya.
 
 ## Fitur Inti
 
@@ -9,7 +9,7 @@ Sistem informasi pondok pesantren berbasis Next.js, Prisma, PostgreSQL, dan Tail
 3. **Penjadwalan**: jadwal pelajaran per pekan per jenjang; wali hanya melihat jadwal anaknya.
 4. **Pengelolaan Nilai**: komponen nilai per mata pelajaran per periode (semester + tahun ajaran).
 5. **Pengelolaan Rapor**: rekap nilai + absensi per semester di-snapshot menjadi rapor, diberi catatan wali kelas, lalu diterbitkan ke wali.
-6. **Absensi Ustadz dan BKKH**: kehadiran harian pengajar/wali kelas + laporan manual kegiatan harian berdasarkan enam rentang waktu tetap; ustadz mengisi laporan sendiri, administrasi mencatat kehadiran, dan mudir memantau.
+6. **Absensi Ustadz dan BKKH**: kehadiran harian ustadz/wali kelas + laporan manual kegiatan harian berdasarkan enam rentang waktu tetap; ustadz mengisi laporan sendiri, administrasi mencatat kehadiran, dan mudir memantau.
 
 Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **PWA** (installable, halaman terakhir bisa dibuka saat offline).
 
@@ -27,19 +27,23 @@ Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **
 
 - **Wali Santri**: buat akun, daftarkan anak, lihat jadwal, nilai, kehadiran, dan rapor anaknya sendiri.
 - **Wali Kelas**: kelola nilai dan absensi hanya pada mapel yang ditugaskan, serta kelola catatan dan penerbitan rapor.
-- **Pengajar**: isi nilai dan absensi pada mapel yang diampu, isi BKKH pribadi, serta kirim informasi ke wali.
+- **Ustadz**: isi nilai dan absensi pada mapel yang diampu, isi BKKH pribadi, serta kirim informasi ke wali.
 - **Administrasi**: tinjau PPDB, kelola akun dan role, mapel, peserta, ustadz pengampu, jadwal, informasi, serta absensi ustadz.
 - **Mudir Ma'had**: awasi kehadiran dan BKKH ustadz, jadwal mengajar, serta hasil akademik secara read-only. Mudir tidak mengelola akun atau PPDB.
 
 ## Demo Account
 
-Seed database membuat akun berikut (kata sandi `password123`):
+Seed database membuat akun demo di domain `@ppiq368.sch.id`. Kata sandi awalnya
+sama untuk semua akun dan didefinisikan di `prisma/seed.ts` — sengaja tidak
+ditulis di sini maupun ditampilkan di aplikasi.
 
-- Administrasi: `admin@pesantren.id`
-- Mudir: `mudir@pesantren.id`
-- Wali kelas: `walikelas@pesantren.id`
-- Pengajar: `guru@pesantren.id` (juga `guru2@`, `guru3@`)
-- Wali santri (punya 2 anak: SMP & SMA): `wali@pesantren.id`
+- Administrasi: `administrasi@`
+- Mudir Ma'had: `mudir@`
+- Wali kelas: `ridwan.nurhakim@`, `salman.ghifari@`, `hamdan.mutaqin@` (yang terakhir merangkap Ustadz)
+- Ustadz: `hafidz.maulana@`, `imron.nawawi@`, `taufiq.ramadhan@`
+- Wali santri: `wali.hasan@` (punya 2 anak), `wali.dewi@`, dan enam lainnya
+
+Rincian skenario pengujian beserta akun yang dipakai ada di [`SKENARIO-UJI.md`](SKENARIO-UJI.md).
 
 ## Setup
 
@@ -78,8 +82,8 @@ Buka `http://localhost:3000`.
   - `pendaftaran`: formulir pendaftaran anak (wali) + halaman sukses
   - `penerimaan`: tinjauan pendaftaran (administrasi); menerima menautkan data santri ke akun wali
   - `jadwal`: jadwal pelajaran per pekan (administrasi kelola per jenjang; pengguna lain melihat sesuai konteks)
-  - `nilai`, `absen`: pengajar dan wali kelas mengelola mapel yang ditugaskan; Mudir memantau read-only
-  - `absen-ustadz`: absensi harian pengajar/wali kelas + laporan BKKH per slot waktu + rekap bulanan
+  - `nilai`, `absen`: ustadz dan wali kelas mengelola mapel yang ditugaskan; Mudir memantau read-only
+  - `absen-ustadz`: absensi harian ustadz/wali kelas + laporan BKKH per slot waktu + rekap bulanan
   - `rapor` & `rapor/[id]`: Wali Kelas mengelola rapor; Mudir memantau read-only
   - `informasi`: pengumuman (wali baca, guru/admin kelola)
   - `mapel`: daftar mata pelajaran, penugasan ustadz, dan pendaftaran peserta (administrasi)

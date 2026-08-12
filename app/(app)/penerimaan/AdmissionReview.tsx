@@ -1,12 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, Icons, type Tone } from "@/components/ui";
 import { reviewAdmissionAction } from "../actions";
 
 type Status = "PENDING" | "ACCEPTED" | "REJECTED";
 type Level = "SD" | "SMP" | "SMA";
+
+type AdmissionDocument = {
+  kind: string;
+  label: string;
+  required: boolean;
+  // "upload" = berkas tersimpan di sistem, "link" = tautan luar, null = kosong.
+  source: "upload" | "link" | null;
+  href: string | null;
+  filename: string | null;
+  typeLabel: string | null;
+  sizeLabel: string | null;
+  isImage: boolean;
+  linkLabel: string | null;
+};
 
 type Admission = {
   id: string;
@@ -21,12 +36,9 @@ type Admission = {
   parentEmail: string;
   address: string | null;
   note: string | null;
-  familyCardUrl: string | null;
-  birthCertificateUrl: string | null;
-  previousReportUrl: string | null;
-  photoUrl: string | null;
   status: Status;
   createdAt: string;
+  documents: AdmissionDocument[];
 };
 
 const STATUS_LABEL: Record<Status, string> = { PENDING: "Menunggu", ACCEPTED: "Diterima", REJECTED: "Ditolak" };
@@ -46,12 +58,57 @@ function Detail({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function DocumentLink({ label, href }: { label: string; href: string | null }) {
-  if (!href) return null;
+function DocumentCard({ doc }: { doc: AdmissionDocument }) {
+  if (!doc.href || !doc.source) {
+    return (
+      <div className="flex min-h-[68px] items-center gap-3 rounded-xl border border-dashed border-line-strong px-3 py-2.5">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-surface-2 text-ink-3">
+          <Icons.x size={16} />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-semibold text-ink-2">{doc.label}</div>
+          <div className={`mt-0.5 text-[11.5px] font-semibold ${doc.required ? "text-danger" : "text-ink-3"}`}>
+            {doc.required ? "Belum diunggah (wajib)" : "Belum diunggah (opsional)"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isLink = doc.source === "link";
+  const meta = isLink
+    ? `Tautan · ${doc.linkLabel ?? "tautan eksternal"}`
+    : [doc.filename, doc.typeLabel, doc.sizeLabel].filter(Boolean).join(" · ");
+
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12.5px] font-semibold text-ink-2 transition hover:bg-surface-2">
-      <Icons.doc size={14} />
-      {label}
+    <a
+      href={doc.href}
+      target="_blank"
+      // Berlaku untuk kedua jenis; tautan luar tidak boleh mendapat akses
+      // window.opener maupun membocorkan referrer halaman tinjauan.
+      rel="noopener noreferrer"
+      className="flex min-h-[68px] items-center gap-3 rounded-xl border border-line px-3 py-2.5 transition hover:border-line-strong hover:bg-surface-2"
+    >
+      {doc.isImage && !isLink ? (
+        <Image
+          src={doc.href}
+          alt={doc.label}
+          width={44}
+          height={44}
+          unoptimized
+          className="h-11 w-11 shrink-0 rounded-lg border border-line object-cover"
+        />
+      ) : (
+        <span
+          className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${isLink ? "bg-accent-soft text-[oklch(0.42_0.1_200)]" : "bg-primary-soft text-primary-700"}`}
+        >
+          {isLink ? <Icons.chevR size={16} /> : <Icons.doc size={16} />}
+        </span>
+      )}
+      <div className="min-w-0">
+        <div className="truncate text-[13px] font-semibold text-ink-2">{doc.label}</div>
+        <div className="mt-0.5 truncate text-[11.5px] text-ink-3">{meta}</div>
+      </div>
     </a>
   );
 }
@@ -167,17 +224,19 @@ export function AdmissionReview({ admissions }: { admissions: Admission[] }) {
                       <Detail label="Alamat" value={a.address} />
                       <Detail label="Catatan" value={a.note} />
                     </div>
-                    {a.familyCardUrl || a.birthCertificateUrl || a.previousReportUrl || a.photoUrl ? (
-                      <div className="mt-5 border-t border-line pt-4">
-                        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-3">Dokumen Pendukung</div>
-                        <div className="flex flex-wrap gap-2">
-                          <DocumentLink label="Kartu Keluarga" href={a.familyCardUrl} />
-                          <DocumentLink label="Akta Kelahiran" href={a.birthCertificateUrl} />
-                          <DocumentLink label="Rapor Terakhir" href={a.previousReportUrl} />
-                          <DocumentLink label="Pas Foto" href={a.photoUrl} />
-                        </div>
+                    <div className="mt-5 border-t border-line pt-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">Dokumen Pendukung</span>
+                        {a.documents.some((doc) => doc.required && !doc.href) ? (
+                          <Badge tone="danger">Berkas wajib belum lengkap</Badge>
+                        ) : null}
                       </div>
-                    ) : null}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {a.documents.map((doc) => (
+                          <DocumentCard key={doc.kind} doc={doc} />
+                        ))}
+                      </div>
+                    </div>
                     {a.status === "PENDING" ? (
                       <div className="mt-5 flex justify-end gap-2.5">
                         <Button variant="danger" disabled={pending} onClick={() => review(a.id, "REJECTED", a.childName)}>

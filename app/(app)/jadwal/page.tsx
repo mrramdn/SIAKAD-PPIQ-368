@@ -152,7 +152,7 @@ export default async function JadwalPage({
                 active ? "border-primary text-primary" : "border-transparent text-ink-3 hover:text-ink-2"
               }`}
             >
-              {LEVEL_FULL[lvl]} ({LEVEL_LABEL[lvl]})
+              {LEVEL_FULL[lvl] === LEVEL_LABEL[lvl] ? LEVEL_LABEL[lvl] : `${LEVEL_FULL[lvl]} (${LEVEL_LABEL[lvl]})`}
             </Link>
           );
         })}
