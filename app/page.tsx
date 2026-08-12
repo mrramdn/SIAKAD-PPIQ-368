@@ -107,9 +107,7 @@ export default async function Home() {
         <div className="mx-auto flex min-h-[100svh] w-full max-w-6xl flex-col px-5 sm:px-6">
           <nav className="flex min-h-20 items-center justify-between gap-5" aria-label="Navigasi utama">
             <Link href="/" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-white">
-                <Icons.cap size={20} />
-              </span>
+              <img src="/icons/logo-mark.png" alt="" className="h-9 w-9 rounded-xl" />
               <span className="text-base font-extrabold tracking-tight sm:text-lg">{APP_NAME}</span>
             </Link>
 
@@ -322,9 +320,7 @@ export default async function Home() {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <Link href="/" className="inline-flex items-center gap-2.5">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-white">
-                <Icons.cap size={20} />
-              </span>
+              <img src="/icons/logo-mark.png" alt="" className="h-9 w-9 rounded-xl" />
               <span className="font-extrabold tracking-tight">{APP_NAME}</span>
             </Link>
             <p className="mt-3 max-w-sm text-sm leading-6 text-ink-3">{APP_TAGLINE} untuk wali, ustadz, Administrasi, dan Mudir Ma&apos;had.</p>

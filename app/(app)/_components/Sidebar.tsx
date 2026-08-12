@@ -30,12 +30,7 @@ export function Sidebar({ roles, open, onClose }: { roles: Role[]; open: boolean
       >
         {/* brand */}
         <div className="flex items-center gap-3 px-5 pb-4 pt-5">
-          <div
-            className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl"
-            style={{ background: "var(--primary)" }}
-          >
-            <Icons.cap size={22} style={{ color: "#fff" }} />
-          </div>
+          <img src="/icons/logo-mark.png" alt="" className="h-[38px] w-[38px] shrink-0 rounded-xl" />
           <div>
             <div className="text-[17px] font-extrabold tracking-tight">{APP_NAME}</div>
             <div className="text-[11px] font-semibold text-ink-3">{APP_TAGLINE}</div>

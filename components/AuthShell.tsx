@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { APP_NAME } from "@/lib/brand";
-import { Icons } from "@/components/ui";
 
 export function AuthShell({
   eyebrow,
@@ -21,9 +20,7 @@ export function AuthShell({
       <aside className="bg-primary-700 text-white">
         <div className="mx-auto flex max-w-xl flex-col px-5 py-5 sm:px-8 lg:min-h-dvh lg:px-12 lg:py-10">
           <Link href="/" className="inline-flex w-fit items-center gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/15">
-              <Icons.cap size={20} style={{ color: "#fff" }} />
-            </span>
+            <img src="/icons/logo-mark.png" alt="" className="h-9 w-9 rounded-xl" />
             <span className="text-base font-extrabold sm:text-lg">{APP_NAME}</span>
           </Link>
 
