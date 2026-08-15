@@ -6,8 +6,10 @@ import type { EducationLevel } from "@/generated/prisma/client";
 import {
   assignHomeroomAction,
   createClassAction,
+  deleteClassAction,
   placeStudentAction,
   removeStudentFromClassAction,
+  updateClassAction,
 } from "./actions";
 import { Modal, Toast, useActionRunner } from "./_ui";
 
@@ -25,15 +27,27 @@ type HomeroomCandidate = { id: string; name: string };
 
 const LEVELS: EducationLevel[] = ["SD", "SMP", "SMA"];
 
-function AddClassModal({ onClose, onSaved }: { onClose: () => void; onSaved: (data: { name: string; level: EducationLevel; academicYear: string }) => void }) {
+function ClassForm({
+  initial,
+  onClose,
+  onSaved,
+}: {
+  initial: ClassRow | null;
+  onClose: () => void;
+  onSaved: (data: { name: string; level: EducationLevel; academicYear: string }) => void;
+}) {
   const currentYear = new Date().getFullYear();
-  const [name, setName] = useState("");
-  const [level, setLevel] = useState<EducationLevel>("SMP");
-  const [academicYear, setAcademicYear] = useState(`${currentYear}/${currentYear + 1}`);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [level, setLevel] = useState<EducationLevel>(initial?.level ?? "SMP");
+  const [academicYear, setAcademicYear] = useState(initial?.academicYear ?? `${currentYear}/${currentYear + 1}`);
   const valid = Boolean(name.trim()) && /^\d{4}\/\d{4}$/.test(academicYear);
 
   return (
-    <Modal title="Tambah Kelas" sub="Buat kelas baru untuk menampung santri dan mata pelajaran." onClose={onClose}>
+    <Modal
+      title={initial ? "Edit Kelas" : "Tambah Kelas"}
+      sub={initial ? undefined : "Buat kelas baru untuk menampung santri dan mata pelajaran."}
+      onClose={onClose}
+    >
       <Field label="Nama kelas">
         <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="cth. SMP-1" className={inputClasses} />
       </Field>
@@ -54,7 +68,7 @@ function AddClassModal({ onClose, onSaved }: { onClose: () => void; onSaved: (da
           Batal
         </Button>
         <Button variant="primary" disabled={!valid} className={!valid ? "opacity-50" : ""} onClick={() => onSaved({ name: name.trim(), level, academicYear })}>
-          Tambah Kelas
+          {initial ? "Simpan Perubahan" : "Tambah Kelas"}
         </Button>
       </div>
     </Modal>
@@ -72,9 +86,12 @@ export function KelasManager({
 }) {
   const { run, toast } = useActionRunner();
   const [addOpen, setAddOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassRow | null>(null);
+  const [deleteClassId, setDeleteClassId] = useState<string | null>(null);
   const [pickByClass, setPickByClass] = useState<Record<string, string>>({});
 
   const totalStudents = classes.reduce((sum, c) => sum + c.students.length, 0) + unassignedStudents.length;
+  const deletingClass = classes.find((c) => c.id === deleteClassId) ?? null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -122,6 +139,24 @@ export function KelasManager({
                   <Badge tone="primary">{cls.level}</Badge>
                   <Badge tone="neutral">{cls.academicYear}</Badge>
                   <Badge tone="success">{cls.students.length} santri</Badge>
+                </div>
+                <div className="inline-flex gap-1">
+                  <button
+                    title="Edit"
+                    aria-label={`Edit ${cls.name}`}
+                    onClick={() => setEditingClass(cls)}
+                    className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-primary-soft hover:text-primary-700"
+                  >
+                    <Icons.edit size={16} />
+                  </button>
+                  <button
+                    title="Hapus"
+                    aria-label={`Hapus ${cls.name}`}
+                    onClick={() => setDeleteClassId(cls.id)}
+                    className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Icons.trash size={16} />
+                  </button>
                 </div>
               </div>
 
@@ -223,13 +258,49 @@ export function KelasManager({
       ) : null}
 
       {addOpen ? (
-        <AddClassModal
+        <ClassForm
+          initial={null}
           onClose={() => setAddOpen(false)}
           onSaved={(data) => {
             run(createClassAction(data), `Kelas ${data.name} ditambahkan`);
             setAddOpen(false);
           }}
         />
+      ) : null}
+
+      {editingClass ? (
+        <ClassForm
+          initial={editingClass}
+          onClose={() => setEditingClass(null)}
+          onSaved={(data) => {
+            run(updateClassAction({ classId: editingClass.id, ...data }), `Kelas ${data.name} diperbarui`);
+            setEditingClass(null);
+          }}
+        />
+      ) : null}
+
+      {deletingClass ? (
+        <Modal title="Hapus Kelas?" onClose={() => setDeleteClassId(null)} width={420}>
+          <p className="text-sm leading-relaxed text-ink-2">
+            Kelas <strong className="text-ink">{deletingClass.name}</strong> akan dihapus permanen. Kelas hanya bisa
+            dihapus jika sudah tidak ada santri maupun mata pelajaran yang masih ditempatkan di kelas ini.
+          </p>
+          <div className="mt-6 flex justify-end gap-2.5">
+            <Button variant="ghost" onClick={() => setDeleteClassId(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              style={{ background: "var(--red)" }}
+              onClick={() => {
+                run(deleteClassAction(deletingClass.id), `Kelas ${deletingClass.name} dihapus`, "warn");
+                setDeleteClassId(null);
+              }}
+            >
+              Ya, Hapus
+            </Button>
+          </div>
+        </Modal>
       ) : null}
 
       <Toast toast={toast} />

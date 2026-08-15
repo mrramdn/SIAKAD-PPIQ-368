@@ -1027,36 +1027,6 @@ async function main() {
     ]);
   }
 
-  /* ------------------------------ pengumuman ------------------------------ */
-  const ANNOUNCEMENTS = [
-    {
-      title: "Awal Kegiatan Belajar Semester Ganjil",
-      body: "Kegiatan belajar mengajar semester ganjil dimulai Senin pekan depan. Mohon wali santri memastikan perlengkapan dan kitab santri sudah lengkap sebelum keberangkatan.",
-      level: null,
-      pinned: true,
-      authorId: adminId,
-    },
-    {
-      title: "Jadwal Ujian Tengah Semester",
-      body: "Ujian tengah semester dilaksanakan dua pekan lagi. Jadwal per mata pelajaran dapat ditanyakan kepada wali kelas masing-masing.",
-      level: EducationLevel.SMP,
-      pinned: false,
-      authorId: userIdByKey.get("salman")!,
-    },
-    {
-      title: "Kunjungan Wali Santri",
-      body: "Kunjungan wali santri dibuka setiap Ahad pekan kedua dan keempat, pukul 09.00-15.00 di aula pondok. Mohon melapor ke bagian administrasi saat tiba.",
-      level: null,
-      pinned: false,
-      authorId: adminId,
-    },
-  ];
-  for (const def of ANNOUNCEMENTS) {
-    const existing = await prisma.announcement.findFirst({ where: { title: def.title }, select: { id: true } });
-    if (existing) await prisma.announcement.update({ where: { id: existing.id }, data: def });
-    else await prisma.announcement.create({ data: def });
-  }
-
   /* ------------------------------ PPDB / admisi --------------------------- */
   // Berkas unggahan demo: PNG 1x1 piksel, cukup untuk menguji alur unduh berkas.
   const DEMO_FILE = Buffer.from(

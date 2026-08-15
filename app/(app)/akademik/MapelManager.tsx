@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button, Card, Field, Icons, inputClasses } from "@/components/ui";
 import type { EducationLevel } from "@/generated/prisma/client";
-import { createCourseAction, updateCourseAssignmentAction } from "./actions";
+import { createCourseAction, deleteCourseAction, updateCourseAssignmentAction } from "./actions";
 import { Modal, Toast, useActionRunner } from "./_ui";
 
 type Course = {
@@ -183,6 +183,8 @@ export function MapelManager({
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ classRoomId: "", assessmentGroupId: "", teacherId: "", reportMaxScore: "" });
+  const [deleteCourseId, setDeleteCourseId] = useState<string | null>(null);
+  const deletingCourse = courses.find((c) => c.id === deleteCourseId) ?? null;
 
   const list = useMemo(
     () =>
@@ -348,14 +350,24 @@ export function MapelManager({
                           </Button>
                         </div>
                       ) : (
-                        <button
-                          title="Edit"
-                          aria-label={`Edit ${c.title}`}
-                          onClick={() => startEdit(c)}
-                          className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-primary-soft hover:text-primary-700"
-                        >
-                          <Icons.edit size={16} />
-                        </button>
+                        <div className="inline-flex gap-1">
+                          <button
+                            title="Edit"
+                            aria-label={`Edit ${c.title}`}
+                            onClick={() => startEdit(c)}
+                            className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-primary-soft hover:text-primary-700"
+                          >
+                            <Icons.edit size={16} />
+                          </button>
+                          <button
+                            title="Hapus"
+                            aria-label={`Hapus ${c.title}`}
+                            onClick={() => setDeleteCourseId(c.id)}
+                            className="grid h-11 w-11 place-items-center rounded-lg text-ink-3 hover:bg-danger-soft hover:text-danger"
+                          >
+                            <Icons.trash size={16} />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -380,6 +392,31 @@ export function MapelManager({
             setAddOpen(false);
           }}
         />
+      ) : null}
+
+      {deletingCourse ? (
+        <Modal title="Hapus Mata Pelajaran?" onClose={() => setDeleteCourseId(null)} width={440}>
+          <p className="text-sm leading-relaxed text-ink-2">
+            Mapel <strong className="text-ink">{deletingCourse.title}</strong> akan disembunyikan dari daftar mapel
+            aktif. Riwayat nilai, absensi, dan rapor yang sudah ada untuk mapel ini tetap tersimpan dan tidak
+            terhapus.
+          </p>
+          <div className="mt-6 flex justify-end gap-2.5">
+            <Button variant="ghost" onClick={() => setDeleteCourseId(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="primary"
+              style={{ background: "var(--red)" }}
+              onClick={() => {
+                run(deleteCourseAction(deletingCourse.id), `Mapel ${deletingCourse.title} dihapus`, "warn");
+                setDeleteCourseId(null);
+              }}
+            >
+              Ya, Hapus
+            </Button>
+          </div>
+        </Modal>
       ) : null}
 
       <Toast toast={toast} />

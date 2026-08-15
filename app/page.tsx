@@ -5,7 +5,6 @@ import { APP_NAME, APP_TAGLINE, LEVEL_FULL, LEVELS } from "@/lib/brand";
 
 const highlights = [
   "Pantau nilai dan kehadiran anak secara berkala",
-  "Informasi pesantren tersampaikan dalam satu portal",
   "Satu akun wali dapat terhubung ke beberapa anak",
 ] as const;
 
@@ -52,7 +51,7 @@ const roles = [
   {
     name: "Wali santri",
     code: "WALI",
-    description: "Mendaftarkan anak serta memantau jadwal, absensi, nilai, informasi, dan rapor yang sudah diterbitkan.",
+    description: "Mendaftarkan anak serta memantau jadwal, absensi, nilai, dan rapor yang sudah diterbitkan.",
   },
   {
     name: "Ustadz",
@@ -67,7 +66,7 @@ const roles = [
   {
     name: "Administrasi",
     code: "ADMIN",
-    description: "Mengelola PPDB, akun, data dasar, penugasan ustadz, jadwal, informasi, dan operasional pesantren.",
+    description: "Mengelola PPDB, akun, data dasar, penugasan ustadz, jadwal, dan operasional pesantren.",
   },
   {
     name: "Mudir Ma'had",

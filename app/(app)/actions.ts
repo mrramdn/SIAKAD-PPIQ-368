@@ -8,7 +8,6 @@ import {
   AdmissionStatus,
   AttendanceStatus,
   CourseStatus,
-  EducationLevel,
   EnrollmentStatus,
   Prisma,
   UserRole,
@@ -140,6 +139,13 @@ export async function updateCourseAction(formData: FormData) {
     redirect(`/mapel/${courseId}?error=invalid`);
   }
 
+  // Mapel yang sudah di-soft-delete tidak boleh menerima perubahan lagi:
+  // riwayatnya tetap utuh, tapi barisnya sudah dianggap tidak berlaku.
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, deletedAt: true } });
+  if (!course || course.deletedAt) {
+    redirect(`/mapel/${courseId}?error=deleted`);
+  }
+
   await prisma.course.update({ where: { id: courseId }, data: { title, description, status, teacherId } });
   revalidateCourseAreas(courseId);
 }
@@ -153,6 +159,12 @@ export async function enrollStudentAction(formData: FormData) {
 
   if (!courseId || !studentId) {
     redirect(`/mapel/${courseId}?error=enrollment`);
+  }
+
+  // Mapel yang sudah di-soft-delete tidak boleh menerima peserta baru.
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, deletedAt: true } });
+  if (!course || course.deletedAt) {
+    redirect(`/mapel/${courseId}?error=deleted`);
   }
 
   await prisma.enrollment.upsert({
@@ -179,8 +191,11 @@ export async function createAttendanceSessionAction(formData: FormData) {
     redirect(`/absen?course=${courseId}&error=date`);
   }
 
-  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true } });
-  if (!course || !canEditAssignedCourse(user, course.teacherId)) {
+  // deletedAt: null juga menyaring mapel yang sudah di-soft-delete, sehingga
+  // sesi absensi baru tidak bisa dibuat untuknya — jatuh ke pesan "forbidden"
+  // yang sudah ada, sama seperti mapel yang bukan milik pengampu ini.
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true, deletedAt: true } });
+  if (!course || course.deletedAt || !canEditAssignedCourse(user, course.teacherId)) {
     redirect(`/absen?course=${courseId}&error=forbidden`);
   }
 
@@ -362,8 +377,11 @@ export async function createGradeItemAction(formData: FormData) {
     redirect(`/nilai?course=${courseId}&error=date`);
   }
 
-  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true } });
-  if (!course || !canEditAssignedCourse(user, course.teacherId)) {
+  // deletedAt: null juga menyaring mapel yang sudah di-soft-delete, sehingga
+  // komponen nilai baru tidak bisa dibuat untuknya — jatuh ke pesan "forbidden"
+  // yang sudah ada, sama seperti mapel yang bukan milik pengampu ini.
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true, deletedAt: true } });
+  if (!course || course.deletedAt || !canEditAssignedCourse(user, course.teacherId)) {
     redirect(`/nilai?course=${courseId}&error=forbidden`);
   }
 
@@ -572,6 +590,13 @@ export async function createScheduleSlotAction(formData: FormData) {
     redirect("/jadwal?error=invalid");
   }
 
+  // Mapel yang sudah dihapus (soft-delete) atau tidak ada tidak boleh menerima
+  // slot jadwal baru.
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, deletedAt: true } });
+  if (!course || course.deletedAt) {
+    redirect("/jadwal?error=invalid");
+  }
+
   await prisma.scheduleSlot.create({ data: { courseId, dayOfWeek, startTime, room } });
   revalidatePath("/jadwal");
   revalidatePath("/dashboard");
@@ -712,33 +737,6 @@ export async function updateUserAction(input: {
     data: { name, roles, status: input.status },
   });
   revalidatePath("/pengguna");
-  return { ok: true };
-}
-
-/* ---------------------- announcements (teacher/admin) ---------------------- */
-
-export async function createAnnouncementAction(formData: FormData) {
-  const user = await requirePermission("announcement.manage");
-  const title = String(formData.get("title") ?? "").trim();
-  const body = String(formData.get("body") ?? "").trim();
-  const levelRaw = String(formData.get("level") ?? "");
-  const level = Object.values(EducationLevel).includes(levelRaw as EducationLevel) ? (levelRaw as EducationLevel) : null;
-  const pinned = formData.get("pinned") === "on";
-
-  if (!title || !body) {
-    redirect("/informasi?error=invalid");
-  }
-
-  await prisma.announcement.create({ data: { title, body, level, pinned, authorId: user.id } });
-  revalidatePath("/informasi");
-  revalidatePath("/dashboard");
-}
-
-export async function deleteAnnouncementAction(id: string): Promise<ActionResult> {
-  await requirePermission("announcement.manage");
-  if (!id) return { ok: false, message: "Informasi tidak ditemukan." };
-  await prisma.announcement.delete({ where: { id } });
-  revalidatePath("/informasi");
   return { ok: true };
 }
 

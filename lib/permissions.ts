@@ -22,8 +22,6 @@ export const PERMISSIONS = [
   "report.approve", // administrasi: ACC rapor kiriman wali kelas
   "report.distribute", // administrasi: pantau & serahkan rapor (read-only)
   "child.monitor", // wali santri: profil, absensi, nilai, rapor anak
-  "announcement.view",
-  "announcement.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -34,8 +32,6 @@ const TEACHER_PERMISSIONS = [
   "staff_attendance.self",
   "attendance.record",
   "grade.manage",
-  "announcement.view",
-  "announcement.manage",
 ] as const satisfies readonly Permission[];
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -43,20 +39,14 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "admission.review",
     "user.manage",
     "staff_attendance.view",
-    "staff_attendance.record",
-    "course.manage",
-    "class.manage",
-    "assessment.configure",
     "administration.manage",
     "report.approve",
     "report.distribute",
-    "announcement.view",
-    "announcement.manage",
   ],
   TEACHER: TEACHER_PERMISSIONS,
   HOMEROOM: [...TEACHER_PERMISSIONS, "report.manage"],
-  MUDIR: ["staff_attendance.view", "course.view", "course.manage", "announcement.view"],
-  PARENT: ["admission.submit", "schedule.view.own", "child.monitor", "announcement.view"],
+  MUDIR: ["staff_attendance.view", "course.view", "course.manage", "class.manage", "assessment.configure"],
+  PARENT: ["admission.submit", "schedule.view.own", "child.monitor"],
 };
 
 export function permissionsFor(roles: readonly Role[]): Set<Permission> {
@@ -105,9 +95,9 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const ROLE_BLURB: Record<Role, string> = {
-  ADMIN: "Kelola pendaftaran, akun, absensi ustadz, penyiapan kelas, mapel, kelompok penilaian, checklist administrasi, serta ACC dan penyerahan rapor.",
+  ADMIN: "Kelola pendaftaran, akun, checklist administrasi santri, serta ACC dan penyerahan rapor; memantau absensi ustadz.",
   TEACHER: "Kelola jadwal & mapel, absensi santri, nilai, serta kehadiran dan BKKH pribadi.",
   HOMEROOM: "Kelola jadwal & mapel, absensi santri, nilai, kehadiran dan BKKH pribadi, serta rapor kelas binaan.",
-  MUDIR: "Awasi kehadiran ustadz serta kelola mata pelajaran dan jadwal.",
-  PARENT: "Pantau anak, jadwal, pendaftaran, dan informasi terbaru.",
+  MUDIR: "Awasi kehadiran ustadz serta kelola mata pelajaran, jadwal, kelas, dan kelompok penilaian.",
+  PARENT: "Pantau anak, jadwal, dan pendaftaran.",
 };

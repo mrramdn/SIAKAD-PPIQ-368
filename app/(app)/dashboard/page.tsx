@@ -3,11 +3,9 @@ import { getAdmissionsBySubmitter } from "@/lib/admissions";
 import { requireVerifiedUser, userCan } from "@/lib/auth";
 import { BKKH_TIME_SLOTS, countFilledBkkhSlots } from "@/lib/bkkh";
 import {
-  getAnnouncements,
   getBkkhDailyReports,
   getDashboardData,
   getParentChildren,
-  getParentLevels,
   getStaffAttendanceBoard,
   toDateKey,
 } from "@/lib/lms";
@@ -70,10 +68,8 @@ export default async function DashboardPage() {
 
   let parentSection: React.ReactNode = null;
   if (canMonitorChildren) {
-    const levels = await getParentLevels(user.id);
-    const [children, announcements, admissions] = await Promise.all([
+    const [children, admissions] = await Promise.all([
       getParentChildren(user.id),
-      getAnnouncements(levels),
       getAdmissionsBySubmitter(user.id),
     ]);
 
@@ -97,7 +93,6 @@ export default async function DashboardPage() {
       <ParentDashboard
         name={user.name}
         kids={children}
-        announcements={announcements.map((a) => ({ id: a.id, title: a.title, level: a.level, createdAt: annFmt.format(a.createdAt) }))}
         admissions={toAdmissionStatusItems(admissions)}
         publishedReportCards={publishedReportCards.map((rc) => ({
           id: rc.id,
@@ -131,13 +126,13 @@ export default async function DashboardPage() {
         ? { href: "/absen", label: "Lihat Absensi" }
         : canManageCourses
           ? { href: "/jadwal", label: "Jadwal Mengajar" }
-          : { href: "/informasi", label: "Informasi" };
+          : { href: "/anak", label: "Anak Saya" };
 
   const heroBlurb =
     canManageGrades && !canManageReports
       ? "Kelola mata pelajaran, catat kehadiran, dan isi nilai kelas yang kamu ampu hari ini."
       : canManageReports
-        ? "Pantau kelas binaan, absensi santri, nilai, dan informasi untuk wali."
+        ? "Pantau kelas binaan, absensi santri, dan nilai untuk wali."
         : canManageCourses && !canReviewAdmissions
           ? "Pantau kehadiran ustadz, BKKH, dan jadwal pengajaran pesantren."
           : "Kelola pendaftaran, akun, data dasar, jadwal, dan operasional pesantren.";

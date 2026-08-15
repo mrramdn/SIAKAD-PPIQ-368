@@ -81,6 +81,75 @@ export async function createClassAction(input: {
   return { ok: true };
 }
 
+export async function updateClassAction(input: {
+  classId: string;
+  name: string;
+  level: EducationLevel;
+  academicYear: string;
+}): Promise<ActionResult> {
+  await requirePermission("class.manage");
+  if (!input.classId) return { ok: false, message: "Kelas tidak ditemukan." };
+  const parsed = createClassSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Data kelas tidak valid." };
+  }
+  const { name, level, academicYear } = parsed.data;
+
+  const classRoom = await prisma.classRoom.findUnique({ where: { id: input.classId }, select: { id: true, name: true } });
+  if (!classRoom) return { ok: false, message: "Kelas tidak ditemukan." };
+
+  const clash = await prisma.classRoom.findUnique({
+    where: { name_academicYear: { name, academicYear } },
+    select: { id: true },
+  });
+  if (clash && clash.id !== input.classId) {
+    return { ok: false, message: `Kelas ${name} pada tahun ajaran ${academicYear} sudah ada.` };
+  }
+
+  await prisma.classRoom.update({ where: { id: input.classId }, data: { name, level, academicYear } });
+  // StudentProfile.className adalah denormalisasi dari nama kelas (lihat
+  // placeStudentAction) — kalau nama kelas berganti, santri yang sudah
+  // ditempatkan di kelas ini harus ikut disinkronkan, bukan tertinggal
+  // memakai nama lama.
+  if (name !== classRoom.name) {
+    await prisma.studentProfile.updateMany({ where: { classRoomId: input.classId }, data: { className: name } });
+  }
+  revalidateAkademik();
+  return { ok: true };
+}
+
+/**
+ * Kelas hanya boleh dihapus jika sudah kosong dari santri maupun mapel, supaya
+ * penghapusan tidak diam-diam melepas relasi penting (santri jadi tak berkelas
+ * tanpa disadari, mapel kehilangan penempatan kelasnya).
+ */
+export async function deleteClassAction(classId: string): Promise<ActionResult> {
+  await requirePermission("class.manage");
+  if (!classId) return { ok: false, message: "Kelas tidak ditemukan." };
+  const classRoom = await prisma.classRoom.findUnique({ where: { id: classId }, select: { id: true, name: true } });
+  if (!classRoom) return { ok: false, message: "Kelas tidak ditemukan." };
+
+  const [studentCount, courseCount] = await Promise.all([
+    prisma.studentProfile.count({ where: { classRoomId: classId } }),
+    prisma.course.count({ where: { classRoomId: classId, deletedAt: null } }),
+  ]);
+  if (studentCount > 0 || courseCount > 0) {
+    const parts: string[] = [];
+    if (studentCount > 0) parts.push(`${studentCount} santri`);
+    if (courseCount > 0) parts.push(`${courseCount} mata pelajaran`);
+    return {
+      ok: false,
+      message: `Tidak bisa dihapus: kelas ${classRoom.name} masih memiliki ${parts.join(
+        " dan ",
+      )}. Keluarkan/pindahkan terlebih dahulu sebelum menghapus kelas.`,
+    };
+  }
+
+  await prisma.classRoom.delete({ where: { id: classId } });
+  revalidateAkademik();
+  return { ok: true };
+}
+
 export async function assignHomeroomAction(input: { classId: string; teacherId: string | null }): Promise<ActionResult> {
   await requirePermission("class.manage");
   if (!input.classId) return { ok: false, message: "Kelas tidak ditemukan." };
@@ -276,6 +345,26 @@ export async function updateCourseAssignmentAction(input: {
       reportMaxScore: parsed.data.reportMaxScore,
     },
   });
+  revalidateAkademik();
+  return { ok: true };
+}
+
+/**
+ * Soft delete: `deletedAt` disaring di semua query aktif (lib/akademik.ts,
+ * lib/lms.ts, lib/rapor.ts) sehingga mapel langsung hilang dari daftar aktif,
+ * tapi riwayat nilai/absensi/rapor yang sudah terbit tetap utuh — tidak perlu
+ * dicek "sedang dipakai" seperti penghapusan permanen.
+ */
+export async function deleteCourseAction(courseId: string): Promise<ActionResult> {
+  await requirePermission("course.manage");
+  if (!courseId) return { ok: false, message: "Mata pelajaran tidak ditemukan." };
+
+  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, deletedAt: true } });
+  if (!course || course.deletedAt) {
+    return { ok: false, message: "Mata pelajaran tidak ditemukan atau sudah dihapus." };
+  }
+
+  await prisma.course.update({ where: { id: courseId }, data: { deletedAt: new Date() } });
   revalidateAkademik();
   return { ok: true };
 }

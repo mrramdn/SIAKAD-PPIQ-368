@@ -31,11 +31,11 @@ permission tertentu.
 
 | Peran | Fitur yang dapat diakses |
 |---|---|
-| Administrasi | Pendaftaran (PPDB), Pengguna, Absensi Ustadz, Penerimaan Rapor, Informasi |
-| Pengajar (Ustadz) | Jadwal & Mata Pelajaran, Absensi Santri, Pengelolaan Nilai, Absensi Ustadz & BKKH, Informasi |
+| Administrasi | Pendaftaran (PPDB), Pengguna, Absensi Ustadz, Penerimaan Rapor |
+| Pengajar (Ustadz) | Jadwal & Mata Pelajaran, Absensi Santri, Pengelolaan Nilai, Absensi Ustadz & BKKH |
 | Wali Kelas | Seluruh fitur Pengajar, ditambah Rapor |
-| Mudir Ma'had | Absensi Ustadz, Jadwal & Mata Pelajaran, Informasi |
-| Wali Santri | Pendaftaran Anak, Jadwal, Anak Saya (profil, kehadiran, nilai, rapor), Informasi |
+| Mudir Ma'had | Absensi Ustadz, Jadwal & Mata Pelajaran |
+| Wali Santri | Pendaftaran Anak, Jadwal, Anak Saya (profil, kehadiran, nilai, rapor) |
 
 Dasbor dan Pengaturan tersedia untuk seluruh peran.
 
@@ -78,7 +78,6 @@ sistem menolak perubahan yang menyisakan nol akun Administrasi aktif.
 - Memantau Jadwal Pelajaran Anak (seluruh jenjang: SD, SMP, SMA)
 - Memantau Rekap Nilai Harian & Kehadiran Anak
 - Memantau Rapor Semester Anak (hanya berstatus PUBLISHED)
-- Memantau Pengumuman / Informasi Pesantren
 
 ### 2. Pengajar (Ustadz)
 - Login
@@ -87,7 +86,6 @@ sistem menolak perubahan yang menyisakan nol akun Administrasi aktif.
 - Mencatat Kehadiran Pribadi
 - Mengisi Laporan BKKH Harian
 - Mengisi dan Mengelola Nilai Komponen pada Mapel yang Ditugaskan
-- Mengelola Pengumuman / Informasi Pesantren
 
 ### 3. Wali Kelas
 Seluruh use case Pengajar, ditambah:
@@ -102,7 +100,6 @@ Seluruh use case Pengajar, ditambah:
 - Mengelola Mata Pelajaran, Peserta, dan Ustadz Pengampu
 - Menyusun Jadwal Pelajaran (Mengelola Slot)
 - Memantau Absensi Ustadz dan Laporan BKKH Harian
-- Memantau Pengumuman / Informasi Pesantren
 
 Catatan: Mudir Ma'had berperan sebagai pengawas ustadz sekaligus pemegang
 kewenangan penjadwalan akademik. Mudir tidak memiliki akses ke manajemen akun,
@@ -116,7 +113,6 @@ Kelas, sedangkan rapor merupakan kewenangan Wali Kelas.
 - Mencatat Kehadiran Ustadz
 - Memantau Laporan BKKH Harian
 - Memantau Penerimaan Rapor (daftar rapor terbit untuk diserahkan ke wali santri)
-- Mengelola Pengumuman / Informasi Pesantren
 
 Catatan: Administrasi tidak mengelola mata pelajaran maupun jadwal; kewenangan
 tersebut berada pada Mudir Ma'had. Akses Administrasi terhadap rapor bersifat

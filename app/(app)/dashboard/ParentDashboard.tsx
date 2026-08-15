@@ -15,8 +15,6 @@ type Child = {
   attRate: number;
 };
 
-type Announcement = { id: string; title: string; level: Level | null; createdAt: string };
-
 type PublishedReportCard = {
   id: string;
   childName: string;
@@ -32,13 +30,11 @@ const dateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeri
 export function ParentDashboard({
   name,
   kids,
-  announcements,
   publishedReportCards = [],
   admissions = [],
 }: {
   name: string;
   kids: Child[];
-  announcements: Announcement[];
   publishedReportCards?: PublishedReportCard[];
   admissions?: AdmissionStatusItem[];
 }) {
@@ -56,7 +52,7 @@ export function ParentDashboard({
             <div className="mb-2 text-[13px] font-semibold opacity-85">{dateFmt.format(new Date())}</div>
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight lg:text-3xl text-balance">Assalamualaikum, {greet}</h1>
             <p className="mt-2.5 text-[14.5px] leading-relaxed opacity-90 text-pretty">
-              Pantau perkembangan nilai, kehadiran, dan informasi terbaru {kids.length > 1 ? "anak-anak" : "anak"} Anda.
+              Pantau perkembangan nilai dan kehadiran {kids.length > 1 ? "anak-anak" : "anak"} Anda.
             </p>
             <div className="mt-4 flex flex-wrap gap-2.5">
               <Link href="/anak" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-primary-700">
@@ -65,9 +61,6 @@ export function ParentDashboard({
               </Link>
               <Link href="/pendaftaran" className="inline-flex items-center rounded-xl border border-white/25 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white">
                 Daftarkan Anak
-              </Link>
-              <Link href="/informasi" className="inline-flex items-center rounded-xl border border-white/25 bg-white/15 px-4 py-2.5 text-sm font-semibold text-white">
-                Informasi
               </Link>
             </div>
           </div>
@@ -80,7 +73,7 @@ export function ParentDashboard({
 
       {/* Merged Stat Cards (Unified 2x2 grid on mobile, 4 columns on desktop) */}
       <Card pad={18}>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-y-4" style={{ gap: "16px 20px" }}>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-y-4" style={{ gap: "16px 20px" }}>
           {/* Stat 1: Anak Terpantau */}
           <div className="flex flex-col justify-between">
             <div className="flex items-start justify-between">
@@ -113,129 +106,94 @@ export function ParentDashboard({
             <div className="mt-3.5 text-2xl font-extrabold tracking-tight">{attAll}%</div>
             <div className="mt-0.5 text-[12.5px] font-medium text-ink-3">Rata Kehadiran</div>
           </div>
-
-          {/* Stat 4: Informasi Terbaru */}
-          <div className="flex flex-col justify-between border-t border-l border-line pt-4 pl-4 lg:border-t-0 lg:pt-0 lg:pl-5">
-            <div className="flex items-start justify-between">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface-2" style={{ color: "var(--amber)" }}>
-                <Icons.bell size={20} />
-              </div>
-            </div>
-            <div className="mt-3.5 text-2xl font-extrabold tracking-tight">{announcements.length}</div>
-            <div className="mt-0.5 text-[12.5px] font-medium text-ink-3">Informasi Terbaru</div>
-          </div>
         </div>
       </Card>
 
-      {/* Main content grid */}
-      <div className="grid items-start gap-4.5 lg:grid-cols-[1.55fr_1fr]" style={{ gap: 18 }}>
-        <div className="flex flex-col gap-4.5" style={{ gap: 18 }}>
-          {/* Children List */}
-          <Card pad={20}>
-            <SectionTitle title="Anak Saya" sub="Ringkasan tiap santri" action={<Link href="/anak" className={buttonClasses("ghost", "sm")}>Semua</Link>} />
-            <div className="flex flex-col gap-3">
-              {kids.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-ink-3">Belum ada data anak terhubung dengan akun Anda.</p>
-              ) : (
-                kids.map((c) => (
-                  <Link key={c.childId} href={`/anak/${c.childId}`} className="flex items-center gap-3.5 rounded-xl border border-line p-3.5 transition hover:bg-surface-2">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary-soft text-sm font-bold text-primary-700">{c.level}</div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-[15px] font-bold">{c.name}</span>
-                        <Badge tone={LEVEL_TONE[c.level]}>{c.className}</Badge>
-                      </div>
-                      <div className="mt-1 flex gap-4 text-[12.5px] text-ink-3">
-                        <span>Nilai <strong className="tabular-nums" style={{ color: scoreColor(c.avg) }}>{c.avg || "-"}</strong></span>
-                        <span>Hadir <strong className="tabular-nums text-ink-2">{c.attRate}%</strong></span>
-                        <span className="hidden sm:inline">{c.courses} mapel</span>
-                      </div>
-                    </div>
-                    <Icons.chevR size={18} style={{ color: "var(--text-3)" }} />
-                  </Link>
-                ))
-              )}
-            </div>
-          </Card>
-
-          {/* Admission status */}
-          <Card pad={20}>
-            <SectionTitle
-              title="Status Pendaftaran"
-              sub="Pendaftaran santri baru yang Anda kirim"
-              action={
-                <Link href="/anak" className={buttonClasses("ghost", "sm")}>
-                  Rincian
-                </Link>
-              }
-            />
-            {admissions.length === 0 ? (
-              <AdmissionStatusEmpty compact />
-            ) : (
-              <div className="flex flex-col gap-3">
-                {admissions.slice(0, 3).map((item) => (
-                  <AdmissionStatusRow key={item.id} item={item} />
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Published Report Cards */}
-          {publishedReportCards.length > 0 && (
-            <Card pad={20}>
-              <SectionTitle title="Rapor Semester Terbaru" sub="Rapor hasil belajar yang telah terbit resmi" />
-              <div className="flex flex-col gap-3">
-                {publishedReportCards.map((rc) => (
-                  <Link
-                    key={rc.id}
-                    href={`/anak/${rc.childId}`}
-                    className="flex items-center justify-between gap-3.5 rounded-xl border border-line p-3.5 transition hover:bg-surface-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-success-soft text-success">
-                        <Icons.award size={20} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[14.5px] font-bold text-ink">
-                          Rapor {rc.childName}
-                        </div>
-                        <div className="text-[12.5px] text-ink-3">
-                          Semester {rc.semester === "GANJIL" ? "Ganjil" : "Genap"} · TA {rc.academicYear}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-ink-3">
-                      <span className="hidden sm:inline">Terbit: {rc.publishedAt}</span>
-                      <Icons.chevR size={16} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </Card>
-          )}
-        </div>
-
-        {/* Sidebar Column: Announcements */}
+      {/* Main content */}
+      <div className="flex flex-col gap-4.5" style={{ gap: 18 }}>
+        {/* Children List */}
         <Card pad={20}>
-          <SectionTitle title="Informasi Terbaru" action={<Link href="/informasi" className={buttonClasses("ghost", "sm")}>Semua</Link>} />
+          <SectionTitle title="Anak Saya" sub="Ringkasan tiap santri" action={<Link href="/anak" className={buttonClasses("ghost", "sm")}>Semua</Link>} />
           <div className="flex flex-col gap-3">
-            {announcements.length === 0 ? (
-              <p className="text-sm text-ink-3">Belum ada informasi.</p>
+            {kids.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-line p-6 text-center text-sm text-ink-3">Belum ada data anak terhubung dengan akun Anda.</p>
             ) : (
-              announcements.slice(0, 5).map((a) => (
-                <div key={a.id} className="flex gap-3 rounded-xl bg-surface-2 p-3">
-                  <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-surface text-primary">
-                    <Icons.bell size={17} />
-                  </div>
+              kids.map((c) => (
+                <Link key={c.childId} href={`/anak/${c.childId}`} className="flex items-center gap-3.5 rounded-xl border border-line p-3.5 transition hover:bg-surface-2">
+                  <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary-soft text-sm font-bold text-primary-700">{c.level}</div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] font-semibold">{a.title}</div>
-                    <div className="mt-0.5 text-[11.5px] text-ink-3">{a.level ?? "Semua"} · {a.createdAt}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[15px] font-bold">{c.name}</span>
+                      <Badge tone={LEVEL_TONE[c.level]}>{c.className}</Badge>
+                    </div>
+                    <div className="mt-1 flex gap-4 text-[12.5px] text-ink-3">
+                      <span>Nilai <strong className="tabular-nums" style={{ color: scoreColor(c.avg) }}>{c.avg || "-"}</strong></span>
+                      <span>Hadir <strong className="tabular-nums text-ink-2">{c.attRate}%</strong></span>
+                      <span className="hidden sm:inline">{c.courses} mapel</span>
+                    </div>
                   </div>
-                </div>
+                  <Icons.chevR size={18} style={{ color: "var(--text-3)" }} />
+                </Link>
               ))
             )}
           </div>
         </Card>
+
+        {/* Admission status */}
+        <Card pad={20}>
+          <SectionTitle
+            title="Status Pendaftaran"
+            sub="Pendaftaran santri baru yang Anda kirim"
+            action={
+              <Link href="/anak" className={buttonClasses("ghost", "sm")}>
+                Rincian
+              </Link>
+            }
+          />
+          {admissions.length === 0 ? (
+            <AdmissionStatusEmpty compact />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {admissions.slice(0, 3).map((item) => (
+                <AdmissionStatusRow key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Published Report Cards */}
+        {publishedReportCards.length > 0 && (
+          <Card pad={20}>
+            <SectionTitle title="Rapor Semester Terbaru" sub="Rapor hasil belajar yang telah terbit resmi" />
+            <div className="flex flex-col gap-3">
+              {publishedReportCards.map((rc) => (
+                <Link
+                  key={rc.id}
+                  href={`/anak/${rc.childId}`}
+                  className="flex items-center justify-between gap-3.5 rounded-xl border border-line p-3.5 transition hover:bg-surface-2"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-success-soft text-success">
+                      <Icons.award size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[14.5px] font-bold text-ink">
+                        Rapor {rc.childName}
+                      </div>
+                      <div className="text-[12.5px] text-ink-3">
+                        Semester {rc.semester === "GANJIL" ? "Ganjil" : "Genap"} · TA {rc.academicYear}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-ink-3">
+                    <span className="hidden sm:inline">Terbit: {rc.publishedAt}</span>
+                    <Icons.chevR size={16} />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

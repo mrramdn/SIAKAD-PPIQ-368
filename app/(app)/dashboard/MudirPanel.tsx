@@ -29,7 +29,6 @@ function roleLabel(roles: readonly string[]): string {
 const ACADEMIC_LINKS = [
   { href: "/jadwal", label: "Jadwal & Mata Pelajaran", description: "Kelola mapel, ustadz pengampu, dan slot jadwal", icon: "calendar" },
   { href: "/absen-ustadz", label: "Absensi ustadz", description: "Periksa laporan kehadiran dan BKKH", icon: "check2" },
-  { href: "/informasi", label: "Informasi", description: "Lihat pengumuman terbaru pesantren", icon: "bell" },
 ] satisfies { href: string; label: string; description: string; icon: IconKey }[];
 
 /**

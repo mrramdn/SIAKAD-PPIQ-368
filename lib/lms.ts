@@ -363,7 +363,7 @@ export const getCourseManagement = cache(async (courseId: string, user: AuthUser
   const canManage = userCan(user, "course.manage");
   const [course, verifiedStudents, teachingStaff] = await Promise.all([
     prisma.course.findFirst({
-      where: { id: courseId, ...(canManage ? {} : { teacherId: user.id }) },
+      where: { id: courseId, deletedAt: null, ...(canManage ? {} : { teacherId: user.id }) },
       select: {
         id: true,
         title: true,
@@ -888,36 +888,6 @@ export const getParentScheduleBoard = cache(async (parentId: string) => {
       })),
     };
   });
-});
-
-/* -------------------------------------------------------------------------- */
-/*                          announcements (informasi)                         */
-/* -------------------------------------------------------------------------- */
-
-/** levels null = staff view (all). Otherwise only matching levels + global (null). */
-export const getAnnouncements = cache(async (levels: EducationLevel[] | null) => {
-  const where = levels ? { OR: [{ level: null }, { level: { in: levels } }] } : {};
-  return prisma.announcement.findMany({
-    where,
-    orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
-    take: 50,
-    select: {
-      id: true,
-      title: true,
-      body: true,
-      level: true,
-      pinned: true,
-      createdAt: true,
-      author: { select: { name: true } },
-    },
-  });
-});
-
-/** Distinct levels of a parent's children, for filtering their announcements. */
-export const getParentLevels = cache(async (parentId: string) => {
-  const rows = await prisma.studentProfile.findMany({ where: { parentId }, select: { level: true } });
-  const set = new Set(rows.map((r) => r.level));
-  return [...set];
 });
 
 /* -------------------------------------------------------------------------- */

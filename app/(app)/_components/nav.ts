@@ -29,7 +29,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/rapor", label: "Rapor", icon: "award", permission: "report.manage" },
   { href: "/rapor", label: "Penerimaan Rapor", icon: "award", permission: "report.distribute" },
   { href: "/absen-ustadz", label: "Absensi Ustadz", icon: "users", permission: "staff_attendance.view" },
-  { href: "/informasi", label: "Informasi", icon: "bell", permission: "announcement.view" },
   { href: "/pengaturan", label: "Pengaturan", icon: "settings", permission: null },
 ];
 
@@ -55,7 +54,6 @@ export const PAGE_TITLE: Record<string, string> = {
   "/akademik": "Data Akademik",
   "/anak": "Anak Saya",
   "/pendaftaran": "Pendaftaran Anak",
-  "/informasi": "Informasi",
   "/nilai": "Nilai",
   "/absen": "Absensi Santri",
   "/absen-ustadz": "Absensi Ustadz",

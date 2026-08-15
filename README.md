@@ -27,9 +27,9 @@ Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **
 
 - **Wali Santri**: buat akun, daftarkan anak, lihat jadwal, nilai, kehadiran, dan rapor anaknya sendiri.
 - **Wali Kelas**: kelola nilai dan absensi hanya pada mapel yang ditugaskan, serta kelola catatan dan penerbitan rapor.
-- **Ustadz**: isi nilai dan absensi pada mapel yang diampu, isi BKKH pribadi, serta kirim informasi ke wali.
-- **Administrasi**: tinjau PPDB, kelola akun dan role, mapel, peserta, ustadz pengampu, jadwal, informasi, serta absensi ustadz.
-- **Mudir Ma'had**: awasi kehadiran dan BKKH ustadz, jadwal mengajar, serta hasil akademik secara read-only. Mudir tidak mengelola akun atau PPDB.
+- **Ustadz**: isi nilai dan absensi pada mapel yang diampu, isi BKKH pribadi.
+- **Administrasi**: tinjau PPDB, kelola akun dan role, absensi ustadz, checklist administrasi santri, serta ACC dan penyerahan rapor. Administrasi tidak mengelola kelas, mapel, maupun kelompok penilaian.
+- **Mudir Ma'had**: kelola kelas, mata pelajaran, ustadz pengampu, jadwal, dan kelompok penilaian; awasi kehadiran dan BKKH ustadz serta hasil akademik. Mudir tidak mengelola akun atau PPDB.
 
 ## Demo Account
 
@@ -81,21 +81,20 @@ Buka `http://localhost:3000`.
   - `anak` & `anak/[childId]`: portal wali — daftar anak, rincian nilai/kehadiran, dan rapor terbit
   - `pendaftaran`: formulir pendaftaran anak (wali) + halaman sukses
   - `penerimaan`: tinjauan pendaftaran (administrasi); menerima menautkan data santri ke akun wali
-  - `jadwal`: jadwal pelajaran per pekan (administrasi kelola per jenjang; pengguna lain melihat sesuai konteks)
+  - `jadwal`: jadwal pelajaran per pekan (mudir kelola per jenjang; pengguna lain melihat sesuai konteks)
   - `nilai`, `absen`: ustadz dan wali kelas mengelola mapel yang ditugaskan; Mudir memantau read-only
   - `absen-ustadz`: absensi harian ustadz/wali kelas + laporan BKKH per slot waktu + rekap bulanan
   - `rapor` & `rapor/[id]`: Wali Kelas mengelola rapor; Mudir memantau read-only
-  - `informasi`: pengumuman (wali baca, guru/admin kelola)
-  - `mapel`: daftar mata pelajaran, penugasan ustadz, dan pendaftaran peserta (administrasi)
+  - `mapel`: daftar mata pelajaran, penugasan ustadz, dan pendaftaran peserta (mudir)
   - `pengguna`: manajemen akun khusus administrasi
   - `pengaturan`: profil akun sendiri
   - `actions.ts`: server actions dengan guard per peran
 - `components/ui`: komponen UI bersama dan ikon
 - `lib/auth.ts`: session auth HTTP-only cookie (termasuk `requireParent`)
-- `lib/lms.ts`: data access (dashboard, jadwal, rapor, parent portal, informasi, pendaftaran, helper periode)
+- `lib/lms.ts`: data access (dashboard, jadwal, rapor, parent portal, pendaftaran, helper periode)
 - `lib/brand.ts`: nama aplikasi dan label jenjang
-- `prisma/schema.prisma`: schema (User + role, EducationLevel, Semester, Admission, Announcement, Course + ustadz pengampu, ScheduleSlot, GradeItem/GradeRecord, AttendanceSession/Record, StaffAttendance, BkkhReport, ReportCard/ReportCardEntry)
+- `prisma/schema.prisma`: schema (User + role, EducationLevel, Semester, Admission, Course + ustadz pengampu, ScheduleSlot, GradeItem/GradeRecord, AttendanceSession/Record, StaffAttendance, BkkhReport, ReportCard/ReportCardEntry)
 - `prisma/seed.ts`: seed akun demo, santri 3 jenjang, mapel + jadwal, nilai + absensi per periode, dan rapor demo
 - `app/manifest.ts`, `public/sw.js`, `components/PWARegister.tsx`: PWA
 
-Setelah migrasi penugasan pengampu diterapkan pada database lama, Administrasi perlu membuka `/mapel` dan menugaskan ulang mapel yang ditandai belum memiliki ustadz pengampu. Sistem menolak perubahan role, status, atau penghapusan akun pengampu selama masih ada mapel aktif yang ditugaskan kepadanya.
+Setelah migrasi penugasan pengampu diterapkan pada database lama, Mudir perlu membuka `/akademik` dan menugaskan ulang mapel yang ditandai belum memiliki ustadz pengampu. Sistem menolak perubahan role, status, atau penghapusan akun pengampu selama masih ada mapel aktif yang ditugaskan kepadanya.

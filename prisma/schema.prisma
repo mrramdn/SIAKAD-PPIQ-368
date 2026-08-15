@@ -100,7 +100,6 @@ model User {
   sessions     Session[]
   courses      Course[]     @relation("CourseCreator")
   teachingCourses Course[]  @relation("CourseTeacher")
-  announcements Announcement[] @relation("AnnouncementAuthor")
   reportCards  ReportCard[] @relation("ReportCardCreator")
   staffAttendances StaffAttendance[] @relation("StaffAttendanceTeacher")
   recordedStaffAttendances StaffAttendance[] @relation("StaffAttendanceRecorder")
@@ -451,22 +450,6 @@ model StudentAdministration {
 
   @@unique([studentId, itemId])
   @@index([itemId])
-}
-
-// Pengumuman / info yang dikirim sekolah ke orang tua. level null = semua jenjang.
-model Announcement {
-  id        String          @id @default(uuid())
-  title     String
-  body      String
-  level     EducationLevel?
-  pinned    Boolean         @default(false)
-  authorId  String?
-  author    User?           @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-
-  @@index([level])
-  @@index([createdAt])
 }
 
 // Pendaftaran santri baru (PPDB). Saat diterima admin, dibuat akun orang tua + record santri.
