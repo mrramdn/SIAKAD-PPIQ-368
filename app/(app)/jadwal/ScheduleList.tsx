@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Icons } from "@/components/ui";
+import { Card, Icons } from "@/components/ui";
 import { deleteScheduleSlotAction } from "../actions";
 
 type Slot = {
@@ -13,6 +13,31 @@ type Slot = {
   courseTitle: string;
   teacher: string;
 };
+
+// Senin lebih dulu; dayOfWeek mengikuti Date.getDay() (0 = Ahad).
+const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+export type Day = { dayOfWeek: number; label: string; slots: Slot[] };
+
+/** Grid jadwal per hari, dipakai bersama oleh /jadwal (lihat saja) dan tab Jadwal di /akademik (kelola). */
+export function DayGrid({ days, canEdit }: { days: Day[]; canEdit: boolean }) {
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" style={{ gap: 18 }}>
+      {DISPLAY_ORDER.map((dayIdx) => {
+        const day = days[dayIdx];
+        return (
+          <Card key={dayIdx} pad={16} className="flex flex-col">
+            <div className="flex items-baseline justify-between border-b border-line pb-2.5">
+              <span className="text-sm font-extrabold uppercase tracking-wider text-ink-1">{day.label}</span>
+              <span className="text-xs font-semibold text-ink-3">{day.slots.length} sesi</span>
+            </div>
+            <ScheduleList slots={day.slots} canEdit={canEdit} />
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
 
 export function ScheduleList({ slots, canEdit }: { slots: Slot[]; canEdit: boolean }) {
   const router = useRouter();

@@ -130,7 +130,7 @@ function AddCourseModal({
       ) : null}
       {!canConfigureAssessment || !canManageClass ? (
         <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] text-ink-3">
-          Kelas, kelompok penilaian, dan nilai maksimal rapor diatur oleh administrasi.
+          Kelas, kelompok penilaian, dan nilai maksimal rapor diatur oleh mudir.
         </p>
       ) : null}
       <div className="mt-1 flex justify-end gap-2.5">
@@ -172,9 +172,9 @@ export function MapelManager({
   assessmentGroups: AssessmentGroupOption[];
   classRooms: ClassRoomOption[];
   teachingStaff: TeacherOption[];
-  /** `assessment.configure`: kelompok penilaian & nilai maksimal rapor (administrasi). */
+  /** `assessment.configure`: kelompok penilaian & nilai maksimal rapor (mudir). */
   canConfigureAssessment: boolean;
-  /** `class.manage`: penempatan mapel ke kelas (administrasi). */
+  /** `class.manage`: penempatan mapel ke kelas (mudir). */
   canManageClass: boolean;
 }) {
   const { run, toast } = useActionRunner();
@@ -234,7 +234,7 @@ export function MapelManager({
           Anda dapat mengatur data mapel dan ustadz pengampu.
           {!canManageClass ? " Penempatan kelas" : ""}
           {!canManageClass && !canConfigureAssessment ? " serta" : ""}
-          {!canConfigureAssessment ? " kelompok penilaian dan nilai maksimal rapor" : ""} hanya dapat diubah administrasi.
+          {!canConfigureAssessment ? " kelompok penilaian dan nilai maksimal rapor" : ""} hanya dapat diubah mudir.
         </div>
       ) : null}
 

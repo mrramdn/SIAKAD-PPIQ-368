@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Semester } from "@/generated/prisma/client";
+import { EducationLevel, Semester } from "@/generated/prisma/client";
 import { requireAnyPermission, requirePermission, userCan } from "@/lib/auth";
 import {
   getAdministrationBoard,
@@ -10,9 +10,13 @@ import {
   getEnrollmentBoard,
   getGradeWeightBoard,
 } from "@/lib/akademik";
-import { getCurrentPeriod } from "@/lib/lms";
+import { LEVEL_FULL, LEVEL_LABEL, LEVELS } from "@/lib/brand";
+import { getCurrentPeriod, getScheduleBoard } from "@/lib/lms";
 import type { Permission } from "@/lib/permissions";
 import { getReportSignatories } from "@/lib/rapor";
+import { Card, Field, Icons, inputClasses } from "@/components/ui";
+import { createScheduleSlotAction } from "../actions";
+import { DayGrid } from "../jadwal/ScheduleList";
 import { AdministrasiManager } from "./AdministrasiManager";
 import { BobotManager } from "./BobotManager";
 import { KelasManager } from "./KelasManager";
@@ -21,11 +25,12 @@ import { MapelManager } from "./MapelManager";
 import { PenandaTanganManager } from "./PenandaTanganManager";
 import { PesertaManager } from "./PesertaManager";
 
-type TabKey = "kelas" | "mapel" | "peserta" | "kelompok" | "bobot" | "penandatangan" | "administrasi";
+type TabKey = "kelas" | "mapel" | "jadwal" | "peserta" | "kelompok" | "bobot" | "penandatangan" | "administrasi";
 
 const TABS: { key: TabKey; label: string; permission: Permission }[] = [
   { key: "kelas", label: "Kelas", permission: "class.manage" },
   { key: "mapel", label: "Mapel & Pengampu", permission: "course.manage" },
+  { key: "jadwal", label: "Jadwal", permission: "course.manage" },
   { key: "peserta", label: "Peserta Mapel", permission: "course.manage" },
   { key: "kelompok", label: "Kelompok Penilaian", permission: "assessment.configure" },
   { key: "bobot", label: "Bobot Komponen Nilai", permission: "assessment.configure" },
@@ -50,6 +55,95 @@ async function MapelSection() {
       canConfigureAssessment={userCan(user, "assessment.configure")}
       canManageClass={userCan(user, "class.manage")}
     />
+  );
+}
+
+async function JadwalSection({ level, error }: { level?: string; error?: string }) {
+  const user = await requirePermission("course.manage");
+  const activeLevel = Object.values(EducationLevel).includes(level as EducationLevel)
+    ? (level as EducationLevel)
+    : EducationLevel.SMP;
+  const { days, courses } = await getScheduleBoard(user, activeLevel);
+  const filteredCourses = courses.filter((c) => c.level === activeLevel);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <h2 className="text-[19px] font-bold tracking-tight">Jadwal Pelajaran</h2>
+        <p className="mt-0.5 text-[13.5px] text-ink-3">Atur slot jadwal per jenjang. Semua peran melihat jadwal ini lewat menu Jadwal.</p>
+      </div>
+
+      {error ? (
+        <div className="rounded-xl border border-danger-soft bg-danger-soft px-4 py-3 text-sm text-danger">
+          Jadwal gagal disimpan. Pilih mapel dan hari, lalu isi waktu mulai dengan format jam seperti 07:30.
+        </div>
+      ) : null}
+
+      <div className="flex gap-2 border-b border-line pb-px overflow-x-auto">
+        {LEVELS.map((lvl) => {
+          const active = lvl === activeLevel;
+          return (
+            <Link
+              key={lvl}
+              href={`/akademik?tab=jadwal&level=${lvl}`}
+              className={`whitespace-nowrap border-b-2 px-4 py-2 text-sm font-semibold transition ${
+                active ? "border-primary text-primary" : "border-transparent text-ink-3 hover:text-ink-2"
+              }`}
+            >
+              {LEVEL_FULL[lvl] === LEVEL_LABEL[lvl] ? LEVEL_LABEL[lvl] : `${LEVEL_FULL[lvl]} (${LEVEL_LABEL[lvl]})`}
+            </Link>
+          );
+        })}
+      </div>
+
+      <Card pad={18}>
+        <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-ink-3">Tambah Slot Jadwal</h3>
+        <form action={createScheduleSlotAction} className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1.2fr_auto] items-end">
+          <Field label="Mata Pelajaran">
+            <select name="courseId" required className={inputClasses}>
+              <option value="">-- Pilih Mapel --</option>
+              {filteredCourses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Hari">
+            <select name="dayOfWeek" required className={inputClasses}>
+              <option value="1">Senin</option>
+              <option value="2">Selasa</option>
+              <option value="3">Rabu</option>
+              <option value="4">Kamis</option>
+              <option value="5">Jumat</option>
+              <option value="6">Sabtu</option>
+              <option value="0">Ahad</option>
+            </select>
+          </Field>
+
+          <Field label="Waktu Mulai">
+            <input name="startTime" type="time" required className={inputClasses} />
+          </Field>
+
+          <Field label="Ruangan (opsional)">
+            <input name="room" type="text" placeholder="cth. Kelas 7A" className={inputClasses} />
+          </Field>
+
+          <div className="mb-4">
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-600 transition"
+            >
+              <Icons.plus size={16} />
+              Tambah
+            </button>
+          </div>
+        </form>
+      </Card>
+
+      <DayGrid days={days} canEdit={true} />
+    </div>
   );
 }
 
@@ -91,9 +185,9 @@ async function AdministrasiSection() {
 export default async function AkademikPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; semester?: string; tahun?: string }>;
+  searchParams: Promise<{ tab?: string; semester?: string; tahun?: string; level?: string; error?: string }>;
 }) {
-  const [{ tab, semester, tahun }, user] = await Promise.all([
+  const [{ tab, semester, tahun, level, error }, user] = await Promise.all([
     searchParams,
     requireAnyPermission([
       "class.manage",
@@ -116,8 +210,8 @@ export default async function AkademikPage({
       <div className="mb-5">
         <h1 className="text-[26px] font-extrabold tracking-tight">Setup Akademik</h1>
         <p className="mt-1 text-sm text-ink-3">
-          Kelola kelas, mata pelajaran, peserta mapel, kelompok penilaian, bobot nilai, penanda tangan rapor, dan
-          administrasi santri dalam satu tempat.
+          Kelola kelas, mata pelajaran, jadwal, peserta mapel, kelompok penilaian, bobot nilai, penanda tangan rapor,
+          dan administrasi santri dalam satu tempat.
         </p>
       </div>
 
@@ -137,6 +231,7 @@ export default async function AkademikPage({
 
       {activeTab === "kelas" ? <KelasSection /> : null}
       {activeTab === "mapel" ? <MapelSection /> : null}
+      {activeTab === "jadwal" ? <JadwalSection level={level} error={error} /> : null}
       {activeTab === "peserta" ? <PesertaSection /> : null}
       {activeTab === "kelompok" ? <KelompokSection /> : null}
       {activeTab === "bobot" ? <BobotSection semester={semester} academicYear={tahun} /> : null}

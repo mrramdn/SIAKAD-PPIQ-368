@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, Icons, inputClasses } from "@/components/ui";
 import type { Semester } from "@/generated/prisma/client";
+import { addGradeItemAction, deleteGradeItemAction } from "../actions";
 import { updateGradeWeightsAction } from "./actions";
 import { Toast, useActionRunner } from "./_ui";
 
-type Item = { id: string; title: string; weight: number };
+type Item = { id: string; title: string; maxScore: number; weight: number; dueAt: string; recordCount: number };
 type CourseWeights = {
   id: string;
   title: string;
@@ -17,6 +18,7 @@ type CourseWeights = {
   zeroWeightCount: number;
 };
 type Period = { semester: Semester; academicYear: string };
+type Run = (p: Promise<{ ok: boolean; message?: string }>, okMsg: string, tone?: "ok" | "warn") => void;
 
 function periodKey(p: Period) {
   return `${p.semester}|${p.academicYear}`;
@@ -26,6 +28,74 @@ function periodLabel(p: Period) {
   return `Semester ${p.semester === "GANJIL" ? "Ganjil" : "Genap"} ${p.academicYear}`;
 }
 
+/** Form tambah komponen nilai baru, langsung untuk periode yang sedang dipilih di tab Bobot. */
+function AddItemForm({ courseId, period, run }: { courseId: string; period: Period; run: Run }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [maxScore, setMaxScore] = useState("100");
+  const [weight, setWeight] = useState("0");
+  const [dueAt, setDueAt] = useState("");
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-3 flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-700 hover:underline"
+      >
+        <Icons.plus size={14} /> Tambah komponen
+      </button>
+    );
+  }
+
+  function submit() {
+    run(
+      addGradeItemAction({
+        courseId,
+        title: title.trim(),
+        maxScore: Number(maxScore) || 0,
+        weight: Number(weight) || 0,
+        dueAt,
+        semester: period.semester,
+        academicYear: period.academicYear,
+      }),
+      `Komponen ${title.trim()} ditambahkan`,
+    );
+    setTitle("");
+    setMaxScore("100");
+    setWeight("0");
+    setDueAt("");
+  }
+
+  return (
+    <div className="mt-3 grid gap-2 rounded-lg bg-surface-2 p-3 sm:grid-cols-[1.2fr_0.7fr_0.7fr_0.9fr_auto]">
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="cth. UH 1" aria-label="Nama komponen" className={inputClasses} />
+      <input
+        value={maxScore}
+        onChange={(e) => setMaxScore(e.target.value.replace(/[^0-9]/g, ""))}
+        placeholder="Nilai maks"
+        aria-label="Nilai maksimal"
+        className={inputClasses}
+      />
+      <input
+        value={weight}
+        onChange={(e) => setWeight(e.target.value.replace(/[^0-9]/g, ""))}
+        placeholder="Bobot %"
+        aria-label="Bobot persen"
+        className={inputClasses}
+      />
+      <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} aria-label="Tenggat" className={inputClasses} />
+      <div className="flex gap-1.5">
+        <Button variant="primary" size="sm" disabled={!title.trim()} onClick={submit}>
+          Tambah
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Tutup
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function CourseWeightCard({
   course,
   period,
@@ -33,7 +103,7 @@ function CourseWeightCard({
 }: {
   course: CourseWeights;
   period: Period;
-  run: (p: Promise<{ ok: boolean; message?: string }>, okMsg: string, tone?: "ok" | "warn") => void;
+  run: Run;
 }) {
   const [weights, setWeights] = useState<Record<string, string>>(
     Object.fromEntries(course.items.map((i) => [i.id, String(i.weight)])),
@@ -41,6 +111,15 @@ function CourseWeightCard({
   const sum = course.items.reduce((s, i) => s + (Number(weights[i.id]) || 0), 0);
   const balanced = sum === 100;
   const zeroWeights = course.items.filter((i) => (Number(weights[i.id]) || 0) === 0);
+
+  function removeItem(item: Item) {
+    const warning =
+      item.recordCount > 0
+        ? `Hapus komponen "${item.title}"? ${item.recordCount} nilai santri pada komponen ini ikut terhapus permanen.`
+        : `Hapus komponen "${item.title}"? Belum ada nilai santri pada komponen ini.`;
+    if (!confirm(warning)) return;
+    run(deleteGradeItemAction(item.id), `Komponen ${item.title} dihapus`);
+  }
 
   return (
     <Card pad={20}>
@@ -69,6 +148,14 @@ function CourseWeightCard({
                     className={`${inputClasses} max-w-[80px] text-right`}
                   />
                   <span className="text-sm text-ink-3">%</span>
+                  <button
+                    onClick={() => removeItem(i)}
+                    title={`Hapus komponen ${i.title}`}
+                    aria-label={`Hapus komponen ${i.title}`}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-3 transition hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Icons.trash size={14} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -101,6 +188,8 @@ function CourseWeightCard({
           </div>
         </>
       )}
+
+      <AddItemForm courseId={course.id} period={period} run={run} />
     </Card>
   );
 }
@@ -180,7 +269,7 @@ export function BobotManager({
                     {withZeroWeight.length} mapel punya komponen berbobot 0% sehingga komponen itu tidak ikut dihitung di rapor.
                   </li>
                 ) : null}
-                <li>Ustadz pengampu dapat menambah komponen baru (bobot awal 0%) atau mengubah bobot, jadi periksa ulang menjelang rapor.</li>
+                <li>Ustadz pengampu maupun mudir dapat menambah komponen baru (bobot awal 0%) atau mengubah bobot, jadi periksa ulang menjelang rapor.</li>
               </ul>
             </div>
           </div>

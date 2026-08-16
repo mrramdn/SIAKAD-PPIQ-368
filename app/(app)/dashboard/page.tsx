@@ -125,7 +125,7 @@ export default async function DashboardPage() {
       : canManageGrades
         ? { href: "/absen", label: "Lihat Absensi" }
         : canManageCourses
-          ? { href: "/jadwal", label: "Jadwal Mengajar" }
+          ? { href: "/akademik?tab=jadwal", label: "Kelola Jadwal" }
           : { href: "/anak", label: "Anak Saya" };
 
   const heroBlurb =

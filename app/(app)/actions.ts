@@ -10,10 +10,11 @@ import {
   CourseStatus,
   EnrollmentStatus,
   Prisma,
+  Semester,
   UserRole,
   UserStatus,
 } from "@/generated/prisma/client";
-import { requirePermission, requireVerifiedUser, userCan, type AuthUser } from "@/lib/auth";
+import { requireAnyPermission, requirePermission, requireVerifiedUser, userCan, type AuthUser } from "@/lib/auth";
 import { BKKH_TIME_SLOTS, type BkkhActivityField } from "@/lib/bkkh";
 import { dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
 import { ROLE_PRECEDENCE, type Role } from "@/lib/permissions";
@@ -41,6 +42,15 @@ function toNullableString(value: FormDataEntryValue | null) {
 
 function canEditAssignedCourse(user: AuthUser, teacherId: string | null) {
   return teacherId === user.id;
+}
+
+/**
+ * Komponen nilai (bukan nilai santrinya) boleh dikelola pengampu ATAU mudir
+ * (assessment.configure) -- sengaja terpisah dari canEditAssignedCourse supaya
+ * kewenangan mudir tidak ikut merembet ke absensi atau input nilai santri.
+ */
+function canManageGradeItems(user: AuthUser, teacherId: string | null) {
+  return canEditAssignedCourse(user, teacherId) || userCan(user, "assessment.configure");
 }
 
 /** Tanggal dari input form; null bila kosong atau tidak bisa diurai (Invalid Date). */
@@ -101,6 +111,7 @@ function revalidateCourseAreas(courseId?: string) {
   revalidatePath("/mapel");
   revalidatePath("/nilai");
   revalidatePath("/absen");
+  revalidatePath("/akademik");
   if (courseId) revalidatePath(`/mapel/${courseId}`);
 }
 
@@ -357,8 +368,70 @@ export async function markAllPresentAction(sessionId: string): Promise<ActionRes
  */
 const MAX_GRADE_MAX_SCORE = 1000;
 
+type InsertGradeItemInput = {
+  courseId: string;
+  title: string;
+  description: string | null;
+  maxScore: number;
+  weight: number;
+  dueAt: Date | null;
+  semester: Semester;
+  academicYear: string;
+};
+type InsertGradeItemError = "grade" | "maxscore" | "forbidden" | PrismaFailure;
+
+/**
+ * Logika inti pembuatan komponen nilai, dipakai dua jalur pemanggilan: form
+ * biasa (createGradeItemAction, /nilai, redirect+query error) dan action
+ * typed (addGradeItemAction, tab Bobot di /akademik, ActionResult+toast).
+ */
+async function insertGradeItem(
+  user: AuthUser,
+  input: InsertGradeItemInput,
+): Promise<{ ok: true } | { ok: false; error: InsertGradeItemError }> {
+  if (
+    !input.courseId ||
+    !input.title ||
+    !Number.isInteger(input.maxScore) ||
+    input.maxScore < 1 ||
+    !Number.isInteger(input.weight) ||
+    input.weight < 0 ||
+    input.weight > 100
+  ) {
+    return { ok: false, error: "grade" };
+  }
+  if (input.maxScore > MAX_GRADE_MAX_SCORE) return { ok: false, error: "maxscore" };
+
+  // deletedAt: null juga menyaring mapel yang sudah di-soft-delete, sehingga
+  // komponen nilai baru tidak bisa dibuat untuknya — jatuh ke pesan "forbidden"
+  // yang sudah ada, sama seperti mapel yang bukan milik pengampu/mudir ini.
+  const course = await prisma.course.findUnique({ where: { id: input.courseId }, select: { teacherId: true, deletedAt: true } });
+  if (!course || course.deletedAt || !canManageGradeItems(user, course.teacherId)) {
+    return { ok: false, error: "forbidden" };
+  }
+
+  const failure = await runPrismaMutation(() =>
+    prisma.gradeItem.create({
+      data: {
+        courseId: input.courseId,
+        title: input.title,
+        description: input.description,
+        maxScore: input.maxScore,
+        weight: input.weight,
+        dueAt: input.dueAt,
+        semester: input.semester,
+        academicYear: input.academicYear,
+      },
+    }),
+  );
+  if (failure) return { ok: false, error: failure };
+
+  revalidateCourseAreas(input.courseId);
+  return { ok: true };
+}
+
 export async function createGradeItemAction(formData: FormData) {
-  const user = await requirePermission("grade.manage");
+  const user = await requireAnyPermission(["grade.manage", "assessment.configure"]);
   const courseId = String(formData.get("courseId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   const description = toNullableString(formData.get("description"));
@@ -366,45 +439,66 @@ export async function createGradeItemAction(formData: FormData) {
   const weight = Number(formData.get("weight") ?? 0);
   const dueValue = String(formData.get("dueAt") ?? "").trim();
   const dueAt = parseDateInput(dueValue);
-
-  if (!courseId || !title || !Number.isInteger(maxScore) || maxScore < 1 || !Number.isInteger(weight) || weight < 0 || weight > 100) {
-    redirect(`/nilai?course=${courseId}&error=grade`);
-  }
-  if (maxScore > MAX_GRADE_MAX_SCORE) {
-    redirect(`/nilai?course=${courseId}&error=maxscore`);
-  }
   if (dueValue && !dueAt) {
     redirect(`/nilai?course=${courseId}&error=date`);
   }
 
-  // deletedAt: null juga menyaring mapel yang sudah di-soft-delete, sehingga
-  // komponen nilai baru tidak bisa dibuat untuknya — jatuh ke pesan "forbidden"
-  // yang sudah ada, sama seperti mapel yang bukan milik pengampu ini.
-  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { teacherId: true, deletedAt: true } });
-  if (!course || course.deletedAt || !canEditAssignedCourse(user, course.teacherId)) {
-    redirect(`/nilai?course=${courseId}&error=forbidden`);
-  }
-
   const period = getCurrentPeriod();
-  const failure = await runPrismaMutation(() =>
-    prisma.gradeItem.create({
-      data: {
-        courseId,
-        title,
-        description,
-        maxScore,
-        weight,
-        dueAt,
-        semester: period.semester,
-        academicYear: period.academicYear,
-      },
-    }),
-  );
-  if (failure) {
-    redirect(`/nilai?course=${courseId}&error=${failure}`);
+  const result = await insertGradeItem(user, {
+    courseId,
+    title,
+    description,
+    maxScore,
+    weight,
+    dueAt,
+    semester: period.semester,
+    academicYear: period.academicYear,
+  });
+  if (!result.ok) {
+    redirect(`/nilai?course=${courseId}&error=${result.error}`);
   }
+}
 
-  revalidateCourseAreas(courseId);
+const ADD_GRADE_ITEM_ERROR: Record<InsertGradeItemError, string> = {
+  grade: "Nama, nilai maksimal (bilangan bulat ≥1), dan bobot (0-100) wajib diisi dengan benar.",
+  maxscore: `Nilai maksimal terlalu besar. Gunakan bilangan bulat 1-${MAX_GRADE_MAX_SCORE}.`,
+  forbidden: "Anda tidak berwenang menambah komponen pada mata pelajaran ini.",
+  duplicate: "Sudah ada komponen nilai dengan judul itu di mata pelajaran ini. Gunakan judul lain.",
+  missing: "Mata pelajaran sudah tidak tersedia. Muat ulang halaman.",
+};
+
+/**
+ * Sama seperti createGradeItemAction, untuk UI berbasis ActionResult (tab
+ * Bobot di /akademik). Periode diambil dari yang sedang dipilih di tab itu,
+ * BUKAN dari getCurrentPeriod() -- tab Bobot punya pemilih periode sendiri
+ * sehingga bisa dipakai untuk semester selain semester berjalan.
+ */
+export async function addGradeItemAction(input: {
+  courseId: string;
+  title: string;
+  maxScore: number;
+  weight: number;
+  dueAt: string;
+  semester: Semester;
+  academicYear: string;
+}): Promise<ActionResult> {
+  const user = await requireAnyPermission(["grade.manage", "assessment.configure"]);
+  const title = input.title.trim();
+  const dueAt = parseDateInput(input.dueAt);
+  if (input.dueAt.trim() && !dueAt) return { ok: false, message: "Tenggat tidak valid." };
+
+  const result = await insertGradeItem(user, {
+    courseId: input.courseId,
+    title,
+    description: null,
+    maxScore: input.maxScore,
+    weight: input.weight,
+    dueAt,
+    semester: input.semester,
+    academicYear: input.academicYear,
+  });
+  if (!result.ok) return { ok: false, message: ADD_GRADE_ITEM_ERROR[result.error] };
+  return { ok: true };
 }
 
 /**
@@ -426,7 +520,7 @@ export async function updateGradeItemAction(input: {
   weight: number;
   dueAt: string;
 }): Promise<ActionResult & { rescaled?: number }> {
-  const user = await requirePermission("grade.manage");
+  const user = await requireAnyPermission(["grade.manage", "assessment.configure"]);
   const title = input.title.trim();
   const dueAt = parseDateInput(input.dueAt);
   if (!input.gradeItemId || !title) return { ok: false, message: "Nama komponen wajib diisi." };
@@ -445,7 +539,7 @@ export async function updateGradeItemAction(input: {
     select: { courseId: true, course: { select: { teacherId: true } } },
   });
   if (!item) return { ok: false, message: "Komponen nilai tidak ditemukan." };
-  if (!canEditAssignedCourse(user, item.course.teacherId)) {
+  if (!canManageGradeItems(user, item.course.teacherId)) {
     return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
   }
 
@@ -502,7 +596,7 @@ export async function updateGradeItemAction(input: {
 }
 
 export async function deleteGradeItemAction(gradeItemId: string): Promise<ActionResult> {
-  const user = await requirePermission("grade.manage");
+  const user = await requireAnyPermission(["grade.manage", "assessment.configure"]);
   if (!gradeItemId) return { ok: false, message: "Komponen nilai tidak ditemukan." };
 
   const item = await prisma.gradeItem.findUnique({
@@ -510,7 +604,7 @@ export async function deleteGradeItemAction(gradeItemId: string): Promise<Action
     select: { courseId: true, course: { select: { teacherId: true } } },
   });
   if (!item) return { ok: false, message: "Komponen nilai tidak ditemukan." };
-  if (!canEditAssignedCourse(user, item.course.teacherId)) {
+  if (!canManageGradeItems(user, item.course.teacherId)) {
     return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
   }
 
@@ -587,18 +681,19 @@ export async function createScheduleSlotAction(formData: FormData) {
   const room = toNullableString(formData.get("room"));
 
   if (!courseId || !Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
-    redirect("/jadwal?error=invalid");
+    redirect("/akademik?tab=jadwal&error=invalid");
   }
 
   // Mapel yang sudah dihapus (soft-delete) atau tidak ada tidak boleh menerima
   // slot jadwal baru.
   const course = await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, deletedAt: true } });
   if (!course || course.deletedAt) {
-    redirect("/jadwal?error=invalid");
+    redirect("/akademik?tab=jadwal&error=invalid");
   }
 
   await prisma.scheduleSlot.create({ data: { courseId, dayOfWeek, startTime, room } });
   revalidatePath("/jadwal");
+  revalidatePath("/akademik");
   revalidatePath("/dashboard");
 }
 
@@ -607,6 +702,7 @@ export async function deleteScheduleSlotAction(id: string): Promise<ActionResult
   if (!id) return { ok: false, message: "Jadwal tidak ditemukan." };
   await prisma.scheduleSlot.delete({ where: { id } });
   revalidatePath("/jadwal");
+  revalidatePath("/akademik");
   revalidatePath("/dashboard");
   return { ok: true };
 }

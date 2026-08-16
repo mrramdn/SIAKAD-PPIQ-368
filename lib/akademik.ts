@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { EducationLevel, EnrollmentStatus, Semester, UserRole, UserStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { Period } from "@/lib/lms";
+import { toDateKey, type Period } from "@/lib/lms";
 
 /* -------------------------------------------------------------------------- */
 /*                                    kelas                                   */
@@ -158,7 +158,7 @@ export const getGradeWeightBoard = cache(async (semester: Semester, academicYear
         gradeItems: {
           where: { semester, academicYear },
           orderBy: { title: "asc" },
-          select: { id: true, title: true, weight: true },
+          select: { id: true, title: true, maxScore: true, weight: true, dueAt: true, records: { select: { id: true } } },
         },
       },
     }),
@@ -182,7 +182,14 @@ export const getGradeWeightBoard = cache(async (semester: Semester, academicYear
       id: c.id,
       title: c.title,
       className: c.classRoom?.name ?? null,
-      items: c.gradeItems.map((i) => ({ id: i.id, title: i.title, weight: i.weight })),
+      items: c.gradeItems.map((i) => ({
+        id: i.id,
+        title: i.title,
+        maxScore: i.maxScore,
+        weight: i.weight,
+        dueAt: i.dueAt ? toDateKey(i.dueAt) : "",
+        recordCount: i.records.length,
+      })),
       weightSum: c.gradeItems.reduce((sum, i) => sum + i.weight, 0),
       zeroWeightCount: c.gradeItems.filter((i) => i.weight === 0).length,
     })),

@@ -135,7 +135,7 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
               <div className="text-[13.5px] font-bold">Hanya pengampu yang dapat mengelola nilai</div>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
                 Mata pelajaran ini diampu oleh <strong className="text-ink-2">{teacherName ?? "belum ditugaskan"}</strong>. Nilai hanya boleh diisi
-                dan diubah oleh pengampu yang ditugaskan. Minta administrasi menugaskan pengampu melalui menu Data Akademik (/akademik).
+                dan diubah oleh pengampu yang ditugaskan. Minta mudir menugaskan pengampu melalui menu Data Akademik (/akademik).
               </p>
             </Card>
           ) : null}
@@ -147,7 +147,7 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
               <div className="text-center">
                 <div className="text-[14px] font-bold">Belum ada santri di mata pelajaran ini</div>
                 <p className="mx-auto mt-1.5 max-w-[520px] text-[13px] leading-relaxed text-ink-3">
-                  Komponen nilai tetap bisa dibuat, tetapi daftar santri masih kosong. Administrasi mendaftarkan santri ke mata pelajaran melalui
+                  Komponen nilai tetap bisa dibuat, tetapi daftar santri masih kosong. Mudir mendaftarkan santri ke mata pelajaran melalui
                   menu Data Akademik (/akademik).
                 </p>
               </div>
