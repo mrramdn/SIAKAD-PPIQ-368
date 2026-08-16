@@ -531,7 +531,7 @@ const signatorySchema = z.object({
  * diganti administrasi saat pengurus pondok berganti, tanpa mengubah kode.
  */
 export async function updateReportSignatoriesAction(input: ReportSignatories): Promise<ActionResult> {
-  await requirePermission("assessment.configure");
+  await requirePermission("report.distribute");
   const parsed = signatorySchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Data penanda tangan tidak valid." };
 

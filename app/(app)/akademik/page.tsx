@@ -29,7 +29,7 @@ const TABS: { key: TabKey; label: string; permission: Permission }[] = [
   { key: "peserta", label: "Peserta Mapel", permission: "course.manage" },
   { key: "kelompok", label: "Kelompok Penilaian", permission: "assessment.configure" },
   { key: "bobot", label: "Bobot Komponen Nilai", permission: "assessment.configure" },
-  { key: "penandatangan", label: "Penanda Tangan Rapor", permission: "assessment.configure" },
+  { key: "penandatangan", label: "Penanda Tangan Rapor", permission: "report.distribute" },
   { key: "administrasi", label: "Administrasi Santri", permission: "administration.manage" },
 ];
 
@@ -77,7 +77,7 @@ async function BobotSection({ semester, academicYear }: { semester?: string; aca
 }
 
 async function PenandaTanganSection() {
-  await requirePermission("assessment.configure");
+  await requirePermission("report.distribute");
   const signatories = await getReportSignatories();
   return <PenandaTanganManager initial={signatories} />;
 }
@@ -95,7 +95,13 @@ export default async function AkademikPage({
 }) {
   const [{ tab, semester, tahun }, user] = await Promise.all([
     searchParams,
-    requireAnyPermission(["class.manage", "course.manage", "assessment.configure", "administration.manage"]),
+    requireAnyPermission([
+      "class.manage",
+      "course.manage",
+      "assessment.configure",
+      "administration.manage",
+      "report.distribute",
+    ]),
   ]);
 
   const availableTabs = TABS.filter((t) => userCan(user, t.permission));
