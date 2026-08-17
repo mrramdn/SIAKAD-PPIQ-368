@@ -27,7 +27,7 @@ export const ADMISSION_DOCUMENT_LABEL: Record<AdmissionDocumentKind, string> = {
 export const ADMISSION_DOCUMENT_REQUIRED: Record<AdmissionDocumentKind, boolean> = {
   FAMILY_CARD: true,
   BIRTH_CERTIFICATE: true,
-  PREVIOUS_REPORT: false,
+  PREVIOUS_REPORT: true,
   PHOTO: true,
   PAYMENT_PROOF: true,
 };
