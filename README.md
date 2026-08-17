@@ -9,7 +9,7 @@ Sistem informasi akademik Pondok Pesantren Integritas Qur'ani 368 berbasis Next.
 3. **Penjadwalan**: jadwal pelajaran per pekan per jenjang; wali hanya melihat jadwal anaknya.
 4. **Pengelolaan Nilai**: komponen nilai per mata pelajaran per periode (semester + tahun ajaran).
 5. **Pengelolaan Rapor**: rekap nilai + absensi per semester di-snapshot menjadi rapor, diberi catatan wali kelas, lalu diterbitkan ke wali.
-6. **Absensi Ustadz dan BKKH**: kehadiran harian ustadz/wali kelas + laporan manual kegiatan harian berdasarkan enam rentang waktu tetap; ustadz mengisi laporan sendiri, administrasi mencatat kehadiran, dan mudir memantau.
+6. **Absensi Ustadz dan BKKH**: kehadiran harian ustadz/wali kelas + laporan manual kegiatan harian berdasarkan enam rentang waktu tetap; ustadz mencatat kehadiran dan mengisi laporan sendiri, administrasi dan mudir hanya memantau.
 
 Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **PWA** (installable, halaman terakhir bisa dibuka saat offline).
 
@@ -28,8 +28,8 @@ Mendukung tiga jenjang: **SD, SMP, dan SMA**. Aplikasi juga terpasang sebagai **
 - **Wali Santri**: buat akun, daftarkan anak, lihat jadwal, nilai, kehadiran, dan rapor anaknya sendiri.
 - **Wali Kelas**: kelola nilai dan absensi hanya pada mapel yang ditugaskan, serta kelola catatan dan penerbitan rapor.
 - **Ustadz**: isi nilai dan absensi pada mapel yang diampu, isi BKKH pribadi.
-- **Administrasi**: tinjau PPDB, kelola akun dan role, absensi ustadz, checklist administrasi santri, serta ACC dan penyerahan rapor. Administrasi tidak mengelola kelas, mapel, maupun kelompok penilaian.
-- **Mudir Ma'had**: kelola kelas, mata pelajaran, ustadz pengampu, jadwal, dan kelompok penilaian; awasi kehadiran dan BKKH ustadz serta hasil akademik. Mudir tidak mengelola akun atau PPDB.
+- **Administrasi**: tinjau PPDB, kelola akun dan role, checklist administrasi santri, penanda tangan rapor, serta ACC dan penyerahan rapor. Memantau (bukan mencatat) absensi ustadz. Administrasi tidak mengelola kelas, mapel, maupun kelompok penilaian.
+- **Mudir Ma'had**: kelola kelas, mata pelajaran, ustadz pengampu, jadwal, kelompok penilaian, dan bobot komponen nilai; awasi kehadiran dan BKKH ustadz serta hasil akademik. Mudir tidak mengelola akun, PPDB, maupun absensi ustadz.
 
 ## Demo Account
 
@@ -81,11 +81,14 @@ Buka `http://localhost:3000`.
   - `anak` & `anak/[childId]`: portal wali — daftar anak, rincian nilai/kehadiran, dan rapor terbit
   - `pendaftaran`: formulir pendaftaran anak (wali) + halaman sukses
   - `penerimaan`: tinjauan pendaftaran (administrasi); menerima menautkan data santri ke akun wali
-  - `jadwal`: jadwal pelajaran per pekan (mudir kelola per jenjang; pengguna lain melihat sesuai konteks)
-  - `nilai`, `absen`: ustadz dan wali kelas mengelola mapel yang ditugaskan; Mudir memantau read-only
+  - `akademik`: Mudir mengelola kelas, mapel & pengampu, jadwal, peserta mapel, kelompok penilaian, dan bobot
+    komponen nilai; Administrasi mengelola penanda tangan rapor dan administrasi santri di menu yang sama
+  - `jadwal`: jadwal pelajaran per pekan, tampilan baca untuk semua peran (pengelolaan slot ada di `akademik`)
+  - `nilai`, `absen`: ustadz dan wali kelas mengelola mapel yang ditugaskan; Mudir mengelola komponen nilai lewat
+    `akademik` tapi tidak mencatat absensi atau nilai santri langsung
   - `absen-ustadz`: absensi harian ustadz/wali kelas + laporan BKKH per slot waktu + rekap bulanan
-  - `rapor` & `rapor/[id]`: Wali Kelas mengelola rapor; Mudir memantau read-only
-  - `mapel`: daftar mata pelajaran, penugasan ustadz, dan pendaftaran peserta (mudir)
+  - `rapor` & `rapor/[id]`: Wali Kelas mengelola rapor; Administrasi ACC dan menerbitkan
+  - `mapel`: `/mapel` redirect ke `/jadwal`; `/mapel/[id]` tetap halaman detail mapel
   - `pengguna`: manajemen akun khusus administrasi
   - `pengaturan`: profil akun sendiri
   - `actions.ts`: server actions dengan guard per peran

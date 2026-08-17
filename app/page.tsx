@@ -66,12 +66,12 @@ const roles = [
   {
     name: "Administrasi",
     code: "ADMIN",
-    description: "Mengelola PPDB, akun, data dasar, penugasan ustadz, jadwal, dan operasional pesantren.",
+    description: "Mengelola PPDB, akun, administrasi santri, serta ACC dan penyerahan rapor.",
   },
   {
     name: "Mudir Ma'had",
     code: "MUDIR",
-    description: "Mengawasi kehadiran, BKKH, jadwal mengajar, dan hasil akademik ustadz dengan akses baca saja.",
+    description: "Mengelola kelas, mata pelajaran, penugasan ustadz, jadwal, dan kelompok penilaian, serta mengawasi kehadiran dan hasil akademik ustadz.",
   },
 ] as const;
 
@@ -213,7 +213,8 @@ export default async function Home() {
             <p className="mt-5 leading-7 text-ink-3">
               {APP_NAME} menyatukan proses administrasi, kegiatan akademik, dan komunikasi perkembangan santri dalam satu portal.
               Akses dibatasi berdasarkan tanggung jawab: wali hanya melihat anaknya sendiri, ustadz mengelola mapel yang diampu,
-              Administrasi menangani operasional, dan Mudir melakukan pengawasan tanpa mengubah data akademik.
+              Administrasi menangani PPDB, akun, dan administrasi santri, sedangkan Mudir mengelola data akademik dan
+              mengawasi kehadiran ustadz.
             </p>
           </div>
         </div>

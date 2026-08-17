@@ -12,14 +12,17 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid", permission: null },
   { href: "/penerimaan", label: "Pendaftaran", icon: "doc", permission: "admission.review" },
   { href: "/pengguna", label: "Pengguna", icon: "users", permission: "user.manage" },
-  // Data Akademik menampung empat izin yang saat ini selalu dipegang bersama oleh
-  // ADMIN. Didaftarkan berulang agar navFor() yang dedupe-by-href berlaku sebagai
-  // gerbang ATAU: pemegang salah satu izin saja tetap melihat menunya, dan halaman
-  // itu sendiri masih menyaring tab per izin.
+  // Data Akademik menampung lima izin yang tersebar di ADMIN (administration.manage,
+  // report.distribute) dan MUDIR (class.manage, course.manage, assessment.configure) --
+  // harus tetap sinkron dengan requireAnyPermission([...]) di akademik/page.tsx.
+  // Didaftarkan berulang agar navFor() yang dedupe-by-href berlaku sebagai gerbang
+  // ATAU: pemegang salah satu izin saja tetap melihat menunya, dan halaman itu
+  // sendiri masih menyaring tab per izin.
   { href: "/akademik", label: "Data Akademik", icon: "settings", permission: "class.manage" },
   { href: "/akademik", label: "Data Akademik", icon: "settings", permission: "course.manage" },
   { href: "/akademik", label: "Data Akademik", icon: "settings", permission: "assessment.configure" },
   { href: "/akademik", label: "Data Akademik", icon: "settings", permission: "administration.manage" },
+  { href: "/akademik", label: "Data Akademik", icon: "settings", permission: "report.distribute" },
   { href: "/anak", label: "Anak Saya", icon: "users", permission: "child.monitor" },
   { href: "/pendaftaran", label: "Daftar Anak", icon: "doc", permission: "admission.submit" },
   { href: "/jadwal", label: "Jadwal & Mapel", icon: "calendar", permission: "course.view" },

@@ -27,14 +27,6 @@ const rolesSchema = z
   .min(1, "Pilih minimal satu peran.")
   .transform((roles) => Array.from(new Set(roles)));
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 function toNullableString(value: FormDataEntryValue | null) {
   const stringValue = String(value ?? "").trim();
   return stringValue || null;
@@ -116,27 +108,6 @@ function revalidateCourseAreas(courseId?: string) {
 }
 
 /* ----------------------------- course (mudir) ------------------------------ */
-
-export async function createCourseAction(formData: FormData) {
-  const mudir = await requirePermission("course.manage");
-  const title = String(formData.get("title") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const teacherId = String(formData.get("teacherId") ?? "");
-  const status = String(formData.get("status") ?? CourseStatus.PUBLISHED) as CourseStatus;
-
-  if (!title || !description || !teacherId || !Object.values(CourseStatus).includes(status) || !(await isValidTeachingStaff(teacherId))) {
-    redirect("/mapel?error=invalid");
-  }
-
-  const baseSlug = slugify(title) || `course-${Date.now()}`;
-  const existing = await prisma.course.findUnique({ where: { slug: baseSlug }, select: { id: true } });
-
-  await prisma.course.create({
-    data: { title, slug: existing ? `${baseSlug}-${Date.now()}` : baseSlug, description, status, createdById: mudir.id, teacherId },
-  });
-
-  revalidateCourseAreas();
-}
 
 export async function updateCourseAction(formData: FormData) {
   await requirePermission("course.manage");

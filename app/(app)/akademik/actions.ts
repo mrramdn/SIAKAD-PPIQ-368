@@ -229,7 +229,8 @@ const createCourseSchema = z.object({
 /**
  * `course.manage` (dipegang mudir) hanya mencakup data mapel itu sendiri.
  * Kelompok penilaian & nilai maksimal rapor adalah wewenang `assessment.configure`
- * dan penempatan kelas wewenang `class.manage` — keduanya khusus administrasi.
+ * dan penempatan kelas wewenang `class.manage` — keduanya juga dipegang mudir,
+ * tapi tetap dicek terpisah karena secara skema izinnya bisa berbeda pemegang.
  * Perubahan pada kolom itu ditolak, bukan diabaikan diam-diam.
  */
 function checkAssignmentFieldPermissions(
@@ -240,11 +241,11 @@ function checkAssignmentFieldPermissions(
   const touchesAssessment =
     next.assessmentGroupId !== current.assessmentGroupId || next.reportMaxScore !== current.reportMaxScore;
   if (touchesAssessment && !userCan(user, "assessment.configure")) {
-    return "Kelompok penilaian dan nilai maksimal rapor hanya boleh diubah administrasi.";
+    return "Kelompok penilaian dan nilai maksimal rapor hanya boleh diubah mudir.";
   }
 
   if (next.classRoomId !== current.classRoomId && !userCan(user, "class.manage")) {
-    return "Penempatan mata pelajaran ke kelas hanya boleh diubah administrasi.";
+    return "Penempatan mata pelajaran ke kelas hanya boleh diubah mudir.";
   }
 
   return null;

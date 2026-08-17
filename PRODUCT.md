@@ -10,15 +10,15 @@ SIAKAD PPIQ-368 adalah sistem informasi akademik terintegrasi yang menghubungkan
 5. **Pengelolaan Rapor**: Penyusunan dan penerbitan rapor semester yang di-snapshot secara permanen.
 6. **Absensi Ustadz dan BKKH**: Pencatatan kehadiran ustadz serta laporan manual kegiatan harian berdasarkan rentang waktu.
 
-Wali santri dapat memantau jadwal pelajaran, nilai harian, rekap absensi, dan rapor semester anaknya dari ponsel. Ustadz mengelola nilai dan kehadiran pada mata pelajaran yang ditugaskan. Wali Kelas mengelola rapor. Administrasi menangani PPDB, akun, absensi ustadz, checklist administrasi santri, serta ACC dan penyerahan rapor. Mudir Ma'had mengelola data akademik (mata pelajaran, kelas, ustadz pengampu, jadwal, kelompok penilaian) serta mengawasi kehadiran, BKKH, dan hasil akademik ustadz. Mendukung jenjang SD, SMP, dan SMA.
+Wali santri dapat memantau jadwal pelajaran, nilai harian, rekap absensi, dan rapor semester anaknya dari ponsel. Ustadz mengelola nilai dan kehadiran pada mata pelajaran yang ditugaskan, serta mencatat kehadiran dan BKKH pribadinya sendiri. Wali Kelas mengelola rapor. Administrasi menangani PPDB, akun, checklist administrasi santri, serta ACC dan penyerahan rapor, dan memantau (bukan mencatat) absensi ustadz. Mudir Ma'had mengelola data akademik (kelas, mata pelajaran, ustadz pengampu, jadwal, kelompok penilaian, bobot komponen nilai) serta memantau kehadiran, BKKH, dan hasil akademik ustadz. Mendukung jenjang SD, SMP, dan SMA.
 
 ## Users
 
 - **Wali santri**: Pengguna utama yang membuat akun, mendaftarkan anak, memantau jadwal, absensi harian, nilai harian, dan rapor semester anak.
 - **Wali kelas**: Memantau kelas binaan, mengelola nilai dan absensi, mengisi BKKH pribadi, serta membuat, memberi catatan, dan menerbitkan rapor semester.
 - **Ustadz**: Mencatat kehadiran santri dan nilai pada mata pelajaran yang diampu, serta mengisi absensi dan BKKH pribadi.
-- **Administrasi**: Meninjau PPDB, mengelola akun dan role, mencatat absensi ustadz, mengelola checklist administrasi santri, serta ACC dan penyerahan rapor. Tidak mengelola kelas, mata pelajaran, maupun kelompok penilaian.
-- **Mudir Ma'had**: Mengelola kelas, mata pelajaran, penugasan ustadz pengampu, jadwal, dan kelompok penilaian; mengawasi kehadiran dan laporan BKKH ustadz serta hasil akademik. Mudir tidak mengelola akun atau PPDB.
+- **Administrasi**: Meninjau PPDB, mengelola akun dan role, checklist administrasi santri, penanda tangan rapor, serta ACC dan penyerahan rapor. Memantau (bukan mencatat) absensi ustadz. Tidak mengelola kelas, mata pelajaran, maupun kelompok penilaian.
+- **Mudir Ma'had**: Mengelola kelas, mata pelajaran, penugasan ustadz pengampu, jadwal, kelompok penilaian, dan bobot komponen nilai; memantau kehadiran dan laporan BKKH ustadz serta hasil akademik. Mudir tidak mengelola akun, PPDB, maupun absensi ustadz.
 - **Santri**: Data profil santri yang dipantau. Tidak berinteraksi dengan aplikasi secara langsung.
 
 ## Product Purpose

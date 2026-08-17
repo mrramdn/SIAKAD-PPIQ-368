@@ -31,10 +31,10 @@ permission tertentu.
 
 | Peran | Fitur yang dapat diakses |
 |---|---|
-| Administrasi | Pendaftaran (PPDB), Pengguna, Absensi Ustadz, Penerimaan Rapor |
+| Administrasi | Pendaftaran (PPDB), Pengguna, Administrasi Santri, Penanda Tangan Rapor, Absensi Ustadz (pantau), Penerimaan Rapor |
 | Pengajar (Ustadz) | Jadwal & Mata Pelajaran, Absensi Santri, Pengelolaan Nilai, Absensi Ustadz & BKKH |
 | Wali Kelas | Seluruh fitur Pengajar, ditambah Rapor |
-| Mudir Ma'had | Absensi Ustadz, Jadwal & Mata Pelajaran |
+| Mudir Ma'had | Data Akademik (Kelas, Mapel & Pengampu, Jadwal, Peserta Mapel, Kelompok Penilaian, Bobot Komponen Nilai), Absensi Ustadz (pantau) |
 | Wali Santri | Pendaftaran Anak, Jadwal, Anak Saya (profil, kehadiran, nilai, rapor) |
 
 Dasbor dan Pengaturan tersedia untuk seluruh peran.
@@ -65,8 +65,8 @@ sistem menolak perubahan yang menyisakan nol akun Administrasi aktif.
    Santri memantau rapor anaknya yang telah berstatus terbit.
 6. **Absensi Ustadz dan BKKH**: Pengajar dan Wali Kelas mencatat kehadiran
    pribadi serta mengisi laporan kegiatan harian berdasarkan enam rentang waktu;
-   Administrasi mencatat kehadiran ustadz; Mudir Ma'had memantau kehadiran dan
-   laporan tersebut.
+   Administrasi dan Mudir Ma'had sama-sama hanya memantau kehadiran dan laporan
+   tersebut, tanpa mencatat.
 
 ## Use Case per Peran
 
@@ -97,26 +97,33 @@ Seluruh use case Pengajar, ditambah:
 
 ### 4. Mudir Ma'had (Pengawas)
 - Login
+- Mengelola Kelas dan Penempatan Santri
 - Mengelola Mata Pelajaran, Peserta, dan Ustadz Pengampu
 - Menyusun Jadwal Pelajaran (Mengelola Slot)
+- Mengelola Kelompok Penilaian dan Bobot Komponen Nilai (termasuk menambah
+  komponen nilai baru untuk suatu mapel)
 - Memantau Absensi Ustadz dan Laporan BKKH Harian
 
 Catatan: Mudir Ma'had berperan sebagai pengawas ustadz sekaligus pemegang
-kewenangan penjadwalan akademik. Mudir tidak memiliki akses ke manajemen akun,
-PPDB, penilaian, maupun rapor; penilaian merupakan kewenangan Pengajar dan Wali
-Kelas, sedangkan rapor merupakan kewenangan Wali Kelas.
+kewenangan data akademik (kelas, mata pelajaran, jadwal, kelompok penilaian,
+bobot nilai). Mudir tidak memiliki akses ke manajemen akun, PPDB, absensi
+maupun nilai santri, maupun rapor; absensi dan nilai santri merupakan
+kewenangan Pengajar dan Wali Kelas, sedangkan rapor merupakan kewenangan Wali
+Kelas.
 
 ### 5. Administrasi
 - Login
 - Meninjau dan Memverifikasi Pendaftaran Anak (PPDB)
 - Mengelola Akun, Peran, dan Status Pengguna
-- Mencatat Kehadiran Ustadz
-- Memantau Laporan BKKH Harian
+- Mengelola Checklist Administrasi Santri
+- Mengelola Penanda Tangan Rapor
+- Memantau Absensi Ustadz dan Laporan BKKH Harian
 - Memantau Penerimaan Rapor (daftar rapor terbit untuk diserahkan ke wali santri)
 
-Catatan: Administrasi tidak mengelola mata pelajaran maupun jadwal; kewenangan
-tersebut berada pada Mudir Ma'had. Akses Administrasi terhadap rapor bersifat
-pemantauan saja, tanpa kemampuan mengubah isi rapor.
+Catatan: Administrasi tidak mengelola mata pelajaran, kelas, maupun jadwal;
+kewenangan tersebut berada pada Mudir Ma'had. Akses Administrasi terhadap
+absensi ustadz maupun rapor bersifat pemantauan saja, tanpa kemampuan mencatat
+kehadiran ustadz atau mengubah isi rapor.
 
 ### 6. Santri (Aktor Pasif)
 - Terdaftar di sistem dan memiliki profil
@@ -141,5 +148,6 @@ pemantauan saja, tanpa kemampuan mengubah isi rapor.
   masih berstatus draf.
 - Absensi Ustadz dan BKKH berada dalam satu halaman operasional, tetapi disimpan
   terpisah: status kehadiran harian dan laporan kegiatan per rentang waktu.
-- Administrasi mencatat status kehadiran ustadz, tetapi laporan BKKH hanya dapat
-  diisi sendiri oleh Pengajar atau Wali Kelas pada hari yang sama.
+- Status kehadiran ustadz dicatat oleh Pengajar atau Wali Kelas untuk dirinya
+  sendiri; Administrasi dan Mudir Ma'had hanya memantau. Laporan BKKH juga
+  hanya dapat diisi sendiri oleh Pengajar atau Wali Kelas pada hari yang sama.
