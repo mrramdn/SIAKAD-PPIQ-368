@@ -82,6 +82,7 @@ enum AdmissionDocumentKind {
   BIRTH_CERTIFICATE
   PREVIOUS_REPORT
   PHOTO
+  PAYMENT_PROOF
 }
 
 model User {
@@ -481,6 +482,7 @@ model Admission {
   birthCertificateUrl String?
   previousReportUrl String?
   photoUrl          String?
+  paymentProofUrl   String?
   documents        AdmissionDocument[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

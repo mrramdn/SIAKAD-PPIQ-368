@@ -13,6 +13,7 @@ export const ADMISSION_DOCUMENT_KINDS = [
   AdmissionDocumentKind.BIRTH_CERTIFICATE,
   AdmissionDocumentKind.PREVIOUS_REPORT,
   AdmissionDocumentKind.PHOTO,
+  AdmissionDocumentKind.PAYMENT_PROOF,
 ] as const;
 
 export const ADMISSION_DOCUMENT_LABEL: Record<AdmissionDocumentKind, string> = {
@@ -20,6 +21,7 @@ export const ADMISSION_DOCUMENT_LABEL: Record<AdmissionDocumentKind, string> = {
   BIRTH_CERTIFICATE: "Akta Kelahiran",
   PREVIOUS_REPORT: "Rapor Terakhir",
   PHOTO: "Pas Foto",
+  PAYMENT_PROOF: "Bukti Pembayaran Pendaftaran",
 };
 
 export const ADMISSION_DOCUMENT_REQUIRED: Record<AdmissionDocumentKind, boolean> = {
@@ -27,6 +29,7 @@ export const ADMISSION_DOCUMENT_REQUIRED: Record<AdmissionDocumentKind, boolean>
   BIRTH_CERTIFICATE: true,
   PREVIOUS_REPORT: false,
   PHOTO: true,
+  PAYMENT_PROOF: true,
 };
 
 // Nama input berkas pada form pendaftaran.
@@ -35,6 +38,7 @@ export const ADMISSION_DOCUMENT_FIELD: Record<AdmissionDocumentKind, string> = {
   BIRTH_CERTIFICATE: "birthCertificateFile",
   PREVIOUS_REPORT: "previousReportFile",
   PHOTO: "photoFile",
+  PAYMENT_PROOF: "paymentProofFile",
 };
 
 // Nama input tautan pada form pendaftaran (sengaja sama dengan nama kolomnya).
@@ -43,6 +47,7 @@ export const ADMISSION_DOCUMENT_URL_FIELD: Record<AdmissionDocumentKind, string>
   BIRTH_CERTIFICATE: "birthCertificateUrl",
   PREVIOUS_REPORT: "previousReportUrl",
   PHOTO: "photoUrl",
+  PAYMENT_PROOF: "paymentProofUrl",
 };
 
 /**
@@ -50,11 +55,15 @@ export const ADMISSION_DOCUMENT_URL_FIELD: Record<AdmissionDocumentKind, string>
  * berkas (tersimpan sebagai `AdmissionDocument`) atau mengisi tautan (tersimpan
  * di kolom ini), jadi kolom-kolom ini dipakai lagi — bukan sekadar peninggalan.
  */
-export const ADMISSION_DOCUMENT_URL_COLUMN: Record<AdmissionDocumentKind, "familyCardUrl" | "birthCertificateUrl" | "previousReportUrl" | "photoUrl"> = {
+export const ADMISSION_DOCUMENT_URL_COLUMN: Record<
+  AdmissionDocumentKind,
+  "familyCardUrl" | "birthCertificateUrl" | "previousReportUrl" | "photoUrl" | "paymentProofUrl"
+> = {
   FAMILY_CARD: "familyCardUrl",
   BIRTH_CERTIFICATE: "birthCertificateUrl",
   PREVIOUS_REPORT: "previousReportUrl",
   PHOTO: "photoUrl",
+  PAYMENT_PROOF: "paymentProofUrl",
 };
 
 export const ADMISSION_DOCUMENT_MAX_BYTES = 2 * 1024 * 1024;
@@ -324,6 +333,7 @@ type AdmissionDocumentViewSource = {
   birthCertificateUrl: string | null;
   previousReportUrl: string | null;
   photoUrl: string | null;
+  paymentProofUrl: string | null;
   documents: readonly { id: string; kind: AdmissionDocumentKind; filename: string; mimeType: string; size: number }[];
 };
 
@@ -387,6 +397,7 @@ export const getAdmissionsForReview = cache(async () => {
       birthCertificateUrl: true,
       previousReportUrl: true,
       photoUrl: true,
+      paymentProofUrl: true,
       status: true,
       createdAt: true,
       documents: {
@@ -428,6 +439,7 @@ export const getAdmissionsBySubmitter = cache(async (submitterId: string) => {
       birthCertificateUrl: true,
       previousReportUrl: true,
       photoUrl: true,
+      paymentProofUrl: true,
       documents: {
         select: { id: true, kind: true, filename: true, mimeType: true, size: true },
       },
