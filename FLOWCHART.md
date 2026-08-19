@@ -134,7 +134,7 @@ flowchart TD
     A["Wali Kelas membuka Rapor"] --> B{"Punya hak<br/>report.manage?"}
     B -- Tidak --> C{"Punya hak<br/>report.distribute?"}
     C -- Tidak --> D["Alihkan ke /dashboard"]
-    C -- Ya --> E["Administrasi:<br/>Penerimaan Rapor, baca saja"]
+    C -- Ya --> E["Administrasi:<br/>Penerbitan Rapor, baca saja"]
     B -- Ya --> F["Pilih santri, semester,<br/>tahun ajaran"]
     F --> G["Sistem menghitung<br/>rata-rata nilai per mapel"]
     G --> H["Sistem merekap kehadiran:<br/>hadir, telat, alfa, izin"]
@@ -146,7 +146,7 @@ flowchart TD
     L -- Tidak --> N["Ditolak: rapor terbit<br/>tidak dapat dihapus"]
     K -- "Terbitkan" --> O["Status menjadi TERBIT<br/>publishedAt terisi"]
     O --> P["Wali Santri dapat melihat<br/>di tab Rapor"]
-    O --> Q["Administrasi memantau<br/>di Penerimaan Rapor"]
+    O --> Q["Administrasi memantau<br/>di Penerbitan Rapor"]
     O --> R{"Perlu koreksi?"}
     R -- Ya --> S["Batalkan terbit,<br/>kembali ke DRAF"] --> J
     E --> Q

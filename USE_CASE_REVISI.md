@@ -31,7 +31,7 @@ permission tertentu.
 
 | Peran | Fitur yang dapat diakses |
 |---|---|
-| Administrasi | Pendaftaran (PPDB), Pengguna, Administrasi Santri, Penanda Tangan Rapor, Absensi Ustadz (pantau), Penerimaan Rapor |
+| Administrasi | Pendaftaran (PPDB), Pengguna, Administrasi Santri, Penanda Tangan Rapor, Absensi Ustadz (pantau), Penerbitan Rapor |
 | Pengajar (Ustadz) | Jadwal & Mata Pelajaran, Absensi Santri, Pengelolaan Nilai, Absensi Ustadz & BKKH |
 | Wali Kelas | Seluruh fitur Pengajar, ditambah Rapor |
 | Mudir Ma'had | Data Akademik (Kelas, Mapel & Pengampu, Jadwal, Peserta Mapel, Kelompok Penilaian, Bobot Komponen Nilai), Absensi Ustadz (pantau) |
@@ -118,7 +118,7 @@ Kelas.
 - Mengelola Checklist Administrasi Santri
 - Mengelola Penanda Tangan Rapor
 - Memantau Absensi Ustadz dan Laporan BKKH Harian
-- Memantau Penerimaan Rapor (daftar rapor terbit untuk diserahkan ke wali santri)
+- Memantau Penerbitan Rapor (daftar rapor terbit untuk diserahkan ke wali santri)
 
 Catatan: Administrasi tidak mengelola mata pelajaran, kelas, maupun jadwal;
 kewenangan tersebut berada pada Mudir Ma'had. Akses Administrasi terhadap

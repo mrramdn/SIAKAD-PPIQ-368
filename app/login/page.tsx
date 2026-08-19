@@ -26,8 +26,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <AuthShell
       eyebrow="Akses portal pesantren"
-      title="Satu pintu untuk setiap peran di pesantren."
-      description="Wali memantau perkembangan anak, ustadz mengelola pembelajaran, Administrasi menangani operasional, dan Mudir mengawasi kegiatan harian."
+      title="Sistem Informasi Akademik Pondok Pesantren Integritas Qur'ani 368"
+      description="Kelola data akademik, pantau perkembangan santri, lihat jadwal dan nilai, serta urus administrasi di Pondok Pesantren Integritas Qur'ani 368."
     >
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-700">Selamat datang kembali</p>
       <h1 className="mt-3 text-3xl font-extrabold tracking-[-0.035em] sm:text-4xl">Masuk ke akun</h1>

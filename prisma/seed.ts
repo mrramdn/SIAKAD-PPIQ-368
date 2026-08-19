@@ -850,10 +850,24 @@ async function main() {
   }
 
   /* --------------------------- administrasi santri ------------------------ */
+  const MONTH_NAMES = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  ];
+  const [academicYearStart, academicYearEnd] = PERIOD.academicYear.split("/").map(Number);
+  // GANJIL = Juli-Desember tahun awal; GENAP = Januari-Juni tahun akhir.
+  const SPP_MONTHS = PERIOD.semester === Semester.GANJIL
+    ? [6, 7, 8, 9, 10, 11].map((month) => ({ month, year: academicYearStart }))
+    : [0, 1, 2, 3, 4, 5].map((month) => ({ month, year: academicYearEnd }));
+  const SPP_ITEMS = SPP_MONTHS.map(({ month, year }, idx) => ({
+    name: `SPP ${MONTH_NAMES[month]} ${year}`,
+    description: `Pembayaran SPP bulan ${MONTH_NAMES[month]} ${year} telah lunas.`,
+    sortOrder: idx + 1,
+  }));
   const ADMIN_ITEMS = [
-    { name: "SPP Semester Berjalan", description: "Pembayaran SPP semester berjalan telah lunas.", sortOrder: 1 },
-    { name: "Daftar Ulang", description: "Formulir daftar ulang dan berkas pendukung sudah diserahkan.", sortOrder: 2 },
-    { name: "Infaq Kegiatan Santri", description: "Infaq kegiatan pondok semester berjalan telah dibayarkan.", sortOrder: 3 },
+    ...SPP_ITEMS,
+    { name: "Daftar Ulang", description: "Formulir daftar ulang dan berkas pendukung sudah diserahkan.", sortOrder: SPP_ITEMS.length + 1 },
+    { name: "Infaq Kegiatan Santri", description: "Infaq kegiatan pondok semester berjalan telah dibayarkan.", sortOrder: SPP_ITEMS.length + 2 },
   ];
   /** Skenario palang ACC: santri ini menyisakan satu item administrasi. */
   const OUTSTANDING = { studentNumber: "20262002", itemName: "Daftar Ulang" };

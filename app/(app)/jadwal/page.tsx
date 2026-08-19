@@ -34,7 +34,7 @@ export default async function JadwalPage({
             <p className="text-center text-sm text-ink-3">
               Belum ada anak yang terdaftar. Ajukan lewat menu{" "}
               <Link href="/pendaftaran" className="font-semibold text-primary-700 underline underline-offset-4">
-                Daftar Anak
+                Pendaftaran
               </Link>
               .
             </p>

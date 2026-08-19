@@ -38,7 +38,7 @@ function ItemForm({ initial, onSave, onClose }: { initial: Item | null; onSave: 
   return (
     <Modal title={initial ? "Edit Item Administrasi" : "Tambah Item Administrasi"} onClose={onClose}>
       <Field label="Nama item">
-        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="cth. SPP Semester Berjalan" className={inputClasses} />
+        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus placeholder="cth. SPP Juli 2026" className={inputClasses} />
       </Field>
       <Field label="Deskripsi (opsional)">
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputClasses} />
