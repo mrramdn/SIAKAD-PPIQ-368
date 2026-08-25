@@ -208,7 +208,7 @@ export default async function AkademikPage({
   return (
     <div className="view-enter">
       <div className="mb-5">
-        <h1 className="text-[26px] font-extrabold tracking-tight">Data Akademik</h1>
+        <h1 className="text-[26px] font-extrabold tracking-tight">Administrasi Akademik</h1>
         <p className="mt-1 text-sm text-ink-3">
           Kelola kelas, mata pelajaran, jadwal, peserta mapel, kelompok penilaian, bobot nilai, penanda tangan rapor,
           dan administrasi santri dalam satu tempat.
