@@ -9,6 +9,7 @@ import {
   ADMISSION_DOCUMENT_URL_COLUMN,
   ADMISSION_DOCUMENT_URL_FIELD,
   checkAdmissionDocumentSubmission,
+  parseAdmissionBirthDate,
   type AdmissionDocumentIssue,
   type AdmissionDocumentUpload,
 } from "@/lib/admissions";
@@ -32,33 +33,6 @@ function rejectDocument(issue: AdmissionDocumentIssue): never {
   redirect(`/pendaftaran?error=${issue.reason}&doc=${issue.kind}`);
 }
 
-const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const EARLIEST_BIRTH_YEAR = 1900;
-
-type BirthDateResult = { ok: true; value: Date | null } | { ok: false; reason: "birthDate" | "birthDateFuture" };
-
-/**
- * Prisma menolak `Invalid Date` dengan galat mentah, jadi tanggal lahir divalidasi
- * sendiri: hanya format YYYY-MM-DD (sesuai <input type="date">), tanggal yang benar
- * ada, tidak di masa depan, dan tidak mustahil tuanya.
- */
-function parseBirthDate(raw: string | undefined, now = new Date()): BirthDateResult {
-  const value = (raw ?? "").trim();
-  if (!value) return { ok: true, value: null };
-
-  const match = DATE_ONLY_RE.exec(value);
-  if (!match) return { ok: false, reason: "birthDate" };
-
-  const [, year, month, day] = match.map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  const isRealDate =
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-  if (!isRealDate || year < EARLIEST_BIRTH_YEAR) return { ok: false, reason: "birthDate" };
-  if (date.getTime() > now.getTime()) return { ok: false, reason: "birthDateFuture" };
-
-  return { ok: true, value: date };
-}
-
 export async function submitAdmissionAction(formData: FormData) {
   const parent = await requirePermission("admission.submit");
   const parsed = schema.safeParse({
@@ -78,7 +52,7 @@ export async function submitAdmissionAction(formData: FormData) {
 
   // Diperiksa sebelum berkas dibaca: percuma memuat unggahan berukuran besar
   // kalau data teksnya sudah pasti ditolak.
-  const birthDate = parseBirthDate(parsed.data.birthDate);
+  const birthDate = parseAdmissionBirthDate(parsed.data.birthDate);
   if (!birthDate.ok) {
     redirect(`/pendaftaran?error=${birthDate.reason}`);
   }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button, Card, Field, Icons, inputClasses } from "@/components/ui";
 import type { ReportSignatories } from "@/lib/rapor";
 import { updateReportSignatoriesAction } from "./actions";
-import { Toast, useActionRunner } from "./_ui";
+import { Toast, useActionRunner } from "../_components/crud-ui";
 
 export function PenandaTanganManager({ initial }: { initial: ReportSignatories }) {
   const { run, toast, pending } = useActionRunner();

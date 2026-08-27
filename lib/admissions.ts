@@ -241,6 +241,48 @@ export function safeDocumentUrl(url: string | null | undefined): string | null {
   }
 }
 
+/* -------------------------------- tanggal ---------------------------------- */
+
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const EARLIEST_BIRTH_YEAR = 1900;
+
+export type AdmissionBirthDateResult =
+  | { ok: true; value: Date | null }
+  | { ok: false; reason: "birthDate" | "birthDateFuture" };
+
+export const ADMISSION_BIRTH_DATE_MESSAGE: Record<"birthDate" | "birthDateFuture", string> = {
+  birthDate: "Tanggal lahir tidak valid. Pilih tanggal dari kalender atau isi dengan format tahun-bulan-tanggal.",
+  birthDateFuture: "Tanggal lahir tidak boleh melewati hari ini. Periksa kembali tanggal lahir santri.",
+};
+
+/**
+ * Prisma menolak `Invalid Date` dengan galat mentah, jadi tanggal lahir divalidasi
+ * sendiri: hanya format YYYY-MM-DD (sesuai <input type="date">), tanggal yang benar
+ * ada, tidak di masa depan, dan tidak mustahil tuanya. Dipakai bersama oleh formulir
+ * wali santri dan formulir pendaftaran manual milik administrasi.
+ */
+export function parseAdmissionBirthDate(raw: string | undefined | null, now = new Date()): AdmissionBirthDateResult {
+  const value = (raw ?? "").trim();
+  if (!value) return { ok: true, value: null };
+
+  const match = DATE_ONLY_RE.exec(value);
+  if (!match) return { ok: false, reason: "birthDate" };
+
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const isRealDate =
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  if (!isRealDate || year < EARLIEST_BIRTH_YEAR) return { ok: false, reason: "birthDate" };
+  if (date.getTime() > now.getTime()) return { ok: false, reason: "birthDateFuture" };
+
+  return { ok: true, value: date };
+}
+
+/** Nilai untuk <input type="date">; null bila tanggal lahir belum diisi. */
+export function toDateInputValue(date: Date | null): string | null {
+  return date ? date.toISOString().slice(0, 10) : null;
+}
+
 /* ------------------------- pilihan unggahan / tautan ------------------------ */
 
 export type AdmissionDocumentSubmission =

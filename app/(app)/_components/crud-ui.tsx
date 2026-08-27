@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Icons } from "@/components/ui";
 
-/** Toast + router.refresh() glue shared by the akademik section managers. */
+/** Toast + router.refresh() glue shared by the CRUD managers (akademik, penerimaan). */
 export function useActionRunner() {
   const router = useRouter();
   const [toast, setToast] = useState<{ msg: string; tone: "ok" | "warn" } | null>(null);
@@ -16,11 +16,24 @@ export function useActionRunner() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  function run(p: Promise<{ ok: boolean; message?: string }>, okMsg: string, tone: "ok" | "warn" = "ok") {
+  /**
+   * `onSuccess` dipakai form yang baru boleh ditutup setelah server menerima
+   * datanya -- kalau ditutup lebih dulu, isian panjang (mis. formulir
+   * pendaftaran) ikut hilang begitu validasi gagal.
+   */
+  function run(
+    p: Promise<{ ok: boolean; message?: string }>,
+    okMsg: string,
+    tone: "ok" | "warn" = "ok",
+    onSuccess?: () => void,
+  ) {
     startTransition(async () => {
       const res = await p;
       setToast(res.ok ? { msg: okMsg, tone } : { msg: res.message ?? "Gagal memproses.", tone: "warn" });
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        onSuccess?.();
+        router.refresh();
+      }
     });
   }
 

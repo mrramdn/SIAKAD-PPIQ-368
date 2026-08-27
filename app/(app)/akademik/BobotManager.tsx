@@ -6,7 +6,7 @@ import { Badge, Button, Card, Icons, inputClasses } from "@/components/ui";
 import type { Semester } from "@/generated/prisma/client";
 import { addGradeItemAction, deleteGradeItemAction } from "../actions";
 import { updateGradeWeightsAction } from "./actions";
-import { Toast, useActionRunner } from "./_ui";
+import { Toast, useActionRunner } from "../_components/crud-ui";
 
 type Item = { id: string; title: string; maxScore: number; weight: number; dueAt: string; recordCount: number };
 type CourseWeights = {

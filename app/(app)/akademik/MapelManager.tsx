@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button, Card, Field, Icons, inputClasses } from "@/components/ui";
 import type { EducationLevel } from "@/generated/prisma/client";
 import { createCourseAction, deleteCourseAction, updateCourseAssignmentAction } from "./actions";
-import { Modal, Toast, useActionRunner } from "./_ui";
+import { Modal, Toast, useActionRunner } from "../_components/crud-ui";
 
 type Course = {
   id: string;

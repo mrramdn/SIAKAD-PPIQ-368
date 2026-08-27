@@ -9,7 +9,7 @@ import {
   setStudentAdministrationAction,
   updateAdministrationItemAction,
 } from "./actions";
-import { Modal, Toast, useActionRunner } from "./_ui";
+import { Modal, Toast, useActionRunner } from "../_components/crud-ui";
 
 type Item = {
   id: string;

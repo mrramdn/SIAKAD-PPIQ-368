@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Badge, Button, Card, Icons, inputClasses } from "@/components/ui";
 import type { EducationLevel } from "@/generated/prisma/client";
 import { setClassEnrollmentAction, setEnrollmentAction } from "./actions";
-import { Toast, useActionRunner } from "./_ui";
+import { Toast, useActionRunner } from "../_components/crud-ui";
 
 type Student = { id: string; name: string; studentNumber: string };
 type CourseRow = {

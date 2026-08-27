@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, Icons, inputClasses } from "@/components/ui";
 import {
+  ADMISSION_BIRTH_DATE_MESSAGE,
   ADMISSION_DOCUMENT_ACCEPT,
   ADMISSION_DOCUMENT_FIELD,
   ADMISSION_DOCUMENT_KINDS,
@@ -21,10 +22,7 @@ type PageProps = { searchParams: Promise<{ error?: string; doc?: string; success
 const ISSUE_REASONS = ["required", "size", "type", "mismatch", "empty", "both", "url"] as const;
 
 // Galat per kolom formulir (bukan berkas), memakai gaya pesan yang sama.
-const FIELD_ERROR_MESSAGE: Record<string, string> = {
-  birthDate: "Tanggal lahir tidak valid. Pilih tanggal dari kalender atau isi dengan format tahun-bulan-tanggal.",
-  birthDateFuture: "Tanggal lahir tidak boleh melewati hari ini. Periksa kembali tanggal lahir santri.",
-};
+const FIELD_ERROR_MESSAGE: Record<string, string> = ADMISSION_BIRTH_DATE_MESSAGE;
 
 function Required() {
   return <span className="text-danger"> *</span>;

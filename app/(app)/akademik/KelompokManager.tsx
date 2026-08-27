@@ -11,7 +11,7 @@ import {
   updateAssessmentGroupAction,
   updateBehaviorCriterionAction,
 } from "./actions";
-import { Modal, Toast, useActionRunner } from "./_ui";
+import { Modal, Toast, useActionRunner } from "../_components/crud-ui";
 
 type Criterion = { id: string; name: string; maxScore: number; sortOrder: number };
 type Group = {
