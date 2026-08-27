@@ -136,7 +136,7 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
               <div className="text-[13.5px] font-bold">Hanya pengampu yang dapat membuat sesi absensi</div>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
                 Mata pelajaran ini diampu oleh <strong className="text-ink-2">{teacherName ?? "belum ditugaskan"}</strong>. Absensi hanya boleh
-                dicatat oleh pengampu yang ditugaskan. Minta mudir menugaskan pengampu melalui menu Administrasi Akademik (/akademik).
+                dicatat oleh pengampu yang ditugaskan. Minta mudir menugaskan pengampu melalui menu Data Akademik (/akademik).
               </p>
             </Card>
           ) : null}
@@ -149,7 +149,7 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
                 <div className="text-[14px] font-bold">Belum ada santri di mata pelajaran ini</div>
                 <p className="mx-auto mt-1.5 max-w-[520px] text-[13px] leading-relaxed text-ink-3">
                   Sesi absensi tetap bisa dibuat, tetapi daftar santri masih kosong. Mudir mendaftarkan santri ke mata pelajaran melalui
-                  menu Administrasi Akademik (/akademik).
+                  menu Data Akademik (/akademik).
                 </p>
               </div>
             </Card>

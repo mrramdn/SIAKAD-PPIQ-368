@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Avatar, Icons, initialsFromName } from "@/components/ui";
 import { APP_NAME } from "@/lib/brand";
 import { sortRoles } from "@/lib/permissions";
-import { PAGE_TITLE, ROLE_LABEL, type Role } from "./nav";
+import { pageTitleFor, ROLE_LABEL, type Role } from "./nav";
 
 export function Topbar({
   user,
@@ -17,7 +17,7 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const title = pathname.startsWith("/mapel/") ? "Detail Mata Pelajaran" : PAGE_TITLE[pathname] ?? APP_NAME;
+  const title = pageTitleFor(pathname, user.roles, APP_NAME);
   const initials = initialsFromName(user.name);
   const roleLabel = sortRoles(user.roles)
     .map((r) => ROLE_LABEL[r])

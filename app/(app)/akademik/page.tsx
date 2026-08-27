@@ -12,10 +12,11 @@ import {
 } from "@/lib/akademik";
 import { LEVEL_FULL, LEVEL_LABEL, LEVELS } from "@/lib/brand";
 import { getCurrentPeriod, getScheduleBoard } from "@/lib/lms";
-import type { Permission } from "@/lib/permissions";
+import type { Permission, Role } from "@/lib/permissions";
 import { getReportSignatories } from "@/lib/rapor";
 import { Card, Field, Icons, inputClasses } from "@/components/ui";
 import { createScheduleSlotAction } from "../actions";
+import { akademikTitle } from "../_components/nav";
 import { DayGrid } from "../jadwal/ScheduleList";
 import { AdministrasiManager } from "./AdministrasiManager";
 import { BobotManager } from "./BobotManager";
@@ -39,6 +40,16 @@ const TABS: { key: TabKey; label: string; permission: Permission }[] = [
 ];
 
 const ACADEMIC_YEAR_RE = /^\d{4}\/\d{4}$/;
+
+/**
+ * Ringkasan isi halaman dibuat dari tab yang benar-benar terlihat, supaya
+ * administrasi dan mudir tidak dijanjikan tab milik peran yang lain.
+ */
+function describeTabs(tabs: readonly { label: string }[]): string {
+  const names = tabs.map((t) => t.label.toLowerCase());
+  if (names.length <= 1) return names[0] ?? "data akademik";
+  return `${names.slice(0, -1).join(", ")}, dan ${names[names.length - 1]}`;
+}
 
 async function KelasSection() {
   await requirePermission("class.manage");
@@ -208,11 +219,8 @@ export default async function AkademikPage({
   return (
     <div className="view-enter">
       <div className="mb-5">
-        <h1 className="text-[26px] font-extrabold tracking-tight">Administrasi Akademik</h1>
-        <p className="mt-1 text-sm text-ink-3">
-          Kelola kelas, mata pelajaran, jadwal, peserta mapel, kelompok penilaian, bobot nilai, penanda tangan rapor,
-          dan administrasi santri dalam satu tempat.
-        </p>
+        <h1 className="text-[26px] font-extrabold tracking-tight">{akademikTitle(user.roles as Role[])}</h1>
+        <p className="mt-1 text-sm text-ink-3">Kelola {describeTabs(availableTabs)} dalam satu tempat.</p>
       </div>
 
       <div className="mb-5 flex max-w-full gap-1.5 overflow-x-auto rounded-xl border border-line bg-surface p-1">

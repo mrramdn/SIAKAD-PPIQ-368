@@ -1,10 +1,30 @@
 import type { IconKey } from "@/components/ui";
-import { permissionsFor, ROLE_BLURB, ROLE_LABEL, type Permission, type Role } from "@/lib/permissions";
+import { hasAnyPermission, permissionsFor, ROLE_BLURB, ROLE_LABEL, type Permission, type Role } from "@/lib/permissions";
 
 export type { Role };
 export { ROLE_BLURB, ROLE_LABEL };
 
 export type NavItem = { href: string; label: string; icon: IconKey; permission: Permission | null };
+
+/**
+ * Halaman /akademik dipakai dua peran dengan tab yang berbeda, jadi namanya pun
+ * berbeda: administrasi menyebutnya "Administrasi Akademik" (penanda tangan
+ * rapor + checklist administrasi santri), mudir menyebutnya "Data Akademik"
+ * (kelas, mapel, jadwal, peserta, kelompok & bobot penilaian).
+ */
+export const AKADEMIK_ADMIN_PERMISSIONS = ["administration.manage", "report.distribute"] as const;
+export const AKADEMIK_MUDIR_PERMISSIONS = ["class.manage", "course.manage", "assessment.configure"] as const;
+
+export const AKADEMIK_ADMIN_TITLE = "Administrasi Akademik";
+export const AKADEMIK_MUDIR_TITLE = "Data Akademik";
+
+/**
+ * Pemegang kedua kelompok izin (mis. akun ADMIN + MUDIR) melihat seluruh tab,
+ * jadi yang dipakai adalah nama milik administrasi sebagai nama gabungannya.
+ */
+export function akademikTitle(roles: readonly Role[]): string {
+  return hasAnyPermission(roles, AKADEMIK_ADMIN_PERMISSIONS) ? AKADEMIK_ADMIN_TITLE : AKADEMIK_MUDIR_TITLE;
+}
 
 // Canonical order. Some routes (permission-dependent label) appear twice; navFor()
 // dedupes by href keeping the first match, so list the higher-privilege variant first.
@@ -12,17 +32,16 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dasbor", icon: "grid", permission: null },
   { href: "/penerimaan", label: "Pendaftaran", icon: "doc", permission: "admission.review" },
   { href: "/pengguna", label: "Pengguna", icon: "users", permission: "user.manage" },
-  // Administrasi Akademik menampung lima izin yang tersebar di ADMIN (administration.manage,
-  // report.distribute) dan MUDIR (class.manage, course.manage, assessment.configure) --
+  // Satu href, dua nama. Varian administrasi didaftarkan lebih dulu supaya
+  // navFor() yang dedupe-by-href memberi nama "Administrasi Akademik" kepada
+  // pemegang izin administrasi (termasuk akun rangkap ADMIN + MUDIR), sedangkan
+  // mudir murni jatuh ke varian "Data Akademik" di bawahnya. Kelima izin ini
   // harus tetap sinkron dengan requireAnyPermission([...]) di akademik/page.tsx.
-  // Didaftarkan berulang agar navFor() yang dedupe-by-href berlaku sebagai gerbang
-  // ATAU: pemegang salah satu izin saja tetap melihat menunya, dan halaman itu
-  // sendiri masih menyaring tab per izin.
-  { href: "/akademik", label: "Administrasi Akademik", icon: "settings", permission: "class.manage" },
-  { href: "/akademik", label: "Administrasi Akademik", icon: "settings", permission: "course.manage" },
-  { href: "/akademik", label: "Administrasi Akademik", icon: "settings", permission: "assessment.configure" },
-  { href: "/akademik", label: "Administrasi Akademik", icon: "settings", permission: "administration.manage" },
-  { href: "/akademik", label: "Administrasi Akademik", icon: "settings", permission: "report.distribute" },
+  { href: "/akademik", label: AKADEMIK_ADMIN_TITLE, icon: "settings", permission: "administration.manage" },
+  { href: "/akademik", label: AKADEMIK_ADMIN_TITLE, icon: "settings", permission: "report.distribute" },
+  { href: "/akademik", label: AKADEMIK_MUDIR_TITLE, icon: "settings", permission: "class.manage" },
+  { href: "/akademik", label: AKADEMIK_MUDIR_TITLE, icon: "settings", permission: "course.manage" },
+  { href: "/akademik", label: AKADEMIK_MUDIR_TITLE, icon: "settings", permission: "assessment.configure" },
   { href: "/anak", label: "Anak Saya", icon: "users", permission: "child.monitor" },
   { href: "/pendaftaran", label: "Pendaftaran", icon: "doc", permission: "admission.submit" },
   { href: "/jadwal", label: "Jadwal & Mapel", icon: "calendar", permission: "course.view" },
@@ -54,7 +73,6 @@ export const PAGE_TITLE: Record<string, string> = {
   "/dashboard": "Dasbor",
   "/penerimaan": "Pendaftaran Santri",
   "/pengguna": "Manajemen Pengguna",
-  "/akademik": "Administrasi Akademik",
   "/anak": "Anak Saya",
   "/pendaftaran": "Pendaftaran Anak",
   "/nilai": "Nilai",
@@ -64,3 +82,10 @@ export const PAGE_TITLE: Record<string, string> = {
   "/rapor": "Rapor",
   "/pengaturan": "Pengaturan",
 };
+
+/** Judul topbar. /akademik sengaja tidak ada di PAGE_TITLE: namanya ikut peran. */
+export function pageTitleFor(pathname: string, roles: readonly Role[], fallback: string): string {
+  if (pathname === "/akademik") return akademikTitle(roles);
+  if (pathname.startsWith("/mapel/")) return "Detail Mata Pelajaran";
+  return PAGE_TITLE[pathname] ?? fallback;
+}

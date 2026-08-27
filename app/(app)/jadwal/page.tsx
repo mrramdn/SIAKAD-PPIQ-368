@@ -100,7 +100,7 @@ export default async function JadwalPage({
         <h1 className="text-[26px] font-extrabold tracking-tight">Jadwal Pelajaran</h1>
         <p className="mt-1 text-sm text-ink-3">
           {canManageAcademics
-            ? "Jadwal pelajaran per jenjang. Kelola slot dan mata pelajaran lewat menu Administrasi Akademik."
+            ? "Jadwal pelajaran per jenjang. Kelola slot dan mata pelajaran lewat menu Data Akademik."
             : "Jadwal kegiatan belajar mengajar di pondok pesantren."}
         </p>
       </div>
@@ -137,7 +137,7 @@ export default async function JadwalPage({
           <div className="mb-5 rounded-xl border border-line bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
             {unassignedCourses} mata pelajaran lama belum memiliki ustadz pengampu. Buka{" "}
             <Link href="/akademik" className="underline underline-offset-2">
-              Administrasi Akademik
+              Data Akademik
             </Link>{" "}
             untuk menugaskannya sebelum dipakai mengisi nilai atau absensi.
           </div>
