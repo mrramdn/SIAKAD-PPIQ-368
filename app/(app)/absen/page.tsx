@@ -1,19 +1,10 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
-import { getAttendanceBoard } from "@/lib/lms";
-import { Card, Field, Ring, buttonClasses, inputClasses } from "@/components/ui";
+import { getAttendanceBoard, toDateKey } from "@/lib/lms";
+import { Card, Field, Icons, buttonClasses, inputClasses } from "@/components/ui";
 import { createAttendanceSessionAction } from "../actions";
-import { AttendanceGrid } from "./AttendanceGrid";
+import { AttendanceWorkspace } from "./AttendanceWorkspace";
 import { SessionManager } from "./SessionManager";
-
-const STATUS_META = [
-  { key: "PRESENT", label: "Hadir", color: "var(--green)" },
-  { key: "EXCUSED", label: "Izin", color: "var(--primary)" },
-  { key: "SICK", label: "Sakit", color: "var(--teal)" },
-  { key: "LATE", label: "Terlambat", color: "var(--amber)" },
-  { key: "ABSENT", label: "Alpa", color: "var(--red)" },
-  { key: "UNMARKED", label: "Belum ditandai", color: "var(--text-3)" },
-] as const;
 
 const ERROR_MESSAGE: Record<string, string> = {
   forbidden: "Anda tidak ditugaskan pada mata pelajaran ini, jadi sesi absensi tidak bisa dibuat.",
@@ -22,29 +13,74 @@ const ERROR_MESSAGE: Record<string, string> = {
   missing: "Mata pelajaran sudah tidak tersedia. Muat ulang halaman.",
 };
 
-export default async function AbsenPage({ searchParams }: { searchParams: Promise<{ course?: string; error?: string }> }) {
-  const [{ course, error }, user] = await Promise.all([searchParams, requirePermission("attendance.record")]);
-  const { courses, activeCourseId, sessions, rows, canEdit, teacherName } = await getAttendanceBoard(user, course);
+const rangeFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" });
 
-  const todayCol = sessions.length - 1;
-  // Santri tanpa catatan masuk ke ember "UNMARKED", bukan dihitung hadir.
-  const counts: Record<string, number> = { PRESENT: 0, EXCUSED: 0, SICK: 0, LATE: 0, ABSENT: 0, UNMARKED: 0 };
-  if (todayCol >= 0) {
-    for (const r of rows) {
-      const key = r.marks[todayCol] ?? "UNMARKED";
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-  }
-  const total = rows.length;
-  const recorded = total - counts.UNMARKED;
-  const rate = recorded ? Math.round((counts.PRESENT / recorded) * 100) : 0;
+function formatDateKey(dateKey: string): string {
+  return rangeFmt.format(new Date(`${dateKey}T00:00:00`));
+}
+
+function rangeLabelOf(from: string | null, to: string | null): string {
+  if (from && to) return `${formatDateKey(from)} – ${formatDateKey(to)}`;
+  if (from) return `Sejak ${formatDateKey(from)}`;
+  if (to) return `Sampai ${formatDateKey(to)}`;
+  return "Semua sesi";
+}
+
+function shiftDays(base: Date, days: number): string {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return toDateKey(d);
+}
+
+/** Pintasan rentang yang paling sering dipakai saat memantau absensi. */
+function rangePresets(today: Date) {
+  const todayKey = toDateKey(today);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  return [
+    { label: "Semua sesi", from: null, to: null },
+    { label: "7 hari terakhir", from: shiftDays(today, -6), to: todayKey },
+    { label: "30 hari terakhir", from: shiftDays(today, -29), to: todayKey },
+    { label: "Bulan ini", from: toDateKey(monthStart), to: todayKey },
+  ];
+}
+
+function hrefFor(courseId: string | null, from: string | null, to: string | null): string {
+  const params = new URLSearchParams();
+  if (courseId) params.set("course", courseId);
+  if (from) params.set("dari", from);
+  if (to) params.set("sampai", to);
+  const query = params.toString();
+  return query ? `/absen?${query}` : "/absen";
+}
+
+export default async function AbsenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ course?: string; error?: string; dari?: string; sampai?: string }>;
+}) {
+  const [{ course, error, dari, sampai }, user] = await Promise.all([searchParams, requirePermission("attendance.record")]);
+  const { courses, activeCourseId, sessions, rows, canEdit, teacherName, range, bounds } = await getAttendanceBoard(
+    user,
+    course,
+    dari,
+    sampai,
+  );
+
+  const activeCourse = courses.find((c) => c.id === activeCourseId) ?? null;
+  const rangeLabel = rangeLabelOf(range.from, range.to);
+  const presets = rangePresets(new Date());
+  const filtered = Boolean(range.from || range.to);
 
   return (
     <div className="view-enter">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3.5">
         <div>
-          <h1 className="text-[26px] font-extrabold tracking-tight">Absensi</h1>
-          <p className="mt-1 text-sm text-ink-3">Ketuk sel untuk mengubah status kehadiran.</p>
+          <h1 className="text-[26px] font-extrabold tracking-tight">Absensi Santri</h1>
+          <p className="mt-1 text-sm text-ink-3">
+            {canEdit
+              ? "Ambil absen per sesi, saring, pantau kehadiran, lalu ekspor rekapnya."
+              : "Pantau kehadiran santri per sesi dan ekspor rekapnya."}
+          </p>
         </div>
       </div>
 
@@ -60,46 +96,14 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
         </Card>
       ) : (
         <>
-          {/* recap */}
-          <Card pad={18} className="mb-5">
-            <div className="grid items-center gap-5 md:grid-cols-[220px_1fr]">
-              <div className="flex items-center gap-4 md:border-r md:border-line md:pr-5">
-                <Ring value={rate} size={82} stroke={10} color="var(--green)" label={`${rate}%`} sub="HADIR" />
-                <div>
-                  <div className="text-[13px] font-semibold text-ink-3">Sesi Terbaru</div>
-                  <div className="mt-1 text-[20px] font-extrabold tracking-tight">
-                    {counts.PRESENT}/{recorded} santri
-                  </div>
-                  <div className="mt-0.5 text-[12.5px] text-ink-3">{todayCol >= 0 ? sessions[todayCol].date : "Belum ada sesi"}</div>
-                  <div className="mt-0.5 text-[12px] text-ink-3">
-                    {todayCol >= 0 ? `${counts.UNMARKED} dari ${total} santri belum ditandai` : "Persentase dihitung dari santri tercatat"}
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-                {STATUS_META.map((s) => (
-                  <div key={s.key} className="rounded-xl bg-surface-2 px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 shrink-0 rounded" style={{ background: s.color }} />
-                      <span className="truncate text-[12.5px] font-semibold text-ink-2">{s.label}</span>
-                    </div>
-                    <div className="mt-1.5 text-[24px] font-extrabold tracking-tight" style={{ color: s.color }}>
-                      {counts[s.key]}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          {/* course tabs */}
+          {/* mata pelajaran */}
           <div className="mb-3.5 flex gap-2 overflow-x-auto pb-1">
             {courses.map((c) => {
               const active = c.id === activeCourseId;
               return (
                 <Link
                   key={c.id}
-                  href={`/absen?course=${c.id}`}
+                  href={hrefFor(c.id, range.from, range.to)}
                   className={`whitespace-nowrap rounded-full border px-3.5 py-2 text-[13px] font-semibold transition ${
                     active ? "border-transparent bg-primary text-white" : "border-line bg-surface text-ink-2"
                   }`}
@@ -110,38 +114,62 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
             })}
           </div>
 
-          {/* add session */}
-          {activeCourseId && canEdit ? (
-            <Card pad={16} className="mb-3.5">
-              <form action={createAttendanceSessionAction} className="grid gap-3 md:grid-cols-[1fr_0.8fr_auto]">
-                <input type="hidden" name="courseId" value={activeCourseId} />
-                <Field label="Judul sesi">
-                  <input name="title" required placeholder="cth. Pertemuan 5" className={inputClasses} />
-                </Field>
-                <Field label="Tanggal & waktu">
-                  <input name="heldAt" type="datetime-local" required className={inputClasses} />
-                </Field>
-                <div className="flex items-end">
-                  <button type="submit" className={buttonClasses("primary", "md")}>
-                    Buat sesi
-                  </button>
-                </div>
-              </form>
-            </Card>
-          ) : null}
+          {/* saringan rentang tanggal */}
+          <Card pad={14} className="mb-3.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-3">
+                <Icons.filter size={14} /> Rentang
+              </span>
+              {presets.map((p) => {
+                const active = (range.from ?? null) === p.from && (range.to ?? null) === p.to;
+                return (
+                  <Link
+                    key={p.label}
+                    href={hrefFor(activeCourseId, p.from, p.to)}
+                    className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition ${
+                      active ? "border-transparent bg-ink text-white" : "border-line bg-surface text-ink-2 hover:bg-surface-2"
+                    }`}
+                  >
+                    {p.label}
+                  </Link>
+                );
+              })}
+            </div>
 
-          {/* bukan pengampu: jelaskan, jangan tampilkan form yang pasti ditolak */}
+            <form action="/absen" method="GET" className="mt-3 flex flex-wrap items-end gap-2 border-t border-line pt-3">
+              {activeCourseId ? <input type="hidden" name="course" value={activeCourseId} /> : null}
+              <div>
+                <label htmlFor="dari" className="mb-1 block text-[11.5px] font-semibold text-ink-3">
+                  Dari tanggal
+                </label>
+                <input id="dari" type="date" name="dari" defaultValue={range.from ?? ""} className={inputClasses} />
+              </div>
+              <div>
+                <label htmlFor="sampai" className="mb-1 block text-[11.5px] font-semibold text-ink-3">
+                  Sampai tanggal
+                </label>
+                <input id="sampai" type="date" name="sampai" defaultValue={range.to ?? ""} className={inputClasses} />
+              </div>
+              <button type="submit" className={buttonClasses("ghost", "md")}>
+                Terapkan
+              </button>
+              <p className="ml-auto text-[12.5px] text-ink-3">
+                {filtered ? `${sessions.length} dari ${bounds.total} sesi` : `${bounds.total} sesi`}
+                {bounds.first && bounds.last ? ` • tersedia ${formatDateKey(bounds.first)} – ${formatDateKey(bounds.last)}` : ""}
+              </p>
+            </form>
+          </Card>
+
+          {/* bukan pengampu: jelaskan, jangan tampilkan alat yang pasti ditolak */}
           {activeCourseId && !canEdit ? (
             <Card pad={16} className="mb-3.5">
-              <div className="text-[13.5px] font-bold">Hanya pengampu yang dapat membuat sesi absensi</div>
+              <div className="text-[13.5px] font-bold">Hanya pengampu yang dapat mencatat absensi</div>
               <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
-                Mata pelajaran ini diampu oleh <strong className="text-ink-2">{teacherName ?? "belum ditugaskan"}</strong>. Absensi hanya boleh
-                dicatat oleh pengampu yang ditugaskan. Minta mudir menugaskan pengampu melalui menu Data Akademik (/akademik).
+                Mata pelajaran ini diampu oleh <strong className="text-ink-2">{teacherName ?? "belum ditugaskan"}</strong>. Anda tetap bisa
+                memantau dan mengekspor rekapnya. Minta mudir menugaskan pengampu melalui menu Data Akademik (/akademik).
               </p>
             </Card>
           ) : null}
-
-          {canEdit ? <SessionManager sessions={sessions} /> : null}
 
           {activeCourseId && rows.length === 0 ? (
             <Card pad={28}>
@@ -154,8 +182,54 @@ export default async function AbsenPage({ searchParams }: { searchParams: Promis
               </div>
             </Card>
           ) : (
-            <AttendanceGrid sessions={sessions} rows={rows} canEdit={canEdit} />
+            <AttendanceWorkspace
+              courseTitle={activeCourse?.title ?? "Mata pelajaran"}
+              teacherName={teacherName}
+              rangeLabel={rangeLabel}
+              sessions={sessions}
+              rows={rows}
+              canEdit={canEdit}
+            />
           )}
+
+          {sessions.length === 0 && filtered && bounds.total > 0 ? (
+            <p className="mt-2.5 text-[12.5px] text-ink-3">
+              Rentang ini belum punya sesi.{" "}
+              <Link href={hrefFor(activeCourseId, null, null)} className="font-semibold text-primary-700 underline">
+                Lihat semua sesi
+              </Link>
+              .
+            </p>
+          ) : null}
+
+          {/* kelola sesi */}
+          {activeCourseId && canEdit ? (
+            <details className="mt-4 rounded-2xl border border-line bg-surface shadow-soft">
+              <summary className="cursor-pointer list-none px-5 py-4 text-[13.5px] font-bold">
+                Kelola sesi absensi
+                <span className="ml-2 font-semibold text-ink-3">
+                  ({sessions.length} sesi{filtered ? ` dari ${bounds.total}, sesuai rentang` : ""})
+                </span>
+              </summary>
+              <div className="border-t border-line px-5 py-4">
+                <form action={createAttendanceSessionAction} className="grid gap-3 md:grid-cols-[1fr_0.8fr_auto]">
+                  <input type="hidden" name="courseId" value={activeCourseId} />
+                  <Field label="Judul sesi">
+                    <input name="title" required placeholder="cth. Pertemuan 5" className={inputClasses} />
+                  </Field>
+                  <Field label="Tanggal & waktu">
+                    <input name="heldAt" type="datetime-local" required className={inputClasses} />
+                  </Field>
+                  <div className="flex items-end pb-4">
+                    <button type="submit" className={buttonClasses("primary", "md")}>
+                      Buat sesi
+                    </button>
+                  </div>
+                </form>
+                <SessionManager sessions={sessions} />
+              </div>
+            </details>
+          ) : null}
         </>
       )}
     </div>

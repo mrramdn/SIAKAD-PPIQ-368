@@ -252,18 +252,45 @@ export async function deleteAttendanceSessionAction(sessionId: string): Promise<
   return { ok: true };
 }
 
+/** Batas keterangan absensi; cukup untuk alasan izin/sakit tanpa jadi catatan panjang. */
+const MAX_ATTENDANCE_NOTE = 160;
+
+/**
+ * Pagar tunggal untuk seluruh mutasi absensi: sesi harus ada dan pemanggilnya
+ * harus pengampu mapel tersebut. Mengembalikan courseId supaya pemanggil bisa
+ * merevalidasi area yang tepat.
+ */
+async function assertAttendanceSession(user: AuthUser, sessionId: string) {
+  if (!sessionId) return { error: "Sesi absensi tidak ditemukan." as string };
+  const session = await prisma.attendanceSession.findUnique({
+    where: { id: sessionId },
+    select: { courseId: true, course: { select: { teacherId: true } } },
+  });
+  if (!session) return { error: "Sesi absensi tidak ditemukan." as string };
+  if (!canEditAssignedCourse(user, session.course.teacherId)) {
+    return { error: "Anda tidak ditugaskan pada mata pelajaran ini." as string };
+  }
+  return { courseId: session.courseId };
+}
+
 export async function setAttendanceStatusAction(input: {
   sessionId: string;
   studentId: string;
   status: AttendanceStatus;
+  note?: string | null;
 }): Promise<ActionResult> {
   const user = await requirePermission("attendance.record");
   if (!input.sessionId || !input.studentId || !Object.values(AttendanceStatus).includes(input.status)) {
     return { ok: false, message: "Data absensi tidak valid." };
   }
+  const note = String(input.note ?? "").trim();
+  if (note.length > MAX_ATTENDANCE_NOTE) {
+    return { ok: false, message: `Keterangan maksimal ${MAX_ATTENDANCE_NOTE} karakter.` };
+  }
   const session = await prisma.attendanceSession.findUnique({
     where: { id: input.sessionId },
     select: {
+      courseId: true,
       course: {
         select: {
           teacherId: true,
@@ -285,8 +312,8 @@ export async function setAttendanceStatusAction(input: {
   const failure = await runPrismaMutation(() =>
     prisma.attendanceRecord.upsert({
       where: { attendanceSessionId_studentId: { attendanceSessionId: input.sessionId, studentId: input.studentId } },
-      update: { status: input.status },
-      create: { attendanceSessionId: input.sessionId, studentId: input.studentId, status: input.status },
+      update: { status: input.status, note: note || null },
+      create: { attendanceSessionId: input.sessionId, studentId: input.studentId, status: input.status, note: note || null },
     }),
   );
   if (failure) return { ok: false, message: "Sesi absensi atau santri sudah tidak ada. Muat ulang halaman." };
@@ -294,32 +321,62 @@ export async function setAttendanceStatusAction(input: {
   return { ok: true };
 }
 
-export async function markAllPresentAction(sessionId: string): Promise<ActionResult> {
+/** Batalkan tanda kehadiran satu santri; barisnya dihapus sehingga kembali "belum ditandai". */
+export async function clearAttendanceStatusAction(input: { sessionId: string; studentId: string }): Promise<ActionResult> {
   const user = await requirePermission("attendance.record");
-  if (!sessionId) return { ok: false, message: "Sesi tidak ditemukan." };
-  const session = await prisma.attendanceSession.findUnique({
-    where: { id: sessionId },
-    select: { courseId: true, course: { select: { teacherId: true } } },
+  if (!input.studentId) return { ok: false, message: "Data absensi tidak valid." };
+  const guard = await assertAttendanceSession(user, input.sessionId);
+  if (guard.error) return { ok: false, message: guard.error };
+
+  // deleteMany, bukan delete: menghapus tanda yang memang belum ada bukan galat.
+  await prisma.attendanceRecord.deleteMany({
+    where: { attendanceSessionId: input.sessionId, studentId: input.studentId },
   });
-  if (!session || !canEditAssignedCourse(user, session.course.teacherId)) {
-    return { ok: false, message: "Anda tidak ditugaskan pada mata pelajaran ini." };
+  revalidatePath("/absen");
+  return { ok: true };
+}
+
+/**
+ * Tandai banyak santri sekaligus pada satu sesi. scope "unmarked" hanya mengisi
+ * santri yang belum punya catatan, jadi koreksi manual sebelumnya tidak tertimpa.
+ */
+export async function bulkMarkAttendanceAction(input: {
+  sessionId: string;
+  status: AttendanceStatus;
+  scope: "all" | "unmarked";
+}): Promise<ActionResult> {
+  const user = await requirePermission("attendance.record");
+  if (!Object.values(AttendanceStatus).includes(input.status)) {
+    return { ok: false, message: "Status absensi tidak valid." };
   }
-  // Catatan kehadiran tidak lagi dibuat di muka, jadi tandai-semua harus membuat
+  const guard = await assertAttendanceSession(user, input.sessionId);
+  if (guard.error) return { ok: false, message: guard.error };
+
+  // Catatan kehadiran tidak dibuat di muka, jadi tandai-massal harus membuat
   // baris yang belum ada (updateMany akan diam-diam tidak mengubah apa pun).
-  const enrollments = await prisma.enrollment.findMany({
-    where: { courseId: session.courseId, status: EnrollmentStatus.ACTIVE },
-    select: { studentId: true },
-  });
+  const [enrollments, existing] = await Promise.all([
+    prisma.enrollment.findMany({
+      where: { courseId: guard.courseId, status: EnrollmentStatus.ACTIVE },
+      select: { studentId: true },
+    }),
+    prisma.attendanceRecord.findMany({ where: { attendanceSessionId: input.sessionId }, select: { studentId: true } }),
+  ]);
   if (enrollments.length === 0) {
     return { ok: false, message: "Belum ada santri terdaftar pada mata pelajaran ini." };
   }
+  const marked = new Set(existing.map((r) => r.studentId));
+  const targets = input.scope === "all" ? enrollments : enrollments.filter((e) => !marked.has(e.studentId));
+  if (targets.length === 0) {
+    return { ok: false, message: "Semua santri pada sesi ini sudah ditandai." };
+  }
+
   const failure = await runPrismaMutation(() =>
     prisma.$transaction(
-      enrollments.map((e) =>
+      targets.map((e) =>
         prisma.attendanceRecord.upsert({
-          where: { attendanceSessionId_studentId: { attendanceSessionId: sessionId, studentId: e.studentId } },
-          update: { status: AttendanceStatus.PRESENT },
-          create: { attendanceSessionId: sessionId, studentId: e.studentId, status: AttendanceStatus.PRESENT },
+          where: { attendanceSessionId_studentId: { attendanceSessionId: input.sessionId, studentId: e.studentId } },
+          update: { status: input.status },
+          create: { attendanceSessionId: input.sessionId, studentId: e.studentId, status: input.status },
         }),
       ),
     ),

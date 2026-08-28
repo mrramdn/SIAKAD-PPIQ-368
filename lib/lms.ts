@@ -510,25 +510,68 @@ export const getGradebook = cache(async (user: AuthUser, courseId?: string) => {
 /*                                 attendance                                  */
 /* -------------------------------------------------------------------------- */
 
+export type AttendanceStatusKey = AttendanceStatus | "UNMARKED";
+export type AttendanceCounts = Record<AttendanceStatusKey, number>;
+
+function emptyAttendanceCounts(): AttendanceCounts {
+  return { PRESENT: 0, EXCUSED: 0, SICK: 0, LATE: 0, ABSENT: 0, UNMARKED: 0 };
+}
+
+const attendanceShortFmt = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" });
+const attendanceLongFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+const attendanceTimeFmt = new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" });
+
 export type AttendanceSessionColumn = {
   id: string;
   title: string;
+  /** "12 Sep" — label ringkas untuk kolom matriks. */
   date: string;
+  /** "Jumat, 12 September 2026" — label lengkap untuk mode per sesi. */
+  dateFull: string;
+  /** "2026-09-12" — dipakai filter & nama berkas ekspor. */
+  dateKey: string;
+  /** "07.30" */
+  time: string;
   /** Nilai untuk <input type="datetime-local">. */
   heldAt: string;
   recordCount: number;
+  /** Rekap status sesi ini, hanya atas santri yang masih aktif terdaftar. */
+  counts: AttendanceCounts;
 };
+
 export type AttendanceRow = {
   studentId: string;
   name: string;
   studentNumber: string;
   /** null = belum ditandai sama sekali (bukan hadir). */
   marks: (AttendanceStatus | null)[];
+  /** Keterangan per sesi, sejajar dengan marks. */
+  notes: (string | null)[];
+  counts: AttendanceCounts;
+  /** Persentase hadir atas sesi yang sudah ditandai; null bila belum ada satu pun. */
+  rate: number | null;
 };
 
-export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string) => {
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeDateKey(value?: string): string | null {
+  return value && DATE_KEY_RE.test(value) ? value : null;
+}
+
+/** Rentang sesi yang ditampilkan; batas hari dihitung di zona waktu server, sama seperti heldAt. */
+function heldAtRange(from: string | null, to: string | null) {
+  if (!from && !to) return undefined;
+  return {
+    ...(from ? { gte: new Date(`${from}T00:00:00`) } : {}),
+    ...(to ? { lte: new Date(`${to}T23:59:59.999`) } : {}),
+  };
+}
+
+export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string, from?: string, to?: string) => {
   const courses = await courseTabsFor(user);
   const activeCourseId = courseId && courses.some((c) => c.id === courseId) ? courseId : courses[0]?.id ?? null;
+  const fromKey = normalizeDateKey(from);
+  const toKey = normalizeDateKey(to);
 
   if (!activeCourseId) {
     return {
@@ -538,48 +581,103 @@ export const getAttendanceBoard = cache(async (user: AuthUser, courseId?: string
       rows: [] as AttendanceRow[],
       canEdit: false,
       teacherName: null as string | null,
+      totals: emptyAttendanceCounts(),
+      range: { from: fromKey, to: toKey },
+      bounds: { first: null as string | null, last: null as string | null, total: 0 },
     };
   }
 
-  const course = await prisma.course.findUnique({
-    where: { id: activeCourseId },
-    select: {
-      teacherId: true,
-      teacher: { select: { name: true } },
-      attendanceSessions: {
-        orderBy: { heldAt: "asc" },
-        select: { id: true, title: true, heldAt: true, records: { select: { studentId: true, status: true } } },
+  const [course, bounds] = await Promise.all([
+    prisma.course.findUnique({
+      where: { id: activeCourseId },
+      select: {
+        teacherId: true,
+        teacher: { select: { name: true } },
+        attendanceSessions: {
+          where: { heldAt: heldAtRange(fromKey, toKey) },
+          orderBy: { heldAt: "asc" },
+          select: { id: true, title: true, heldAt: true, records: { select: { studentId: true, status: true, note: true } } },
+        },
+        enrollments: {
+          where: { status: EnrollmentStatus.ACTIVE },
+          orderBy: { student: { name: "asc" } },
+          select: { student: { select: { id: true, name: true, studentNumber: true } } },
+        },
       },
-      enrollments: {
-        where: { status: EnrollmentStatus.ACTIVE },
-        orderBy: { student: { name: "asc" } },
-        select: { student: { select: { id: true, name: true, studentNumber: true } } },
-      },
-    },
-  });
+    }),
+    // Batas tanggal seluruh sesi (tanpa filter) supaya UI filter tahu rentang yang tersedia.
+    prisma.attendanceSession.aggregate({
+      where: { courseId: activeCourseId },
+      _min: { heldAt: true },
+      _max: { heldAt: true },
+      _count: { _all: true },
+    }),
+  ]);
 
   // Hanya pengampu yang ditugaskan pada mapel ini yang boleh mencatat absensi,
   // sama persis dengan pagar di server action-nya.
   const canEdit = userCan(user, "attendance.record") && course?.teacherId === user.id;
 
-  const sessions: AttendanceSessionColumn[] = (course?.attendanceSessions ?? []).map((s) => ({
-    id: s.id,
-    title: s.title,
-    date: new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short" }).format(s.heldAt),
-    heldAt: toDateTimeInput(s.heldAt),
-    recordCount: s.records.length,
-  }));
-  const recordsBySession = new Map(
-    (course?.attendanceSessions ?? []).map((s) => [s.id, new Map(s.records.map((record) => [record.studentId, record.status]))]),
-  );
+  const sessionsRaw = course?.attendanceSessions ?? [];
+  const recordsBySession = new Map(sessionsRaw.map((s) => [s.id, new Map(s.records.map((record) => [record.studentId, record]))]));
+
+  // Rekap kolom dihitung dari baris yang tampil, jadi catatan milik santri yang
+  // sudah tidak aktif terdaftar tidak ikut membengkakkan angka sesi.
+  const sessionCounts = sessionsRaw.map(() => emptyAttendanceCounts());
+  const totals = emptyAttendanceCounts();
+
   const rows: AttendanceRow[] = (course?.enrollments ?? []).map((e) => {
-    const marks = (course?.attendanceSessions ?? []).map((s) => {
-      return recordsBySession.get(s.id)?.get(e.student.id) ?? null;
+    const counts = emptyAttendanceCounts();
+    const marks: (AttendanceStatus | null)[] = [];
+    const notes: (string | null)[] = [];
+    sessionsRaw.forEach((s, i) => {
+      const record = recordsBySession.get(s.id)?.get(e.student.id) ?? null;
+      const key: AttendanceStatusKey = record?.status ?? "UNMARKED";
+      marks.push(record?.status ?? null);
+      notes.push(record?.note ?? null);
+      counts[key] += 1;
+      sessionCounts[i][key] += 1;
+      totals[key] += 1;
     });
-    return { studentId: e.student.id, name: e.student.name, studentNumber: e.student.studentNumber, marks };
+    const recorded = sessionsRaw.length - counts.UNMARKED;
+    return {
+      studentId: e.student.id,
+      name: e.student.name,
+      studentNumber: e.student.studentNumber,
+      marks,
+      notes,
+      counts,
+      rate: recorded ? Math.round((counts.PRESENT / recorded) * 100) : null,
+    };
   });
 
-  return { courses, activeCourseId, sessions, rows, canEdit, teacherName: course?.teacher?.name ?? null };
+  const sessions: AttendanceSessionColumn[] = sessionsRaw.map((s, i) => ({
+    id: s.id,
+    title: s.title,
+    date: attendanceShortFmt.format(s.heldAt),
+    dateFull: attendanceLongFmt.format(s.heldAt),
+    dateKey: toDateKey(s.heldAt),
+    time: attendanceTimeFmt.format(s.heldAt),
+    heldAt: toDateTimeInput(s.heldAt),
+    recordCount: s.records.length,
+    counts: sessionCounts[i],
+  }));
+
+  return {
+    courses,
+    activeCourseId,
+    sessions,
+    rows,
+    canEdit,
+    teacherName: course?.teacher?.name ?? null,
+    totals,
+    range: { from: fromKey, to: toKey },
+    bounds: {
+      first: bounds._min.heldAt ? toDateKey(bounds._min.heldAt) : null,
+      last: bounds._max.heldAt ? toDateKey(bounds._max.heldAt) : null,
+      total: bounds._count._all,
+    },
+  };
 });
 
 /* -------------------------------------------------------------------------- */

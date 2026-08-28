@@ -1,175 +1,161 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Avatar, Button, Card, Icons } from "@/components/ui";
-import { markAllPresentAction, setAttendanceStatusAction } from "../actions";
+import { Avatar, Card } from "@/components/ui";
+import {
+  ATTENDANCE_ALERT_THRESHOLD,
+  STATUS_KEYS,
+  STATUS_META,
+  STATUS_ORDER,
+  markedCount,
+  rateColor,
+  statusMeta,
+  type RowView,
+  type SessionView,
+  type Status,
+} from "./attendance-ui";
 
-type Status = "PRESENT" | "EXCUSED" | "SICK" | "LATE" | "ABSENT";
-type Row = { studentId: string; name: string; studentNumber: string; marks: (Status | null)[] };
-type Session = { id: string; title: string; date: string };
-
-type Mark = { code: string; label: string; color: string; soft: string };
-
-const META: Record<Status, Mark> = {
-  PRESENT: { code: "H", label: "Hadir", color: "var(--green)", soft: "var(--green-soft)" },
-  EXCUSED: { code: "I", label: "Izin", color: "var(--primary)", soft: "var(--primary-soft)" },
-  SICK: { code: "S", label: "Sakit", color: "var(--teal)", soft: "var(--teal-soft)" },
-  LATE: { code: "T", label: "Terlambat", color: "var(--amber)", soft: "var(--amber-soft)" },
-  ABSENT: { code: "A", label: "Alpa", color: "var(--red)", soft: "var(--red-soft)" },
-};
-/** Santri tanpa catatan sama sekali: netral, jelas berbeda dari "Hadir". */
-const UNMARKED: Mark = { code: "–", label: "Belum ditandai", color: "var(--text-3)", soft: "var(--surface-2)" };
-const ORDER: Status[] = ["PRESENT", "EXCUSED", "SICK", "LATE", "ABSENT"];
-
-function markOf(status: Status | null): Mark {
-  return status === null ? UNMARKED : META[status];
+/** Ketukan pada sel memutar status, lalu kembali ke "belum ditandai" untuk membatalkan. */
+function nextStatus(current: Status | null): Status | null {
+  if (current === null) return STATUS_ORDER[0];
+  const i = STATUS_ORDER.indexOf(current);
+  return i === STATUS_ORDER.length - 1 ? null : STATUS_ORDER[i + 1];
 }
 
 export function AttendanceGrid({
   sessions,
-  rows: initialRows,
+  rows,
   canEdit,
+  onMark,
 }: {
-  sessions: Session[];
-  rows: Row[];
+  sessions: SessionView[];
+  rows: RowView[];
   canEdit: boolean;
+  onMark: (sessionIndex: number, studentId: string, status: Status | null, note?: string | null) => void;
 }) {
-  const router = useRouter();
-  const [rows, setRows] = useState(initialRows);
-  const [, startTransition] = useTransition();
-  const todayCol = sessions.length - 1;
-
-  function cycle(rowIdx: number, colIdx: number) {
-    if (!canEdit) return;
-    const session = sessions[colIdx];
-    const cur = rows[rowIdx].marks[colIdx];
-    // Dari "belum ditandai" ketukan pertama menandai Hadir, lalu berputar seperti biasa.
-    const next = cur === null ? ORDER[0] : ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
-    setRows((prev) => prev.map((r, i) => (i === rowIdx ? { ...r, marks: r.marks.map((m, c) => (c === colIdx ? next : m)) } : r)));
-    startTransition(async () => {
-      await setAttendanceStatusAction({ sessionId: session.id, studentId: rows[rowIdx].studentId, status: next });
-    });
-  }
-
-  function markAll() {
-    if (!canEdit || todayCol < 0) return;
-    setRows((prev) => prev.map((r) => ({ ...r, marks: r.marks.map((m, c) => (c === todayCol ? "PRESENT" : m)) })));
-    startTransition(async () => {
-      const res = await markAllPresentAction(sessions[todayCol].id);
-      if (!res.ok) alert(res.message ?? "Gagal menandai kehadiran.");
-      router.refresh();
-    });
-  }
-
-  if (sessions.length === 0) {
-    return (
-      <Card pad={40}>
-        <p className="text-center text-sm text-ink-3">Belum ada sesi absensi di kelas ini.</p>
-      </Card>
-    );
-  }
+  const latest = sessions.length - 1;
 
   return (
-    <>
-      {canEdit ? (
-        <div className="mb-3.5 flex justify-end">
-          <Button variant="soft" size="sm" icon={<Icons.check2 size={15} />} onClick={markAll}>
-            Tandai semua hadir
-          </Button>
-        </div>
-      ) : null}
-
-      <Card pad={0} className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse" style={{ minWidth: 620 }}>
-            <thead>
-              <tr className="bg-surface-2">
-                <th className="sticky left-0 z-[2] min-w-[200px] bg-surface-2 px-3.5 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2">
-                  Santri
-                </th>
-                {sessions.map((s, i) => (
+    <Card pad={0} className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse" style={{ minWidth: 720 }}>
+          <thead>
+            <tr className="bg-surface-2">
+              <th className="sticky left-0 z-[2] min-w-[210px] bg-surface-2 px-3.5 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-2">
+                Santri
+              </th>
+              {sessions.map((s, i) => {
+                const marked = markedCount(s.counts);
+                return (
                   <th
                     key={s.id}
-                    className="px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide whitespace-nowrap"
-                    style={{ color: i === todayCol ? "var(--primary-700)" : "var(--text-2)" }}
+                    title={`${s.title} — ${s.dateFull}`}
+                    className="whitespace-nowrap px-3 py-3 text-center text-xs font-bold uppercase tracking-wide"
+                    style={{ color: i === latest ? "var(--primary-700)" : "var(--text-2)" }}
                   >
                     {s.date}
-                    {i === todayCol ? <div className="text-[9px] font-bold text-primary">TERBARU</div> : null}
+                    <div className="text-[9px] font-bold" style={{ color: marked === rows.length ? "var(--green)" : "var(--text-3)" }}>
+                      {marked}/{rows.length}
+                    </div>
                   </th>
-                ))}
-                <th className="px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, ri) => {
-                // Persentase hanya atas sesi yang benar-benar tercatat, bukan seluruh sesi.
-                const recorded = r.marks.filter((m) => m !== null).length;
-                const present = r.marks.filter((m) => m === "PRESENT").length;
-                const pct = recorded ? Math.round((present / recorded) * 100) : null;
-                return (
-                  <tr key={r.studentId} className="border-t border-line">
-                    <td className="sticky left-0 z-[1] bg-surface px-3.5 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <span className="w-5 text-right text-[12px] font-semibold text-ink-3">{ri + 1}</span>
-                        <Avatar initials={r.name.split(" ").map((w) => w[0]).slice(0, 2).join("")} color="var(--primary)" size={30} />
-                        <div className="whitespace-nowrap text-[13.5px] font-semibold">{r.name}</div>
-                      </div>
-                    </td>
-                    {r.marks.map((m, ci) => {
-                      const meta = markOf(m);
-                      return (
-                        <td key={ci} className="px-1.5 py-2 text-center">
-                          <button
-                            onClick={() => cycle(ri, ci)}
-                            disabled={!canEdit}
-                            title={`${sessions[ci].title} — ${meta.label}`}
-                            className="grid h-[30px] w-[30px] place-items-center rounded-lg text-[12.5px] font-bold transition active:scale-90"
-                            style={{
-                              background: meta.soft,
-                              color: meta.color,
-                              border: ci === todayCol ? `1.5px solid ${meta.color}` : "1.5px solid transparent",
-                              cursor: canEdit ? "pointer" : "default",
-                            }}
-                          >
-                            {meta.code}
-                          </button>
-                        </td>
-                      );
-                    })}
-                    <td className="px-3.5 py-2.5 text-center">
-                      {pct === null ? (
-                        <span className="text-[13.5px] font-bold text-ink-3">–</span>
-                      ) : (
-                        <span
-                          className="text-[13.5px] font-bold"
-                          style={{ color: pct >= 90 ? "var(--green)" : pct >= 75 ? "var(--amber)" : "var(--red)" }}
-                        >
-                          {pct}%
-                        </span>
-                      )}
-                    </td>
-                  </tr>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-        <div className="flex flex-wrap items-center gap-4 border-t border-line bg-surface-2 px-4 py-3">
-          {[...ORDER.map((s) => META[s]), UNMARKED].map((meta) => (
-            <div key={meta.label} className="flex items-center gap-2 text-[12.5px] text-ink-2">
+              {STATUS_ORDER.map((s) => (
+                <th
+                  key={s}
+                  title={STATUS_META[s].label}
+                  className="border-l border-line px-2 py-3 text-center text-xs font-bold uppercase tracking-wide"
+                  style={{ color: STATUS_META[s].color }}
+                >
+                  {STATUS_META[s].code}
+                </th>
+              ))}
+              <th className="px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wide text-ink-2">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, ri) => {
+              const alert = r.rate !== null && r.rate < ATTENDANCE_ALERT_THRESHOLD;
+              return (
+                <tr key={r.studentId} className="border-t border-line">
+                  <td className="sticky left-0 z-[1] bg-surface px-3.5 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-5 text-right text-[12px] font-semibold text-ink-3">{ri + 1}</span>
+                      <Avatar
+                        initials={r.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                        color={alert ? "var(--red)" : "var(--primary)"}
+                        size={30}
+                      />
+                      <div className="min-w-0">
+                        <div className="whitespace-nowrap text-[13.5px] font-semibold">{r.name}</div>
+                        <div className="text-[11.5px] text-ink-3">{r.studentNumber}</div>
+                      </div>
+                    </div>
+                  </td>
+                  {r.marks.map((m, ci) => {
+                    const meta = statusMeta(m);
+                    const note = r.notes[ci];
+                    return (
+                      <td key={sessions[ci].id} className="px-1.5 py-2 text-center">
+                        <button
+                          onClick={() => onMark(ci, r.studentId, nextStatus(m), note)}
+                          disabled={!canEdit}
+                          title={`${sessions[ci].title} — ${meta.label}${note ? ` (${note})` : ""}`}
+                          className="grid h-[30px] w-[30px] place-items-center rounded-lg text-[12.5px] font-bold transition active:scale-90"
+                          style={{
+                            background: meta.soft,
+                            color: meta.color,
+                            border: ci === latest ? `1.5px solid ${meta.color}` : "1.5px solid transparent",
+                            cursor: canEdit ? "pointer" : "default",
+                          }}
+                        >
+                          {meta.code}
+                        </button>
+                      </td>
+                    );
+                  })}
+                  {STATUS_ORDER.map((s) => (
+                    <td
+                      key={s}
+                      className="border-l border-line px-2 py-2.5 text-center text-[13px] font-semibold"
+                      style={{ color: r.counts[s] ? STATUS_META[s].color : "var(--text-3)" }}
+                    >
+                      {r.counts[s]}
+                    </td>
+                  ))}
+                  <td className="px-3.5 py-2.5 text-center">
+                    {r.rate === null ? (
+                      <span className="text-[13.5px] font-bold text-ink-3">–</span>
+                    ) : (
+                      <span className="text-[13.5px] font-bold" style={{ color: rateColor(r.rate) }}>
+                        {r.rate}%
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center gap-4 border-t border-line bg-surface-2 px-4 py-3">
+        {STATUS_KEYS.map((key) => {
+          const meta = STATUS_META[key];
+          return (
+            <div key={key} className="flex items-center gap-2 text-[12.5px] text-ink-2">
               <span
                 className="grid h-[22px] w-[22px] place-items-center rounded-md text-[11px] font-bold"
-                style={{ background: meta.soft, color: meta.color, border: meta.code === "–" ? "1px solid var(--border)" : "none" }}
+                style={{ background: meta.soft, color: meta.color, border: key === "UNMARKED" ? "1px solid var(--border)" : "none" }}
               >
                 {meta.code}
               </span>
               {meta.label}
             </div>
-          ))}
-          <span className="text-[12px] text-ink-3">% dihitung dari sesi yang sudah ditandai saja.</span>
-        </div>
-      </Card>
-    </>
+          );
+        })}
+        <span className="text-[12px] text-ink-3">
+          % dihitung dari sesi yang sudah ditandai saja{canEdit ? "; ketuk sel untuk memutar status." : "."}
+        </span>
+      </div>
+    </Card>
   );
 }
