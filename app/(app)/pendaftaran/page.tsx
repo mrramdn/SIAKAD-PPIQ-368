@@ -17,7 +17,7 @@ import { LEVEL_FULL, LEVELS } from "@/lib/brand";
 import { submitAdmissionAction } from "./actions";
 import { DocumentField } from "./DocumentField";
 
-type PageProps = { searchParams: Promise<{ error?: string; doc?: string; success?: string }> };
+type PageProps = { searchParams: Promise<{ error?: string; doc?: string; success?: string; code?: string }> };
 
 const ISSUE_REASONS = ["required", "size", "type", "mismatch", "empty", "both", "url"] as const;
 
@@ -77,6 +77,11 @@ export default async function PendaftaranPage({ searchParams }: PageProps) {
             Data pendaftaran santri beserta berkasnya sudah kami terima. Administrasi akan meninjau pendaftaran; setelah
             diterima, anak akan muncul di menu Anak Saya.
           </p>
+          {params.code ? (
+            <p className="mt-4 rounded-xl bg-surface-2 px-4 py-3 text-sm text-ink-2">
+              Kode Daftar: <strong className="mono text-ink">{params.code}</strong>
+            </p>
+          ) : null}
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link href="/anak" className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary-600">
               Lihat Anak Saya

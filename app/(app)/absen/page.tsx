@@ -96,23 +96,18 @@ export default async function AbsenPage({
         </Card>
       ) : (
         <>
-          {/* mata pelajaran */}
-          <div className="mb-3.5 flex gap-2 overflow-x-auto pb-1">
-            {courses.map((c) => {
-              const active = c.id === activeCourseId;
-              return (
-                <Link
-                  key={c.id}
-                  href={hrefFor(c.id, range.from, range.to)}
-                  className={`whitespace-nowrap rounded-full border px-3.5 py-2 text-[13px] font-semibold transition ${
-                    active ? "border-transparent bg-primary text-white" : "border-line bg-surface text-ink-2"
-                  }`}
-                >
-                  {c.title}
-                </Link>
-              );
-            })}
-          </div>
+          {/* Pemilih mapel berbentuk dropdown agar daftar panjang tidak menjadi scroll horizontal. */}
+          <form action="/absen" method="GET" className="mb-3.5 grid gap-2 sm:max-w-[520px] sm:grid-cols-[1fr_auto]">
+            {range.from ? <input type="hidden" name="dari" value={range.from} /> : null}
+            {range.to ? <input type="hidden" name="sampai" value={range.to} /> : null}
+            <div>
+              <label htmlFor="course-absen" className="mb-1 block text-[11.5px] font-semibold text-ink-3">Mata pelajaran</label>
+              <select id="course-absen" name="course" defaultValue={activeCourseId ?? ""} className={inputClasses}>
+                {courses.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </select>
+            </div>
+            <button type="submit" className={`${buttonClasses("ghost", "md")} self-end`}>Tampilkan</button>
+          </form>
 
           {/* saringan rentang tanggal */}
           <Card pad={14} className="mb-3.5">

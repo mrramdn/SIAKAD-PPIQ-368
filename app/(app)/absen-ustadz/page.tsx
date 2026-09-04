@@ -11,6 +11,7 @@ import {
 } from "@/lib/lms";
 import { ROLE_LABEL, type Role } from "@/lib/permissions";
 import { Badge, Card, Field, Icons, buttonClasses, inputClasses } from "@/components/ui";
+import { DataExportButtons } from "@/components/DataExportButtons";
 import { saveBkkhReportAction, saveStaffAttendanceAction } from "../actions";
 
 // Harus memuat seluruh AttendanceStatus yang bisa disimpan lewat
@@ -30,9 +31,7 @@ function roleLabel(roles: readonly string[]): string {
 const dateFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const monthFmt = new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: "UTC" });
 
-type BkkhReportView = {
-  assignment: string;
-} & Partial<Record<BkkhActivityField, string | null>>;
+type BkkhReportView = Partial<Record<BkkhActivityField, string | null>>;
 
 function shiftDateKey(dateKey: string, days: number): string {
   const d = dateKeyToDb(dateKey);
@@ -42,11 +41,6 @@ function shiftDateKey(dateKey: string, days: number): string {
 
 function BkkhReportReadout({ report }: { report: BkkhReportView }) {
   return (
-    <div>
-      <div className="bg-surface-2 px-4 py-3">
-        <div className="text-[11px] font-bold uppercase tracking-wide text-ink-3">Amanah</div>
-        <div className="mt-0.5 text-sm font-semibold text-ink">{report.assignment}</div>
-      </div>
       <dl className="divide-y divide-line">
         {BKKH_TIME_SLOTS.map((slot) => (
           <div key={slot.field} className="grid gap-1 px-4 py-3 sm:grid-cols-[120px_1fr] sm:gap-4">
@@ -55,7 +49,6 @@ function BkkhReportReadout({ report }: { report: BkkhReportView }) {
           </div>
         ))}
       </dl>
-    </div>
   );
 }
 
@@ -83,13 +76,28 @@ export default async function AbsenUstadzPage({
   const isToday = dateKey === todayKey;
   const myReport = bkkhReports.get(user.id);
   const marked = board.filter((row) => row.status !== null).length;
+  const recapById = new Map(recap.map((row) => [row.id, row]));
+  const exportRows = board.map((row, index) => {
+    const monthly = recapById.get(row.id);
+    return {
+      no: index + 1,
+      name: row.name,
+      role: roleLabel(row.roles),
+      dailyStatus: STATUS_META.find((status) => status.key === row.status)?.label ?? "Belum tercatat",
+      bkkhToday: `${countFilledBkkhSlots(bkkhReports.get(row.id))}/${BKKH_TIME_SLOTS.length}`,
+      present: monthly?.present ?? 0,
+      excused: monthly?.excused ?? 0,
+      sick: monthly?.sick ?? 0,
+      late: monthly?.late ?? 0,
+      absent: monthly?.absent ?? 0,
+      bkkhMonth: bkkhMonthly.get(row.id) ?? 0,
+    };
+  });
 
   const errorMessage =
     error === "forbidden"
       ? "Anda hanya dapat mengubah data sendiri untuk hari ini."
-      : error === "assignment"
-        ? "Amanah wajib diisi, maksimal 120 karakter."
-        : error === "activity"
+      : error === "activity"
           ? "Isi setidaknya satu keterangan kegiatan sebelum menyimpan."
           : error
             ? "Data tidak valid. Periksa kembali isian Anda."
@@ -108,13 +116,34 @@ export default async function AbsenUstadzPage({
                 : "Tandai kehadiran dan isi laporan kegiatan Anda hari ini."}
           </p>
         </div>
-        <form action="/absen-ustadz" method="GET" className="flex items-end gap-2">
-          <div>
-            <label htmlFor="tanggal" className="mb-1 block text-xs font-semibold text-ink-3">Tanggal</label>
-            <input id="tanggal" type="date" name="tanggal" defaultValue={dateKey} className={inputClasses} />
-          </div>
-          <button type="submit" className={buttonClasses("ghost", "md")}>Tampilkan</button>
-        </form>
+        <div className="flex flex-wrap items-end gap-2">
+          <form action="/absen-ustadz" method="GET" className="flex items-end gap-2">
+            <div>
+              <label htmlFor="tanggal" className="mb-1 block text-xs font-semibold text-ink-3">Tanggal</label>
+              <input id="tanggal" type="date" name="tanggal" defaultValue={dateKey} className={inputClasses} />
+            </div>
+            <button type="submit" className={buttonClasses("ghost", "md")}>Tampilkan</button>
+          </form>
+          <DataExportButtons
+            title="Rekap Absensi Ustadz"
+            fileName={`absensi-ustadz-${dateKey}`}
+            meta={{ Tanggal: dateFmt.format(dateKeyToDb(dateKey)), Bulan: monthFmt.format(dateKeyToDb(dateKey)) }}
+            columns={[
+              { key: "no", label: "No" },
+              { key: "name", label: "Nama Ustadz" },
+              { key: "role", label: "Peran" },
+              { key: "dailyStatus", label: "Status Hari Ini" },
+              { key: "bkkhToday", label: "BKKH Hari Ini" },
+              { key: "present", label: "Hadir Bulan Ini" },
+              { key: "excused", label: "Izin" },
+              { key: "sick", label: "Sakit" },
+              { key: "late", label: "Terlambat" },
+              { key: "absent", label: "Alpa" },
+              { key: "bkkhMonth", label: "Hari BKKH" },
+            ]}
+            rows={exportRows}
+          />
+        </div>
       </div>
 
       {errorMessage ? (
@@ -236,17 +265,6 @@ export default async function AbsenUstadzPage({
                 </div>
               </div>
 
-              <Field label="Amanah">
-                <input
-                  name="assignment"
-                  required
-                  maxLength={120}
-                  defaultValue={myReport?.assignment ?? ""}
-                  placeholder="Contoh: Pengasuhan santri atau ustadz tahfiz"
-                  className={inputClasses}
-                />
-              </Field>
-
               <div className="grid gap-x-4 md:grid-cols-2">
                 {BKKH_TIME_SLOTS.map((slot) => (
                   <Field key={slot.field} label={slot.label}>
@@ -282,7 +300,7 @@ export default async function AbsenUstadzPage({
         <Card pad={0} className="overflow-hidden">
           <div className="px-5 pt-5 pb-4">
             <h2 className="text-base font-bold tracking-tight">Laporan BKKH Harian</h2>
-            <p className="mt-0.5 text-[12.5px] text-ink-3">Buka nama ustadz untuk melihat amanah dan rincian kegiatannya.</p>
+            <p className="mt-0.5 text-[12.5px] text-ink-3">Buka nama ustadz untuk melihat rincian kegiatannya.</p>
           </div>
           <div className="divide-y divide-line border-t border-line">
             {board.map((row) => {
@@ -293,7 +311,7 @@ export default async function AbsenUstadzPage({
                   <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 transition hover:bg-surface-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-ink">{row.name}</div>
-                      <div className="mt-0.5 text-[12px] text-ink-3">{report?.assignment ?? roleLabel(row.roles)}</div>
+                      <div className="mt-0.5 text-[12px] text-ink-3">{roleLabel(row.roles)}</div>
                     </div>
                     <Badge tone={report ? "success" : "neutral"}>{report ? `${filledSlots}/6 terisi` : "Belum diisi"}</Badge>
                   </summary>

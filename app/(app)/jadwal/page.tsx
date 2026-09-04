@@ -2,9 +2,31 @@ import Link from "next/link";
 import { requireAnyPermission, userCan } from "@/lib/auth";
 import { EducationLevel } from "@/generated/prisma/client";
 import { getCourseOverview, getParentScheduleBoard, getScheduleBoard } from "@/lib/lms";
-import { Avatar, Badge, Card, Icons, courseAccent, courseCode, initialsFromName } from "@/components/ui";
-import { DayGrid } from "./ScheduleList";
+import { Badge, Card } from "@/components/ui";
+import { DataExportButtons } from "@/components/DataExportButtons";
+import { DayGrid, type Day } from "./ScheduleList";
+import { CourseCatalogue } from "./CourseCatalogue";
 import { LEVEL_LABEL, LEVEL_FULL, LEVELS } from "@/lib/brand";
+
+const SCHEDULE_COLUMNS = [
+  { key: "day", label: "Hari" },
+  { key: "time", label: "Jam" },
+  { key: "course", label: "Mata Pelajaran" },
+  { key: "teacher", label: "Pengajar" },
+  { key: "room", label: "Tempat" },
+];
+
+function scheduleRows(days: Day[]) {
+  return [1, 2, 3, 4, 5, 6, 0].flatMap((dayIndex) =>
+    days[dayIndex].slots.map((slot) => ({
+      day: days[dayIndex].label,
+      time: `${slot.startTime} - ${slot.endTime}`,
+      course: slot.courseTitle,
+      teacher: slot.teacher,
+      room: slot.room,
+    })),
+  );
+}
 
 export default async function JadwalPage({
   searchParams,
@@ -71,11 +93,20 @@ export default async function JadwalPage({
           </div>
         )}
 
-        <div className="flex items-center gap-2 text-sm text-ink-2">
-          <Badge tone="primary">Kelas {activeChild.className}</Badge>
-          <span className="font-semibold">{activeChild.name}</span>
-          <span className="text-ink-4">•</span>
-          <span>{LEVEL_FULL[activeChild.level]}</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-ink-2">
+            <Badge tone="primary">Kelas {activeChild.className}</Badge>
+            <span className="font-semibold">{activeChild.name}</span>
+            <span className="text-ink-4">•</span>
+            <span>{LEVEL_FULL[activeChild.level]}</span>
+          </div>
+          <DataExportButtons
+            title={`Jadwal Pelajaran ${activeChild.name}`}
+            fileName={`jadwal-${activeChild.name}-${activeChild.className}`}
+            meta={{ Santri: activeChild.name, Kelas: activeChild.className, Jenjang: activeChild.level }}
+            columns={SCHEDULE_COLUMNS}
+            rows={scheduleRows(activeChild.days)}
+          />
         </div>
 
         <DayGrid days={activeChild.days} canEdit={false} />
@@ -122,17 +153,20 @@ export default async function JadwalPage({
         })}
       </div>
 
+      <div className="flex justify-end">
+        <DataExportButtons
+          title={`Jadwal Pelajaran ${activeLevel}`}
+          fileName={`jadwal-${activeLevel}`}
+          meta={{ Jenjang: LEVEL_FULL[activeLevel] }}
+          columns={SCHEDULE_COLUMNS}
+          rows={scheduleRows(days)}
+        />
+      </div>
+
       <DayGrid days={days} canEdit={false} />
 
       {/* --------------------------- mata pelajaran --------------------------- */}
-      <div className="mt-2">
-        <div className="mb-3.5 flex flex-wrap items-end justify-between gap-3.5">
-          <div>
-            <h2 className="text-[19px] font-bold tracking-tight">Mata Pelajaran</h2>
-            <p className="mt-1 text-sm text-ink-3">{courseOverview.length} mata pelajaran untuk jadwal, absensi, nilai, dan rapor.</p>
-          </div>
-        </div>
-
+      <div>
         {unassignedCourses > 0 ? (
           <div className="mb-5 rounded-xl border border-line bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
             {unassignedCourses} mata pelajaran lama belum memiliki ustadz pengampu. Buka{" "}
@@ -143,51 +177,7 @@ export default async function JadwalPage({
           </div>
         ) : null}
 
-        {courseOverview.length === 0 ? (
-          <Card pad={40}>
-            <p className="text-center text-sm text-ink-3">Belum ada mata pelajaran.</p>
-          </Card>
-        ) : (
-          <div className="grid gap-4.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 18 }}>
-            {courseOverview.map((c) => {
-              const accent = courseAccent(c.id);
-              return (
-                <Link key={c.id} href={`/mapel/${c.id}`} className="block">
-                  <Card hover pad={0} className="overflow-hidden">
-                    <div
-                      className="relative flex h-20 items-end p-4"
-                      style={{ background: `color-mix(in oklch, ${accent.color}, #000 18%)` }}
-                    >
-                      <div className="absolute -right-5 -top-5 h-28 w-28 rounded-full bg-white/10" />
-                      <div className="relative flex w-full items-end justify-between">
-                        <span className="mono rounded-md bg-black/20 px-2.5 py-1 text-xs font-semibold text-white">{courseCode(c.title)}</span>
-                        <Badge tone="neutral">{LEVEL_FULL[c.level] ?? c.level}</Badge>
-                      </div>
-                    </div>
-                    <div style={{ padding: 18 }}>
-                      <h3 className="text-[17px] font-bold tracking-tight">{c.title}</h3>
-                      <p className="mt-1.5 line-clamp-2 min-h-[38px] text-[13px] leading-relaxed text-ink-3">{c.description}</p>
-                      <div className="my-3 flex items-center gap-2">
-                        <Avatar initials={initialsFromName(c.teacher)} color={accent.color} size={28} />
-                        <span className="text-[13px] font-medium text-ink-2">{c.teacher}</span>
-                      </div>
-                      <div className="flex gap-4 text-[12.5px] text-ink-3">
-                        <span className="flex items-center gap-1.5">
-                          <Icons.users size={15} />
-                          {c.students} santri
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Icons.calendar size={15} />
-                          {c.scheduleSlots} slot jadwal
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        <CourseCatalogue courses={courseOverview} initialLevel={activeLevel} />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, Icons, Ring, inputClasses } from "@/components/ui";
 import { Toast } from "../_components/crud-ui";
+import { downloadExcelReport, printTableReport, type ExportColumn, type ExportRow } from "@/lib/export-client";
 import { bulkMarkAttendanceAction, clearAttendanceStatusAction, setAttendanceStatusAction } from "../actions";
 import { AttendanceGrid } from "./AttendanceGrid";
 import { SessionMarker } from "./SessionMarker";
@@ -11,10 +12,8 @@ import {
   ATTENDANCE_ALERT_THRESHOLD,
   STATUS_KEYS,
   STATUS_META,
-  buildAttendanceCsv,
-  csvFileName,
-  downloadCsv,
   markedCount,
+  statusMeta,
   type Counts,
   type RowView,
   type SessionView,
@@ -181,22 +180,48 @@ export function AttendanceWorkspace({
     });
   }
 
-  function exportCsv() {
+  function exportData(format: "excel" | "pdf") {
     const exported = view === "rekap" ? recapRows : searched;
     if (exported.length === 0) {
       setToast({ msg: "Tidak ada baris untuk diekspor.", tone: "warn" });
       return;
     }
-    const csv = buildAttendanceCsv({
-      courseTitle,
-      teacherName,
-      rangeLabel,
-      generatedAt: stampFmt.format(new Date()),
-      sessions: computedSessions,
-      rows: exported,
+    const sessionColumns: ExportColumn[] = computedSessions.map((session, index) => ({
+      key: `session${index}`,
+      label: `${session.date} · ${session.title}`,
+    }));
+    const columns: ExportColumn[] = [
+      { key: "no", label: "No" },
+      { key: "nis", label: "NIS" },
+      { key: "name", label: "Nama Santri" },
+      ...sessionColumns,
+      ...STATUS_KEYS.map((key) => ({ key: `count${key}`, label: STATUS_META[key].label })),
+      { key: "rate", label: "Persen Hadir" },
+    ];
+    const exportRows: ExportRow[] = exported.map((row, rowIndex) => {
+      const result: ExportRow = { no: rowIndex + 1, nis: row.studentNumber, name: row.name, rate: row.rate === null ? "-" : `${row.rate}%` };
+      row.marks.forEach((mark, index) => { result[`session${index}`] = statusMeta(mark).label; });
+      STATUS_KEYS.forEach((key) => { result[`count${key}`] = row.counts[key]; });
+      return result;
     });
-    downloadCsv(csvFileName(courseTitle, rangeLabel), csv);
-    setToast({ msg: `${exported.length} santri diekspor ke CSV.`, tone: "ok" });
+    const input = {
+      title: "Rekap Absensi Santri",
+      meta: {
+        "Mata pelajaran": courseTitle,
+        Pengampu: teacherName ?? "Belum ditugaskan",
+        Rentang: rangeLabel,
+        "Jumlah sesi": computedSessions.length,
+        Dibuat: stampFmt.format(new Date()),
+      },
+      columns,
+      rows: exportRows,
+    };
+    if (format === "excel") {
+      downloadExcelReport({ ...input, fileName: `absensi-${courseTitle}-${rangeLabel}` });
+      setToast({ msg: `${exported.length} santri diekspor ke Excel.`, tone: "ok" });
+    } else {
+      printTableReport({ ...input, orientation: "landscape" });
+    }
   }
 
   return (
@@ -262,8 +287,11 @@ export function AttendanceWorkspace({
           />
         </label>
 
-        <Button variant="ghost" size="md" icon={<Icons.download size={15} />} onClick={exportCsv}>
-          Ekspor CSV
+        <Button variant="ghost" size="md" icon={<Icons.download size={15} />} onClick={() => exportData("excel")}>
+          Excel
+        </Button>
+        <Button variant="ghost" size="md" icon={<Icons.doc size={15} />} onClick={() => exportData("pdf")}>
+          Cetak / PDF
         </Button>
       </div>
 

@@ -19,7 +19,7 @@ type Course = {
   teacherName: string | null;
 };
 type AssessmentGroupOption = { id: string; name: string; kind: string };
-type ClassRoomOption = { id: string; name: string };
+type ClassRoomOption = { id: string; name: string; level: EducationLevel };
 type TeacherOption = { id: string; name: string; roles: string[] };
 
 type Draft = { classRoomId: string; assessmentGroupId: string; teacherId: string; reportMaxScore: string };
@@ -65,6 +65,7 @@ function AddCourseModal({
   const [assessmentGroupId, setAssessmentGroupId] = useState("");
   const [teacherId, setTeacherId] = useState("");
   const [reportMaxScore, setReportMaxScore] = useState("");
+  const filteredClassRooms = classRooms.filter((classRoom) => classRoom.level === level);
   const valid = Boolean(title.trim()) && Boolean(description.trim());
 
   return (
@@ -76,7 +77,14 @@ function AddCourseModal({
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Ringkasan singkat mapel" className={inputClasses} />
       </Field>
       <Field label="Jenjang">
-        <select value={level} onChange={(e) => setLevel(e.target.value as EducationLevel)} className={inputClasses}>
+        <select
+          value={level}
+          onChange={(e) => {
+            setLevel(e.target.value as EducationLevel);
+            setClassRoomId("");
+          }}
+          className={inputClasses}
+        >
           {(["SD", "SMP", "SMA"] as EducationLevel[]).map((l) => (
             <option key={l} value={l}>
               {l}
@@ -88,7 +96,7 @@ function AddCourseModal({
         <Field label="Kelas">
           <select value={classRoomId} onChange={(e) => setClassRoomId(e.target.value)} className={inputClasses}>
             <option value="">Belum ditentukan</option>
-            {classRooms.map((c) => (
+            {filteredClassRooms.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -111,7 +119,7 @@ function AddCourseModal({
       <Field label="Ustadz pengampu">
         <select value={teacherId} onChange={(e) => setTeacherId(e.target.value)} className={inputClasses}>
           <option value="">Belum ditugaskan</option>
-          {teachingStaff.map((t) => (
+            {teachingStaff.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
             </option>
@@ -285,7 +293,7 @@ export function MapelManager({
                       {editing && canManageClass ? (
                         <select value={draft.classRoomId} onChange={(e) => setDraft((d) => ({ ...d, classRoomId: e.target.value }))} className={inputClasses}>
                           <option value="">-</option>
-                          {classRooms.map((cr) => (
+                          {classRooms.filter((cr) => cr.level === c.level).map((cr) => (
                             <option key={cr.id} value={cr.id}>
                               {cr.name}
                             </option>

@@ -16,6 +16,7 @@ import {
   type AdmissionDocumentUpload,
 } from "@/lib/admissions";
 import { requirePermission } from "@/lib/auth";
+import { createRegistrationCode } from "@/lib/identifiers";
 import { prisma } from "@/lib/prisma";
 
 type ActionResult = { ok: boolean; message?: string };
@@ -200,6 +201,7 @@ export async function createAdmissionAction(formData: FormData): Promise<ActionR
     const admission = await tx.admission.create({
       data: {
         ...toAdmissionData(parsed.data, birthDate.value),
+        registrationCode: createRegistrationCode(parsed.data.level as EducationLevel),
         status: AdmissionStatus.PENDING,
         // submitterId sengaja null: pendaftaran ini tidak berasal dari akun wali
         // mana pun. Penerimaan nanti tetap menautkan/membuat akun wali lewat email.

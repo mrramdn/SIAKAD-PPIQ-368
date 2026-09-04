@@ -77,7 +77,7 @@ export const getCourseBoard = cache(async () => {
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, kind: true },
     }),
-    prisma.classRoom.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.classRoom.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, level: true } }),
     prisma.user.findMany({
       where: { roles: { hasSome: [UserRole.TEACHER, UserRole.HOMEROOM] }, status: UserStatus.VERIFIED },
       orderBy: { name: "asc" },

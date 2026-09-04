@@ -16,6 +16,7 @@ import {
 } from "@/generated/prisma/client";
 import { requireAnyPermission, requirePermission, requireVerifiedUser, userCan, type AuthUser } from "@/lib/auth";
 import { BKKH_TIME_SLOTS, type BkkhActivityField } from "@/lib/bkkh";
+import { createStudentNumber } from "@/lib/identifiers";
 import { dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
 import { ROLE_PRECEDENCE, type Role } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -706,20 +707,51 @@ export async function createScheduleSlotAction(formData: FormData) {
   const courseId = String(formData.get("courseId") ?? "");
   const dayOfWeek = Number(formData.get("dayOfWeek") ?? -1);
   const startTime = String(formData.get("startTime") ?? "").trim().replace(".", ":");
-  const room = toNullableString(formData.get("room"));
+  const endTime = String(formData.get("endTime") ?? "").trim().replace(".", ":");
+  const room = String(formData.get("room") ?? "").trim();
+  const level = String(formData.get("level") ?? "SMP");
+  const returnTo = `/akademik?tab=jadwal&level=${["SD", "SMP", "SMA"].includes(level) ? level : "SMP"}`;
+  const validTime = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-  if (!courseId || !Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
-    redirect("/akademik?tab=jadwal&error=invalid");
+  if (
+    !courseId ||
+    !Number.isInteger(dayOfWeek) ||
+    dayOfWeek < 0 ||
+    dayOfWeek > 6 ||
+    !validTime.test(startTime) ||
+    !validTime.test(endTime) ||
+    endTime <= startTime ||
+    !room ||
+    room.length > 80
+  ) {
+    redirect(`${returnTo}&error=invalid`);
   }
 
   // Mapel yang sudah dihapus (soft-delete) atau tidak ada tidak boleh menerima
   // slot jadwal baru.
-  const course = await prisma.course.findUnique({ where: { id: courseId }, select: { id: true, deletedAt: true } });
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    select: { id: true, deletedAt: true, teacherId: true },
+  });
   if (!course || course.deletedAt) {
-    redirect("/akademik?tab=jadwal&error=invalid");
+    redirect(`${returnTo}&error=invalid`);
   }
 
-  await prisma.scheduleSlot.create({ data: { courseId, dayOfWeek, startTime, room } });
+  const conflict = await prisma.scheduleSlot.findFirst({
+    where: {
+      dayOfWeek,
+      startTime: { lt: endTime },
+      endTime: { gt: startTime },
+      OR: [
+        { room: { equals: room, mode: "insensitive" } },
+        ...(course.teacherId ? [{ course: { teacherId: course.teacherId } }] : []),
+      ],
+    },
+    select: { id: true },
+  });
+  if (conflict) redirect(`${returnTo}&error=conflict`);
+
+  await prisma.scheduleSlot.create({ data: { courseId, dayOfWeek, startTime, endTime, room } });
   revalidatePath("/jadwal");
   revalidatePath("/akademik");
   revalidatePath("/dashboard");
@@ -869,19 +901,46 @@ export async function updateUserAction(input: {
 export async function reviewAdmissionAction(input: {
   admissionId: string;
   decision: "ACCEPTED" | "REJECTED";
+  reviewNote?: string;
 }): Promise<ActionResult> {
   const admin = await requirePermission("admission.review");
+  const reviewNote = input.reviewNote?.trim() || null;
+  if (reviewNote && reviewNote.length > 1000) {
+    return { ok: false, message: "Catatan keputusan maksimal 1.000 karakter." };
+  }
   const adm = await prisma.admission.findUnique({ where: { id: input.admissionId } });
   if (!adm) return { ok: false, message: "Pendaftaran tidak ditemukan." };
   if (adm.status !== AdmissionStatus.PENDING) return { ok: false, message: "Pendaftaran sudah diproses." };
 
   if (input.decision === "REJECTED") {
+    let recipientId = adm.submitterId;
+    if (!recipientId) {
+      const parent = await prisma.user.findUnique({
+        where: { email: adm.parentEmail.toLowerCase().trim() },
+        select: { id: true, roles: true },
+      });
+      if (parent?.roles.includes(UserRole.PARENT)) recipientId = parent.id;
+    }
+
     await prisma.admission.update({
       where: { id: adm.id },
-      data: { status: AdmissionStatus.REJECTED, reviewedAt: new Date(), reviewedById: admin.id },
+      data: {
+        status: AdmissionStatus.REJECTED,
+        reviewNote,
+        reviewedAt: new Date(),
+        reviewedById: admin.id,
+        submitterId: recipientId,
+      },
     });
     revalidatePath("/penerimaan");
-    return { ok: true };
+    revalidatePath("/dashboard");
+    revalidatePath("/anak");
+    return {
+      ok: true,
+      message: recipientId
+        ? `${adm.childName} ditolak. Notifikasi tersedia di aplikasi wali.`
+        : `${adm.childName} ditolak. Pendaftaran ini belum terhubung ke akun wali.`,
+    };
   }
 
   const parentEmail = adm.parentEmail.toLowerCase().trim();
@@ -914,7 +973,7 @@ export async function reviewAdmissionAction(input: {
     });
   }
 
-  const studentNumber = `${adm.level}-${Date.now().toString().slice(-6)}`;
+  const studentNumber = createStudentNumber(adm.level);
   const student = await prisma.studentProfile.create({
     data: {
       name: adm.childName,
@@ -924,17 +983,19 @@ export async function reviewAdmissionAction(input: {
       parentId: parent.id,
       address: adm.address,
     },
-    select: { id: true },
+    select: { id: true, studentNumber: true },
   });
 
   await prisma.admission.update({
     where: { id: adm.id },
     data: {
       status: AdmissionStatus.ACCEPTED,
+      reviewNote,
       reviewedAt: new Date(),
       reviewedById: admin.id,
       createdParentId: parent.id,
       createdStudentId: student.id,
+      submitterId: parent.id,
     },
   });
 
@@ -942,6 +1003,24 @@ export async function reviewAdmissionAction(input: {
   revalidatePath("/pengguna");
   revalidatePath("/anak");
   revalidatePath("/dashboard");
+  return {
+    ok: true,
+    message: `${adm.childName} diterima dengan NIS ${student.studentNumber}. Notifikasi tersedia di aplikasi wali.`,
+  };
+}
+
+export async function markAdmissionNotificationsReadAction(): Promise<ActionResult> {
+  const parent = await requirePermission("child.monitor");
+
+  await prisma.admission.updateMany({
+    where: {
+      submitterId: parent.id,
+      status: { in: [AdmissionStatus.ACCEPTED, AdmissionStatus.REJECTED] },
+      notificationReadAt: null,
+    },
+    data: { notificationReadAt: new Date() },
+  });
+
   return { ok: true };
 }
 
@@ -1011,14 +1090,10 @@ export async function saveBkkhReportAction(formData: FormData) {
     redirect("/absen-ustadz?error=forbidden");
   }
 
-  const assignment = String(formData.get("assignment") ?? "").trim();
   const activities = Object.fromEntries(
     BKKH_TIME_SLOTS.map(({ field }) => [field, String(formData.get(field) ?? "").trim() || null]),
   ) as Record<BkkhActivityField, string | null>;
 
-  if (!assignment || assignment.length > 120) {
-    redirect(`/absen-ustadz?tanggal=${dateKey}&error=assignment`);
-  }
   if (Object.values(activities).every((value) => value === null)) {
     redirect(`/absen-ustadz?tanggal=${dateKey}&error=activity`);
   }
@@ -1035,8 +1110,8 @@ export async function saveBkkhReportAction(formData: FormData) {
   const date = dateKeyToDb(dateKey);
   await prisma.bkkhReport.upsert({
     where: { teacherId_date: { teacherId, date } },
-    update: { assignment, ...activities },
-    create: { teacherId, date, assignment, ...activities },
+    update: activities,
+    create: { teacherId, date, ...activities },
   });
 
   revalidatePath("/absen-ustadz");

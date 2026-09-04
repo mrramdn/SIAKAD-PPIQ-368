@@ -327,6 +327,8 @@ export const getCourseOverview = cache(async (user: AuthUser) => {
       title: true,
       description: true,
       level: true,
+      classRoomId: true,
+      classRoom: { select: { name: true } },
       teacherId: true,
       teacher: { select: { name: true } },
       // Jumlah santri = enrolmen ACTIVE saja, sama seperti daftar peserta di
@@ -340,6 +342,8 @@ export const getCourseOverview = cache(async (user: AuthUser) => {
     title: c.title,
     description: c.description,
     level: c.level,
+    classRoomId: c.classRoomId,
+    className: c.classRoom?.name ?? null,
     assigned: Boolean(c.teacherId),
     teacher: c.teacher?.name ?? "Belum ditugaskan",
     students: c._count.enrollments,
@@ -361,7 +365,7 @@ export const getTeachingStaff = cache(async () => {
 
 export const getCourseManagement = cache(async (courseId: string, user: AuthUser) => {
   const canManage = userCan(user, "course.manage");
-  const [course, verifiedStudents, teachingStaff] = await Promise.all([
+  const [course, teachingStaff] = await Promise.all([
     prisma.course.findFirst({
       where: { id: courseId, deletedAt: null, ...(canManage ? {} : { teacherId: user.id }) },
       select: {
@@ -369,7 +373,9 @@ export const getCourseManagement = cache(async (courseId: string, user: AuthUser
         title: true,
         slug: true,
         description: true,
+        level: true,
         status: true,
+        classRoom: { select: { id: true, name: true } },
         teacherId: true,
         teacher: { select: { name: true } },
         enrollments: {
@@ -382,17 +388,9 @@ export const getCourseManagement = cache(async (courseId: string, user: AuthUser
         },
       },
     }),
-    canManage
-      ? prisma.studentProfile.findMany({
-          where: { enrollments: { none: { courseId, status: EnrollmentStatus.ACTIVE } } },
-          orderBy: { name: "asc" },
-          take: 200,
-          select: { id: true, name: true, studentNumber: true, className: true },
-        })
-      : Promise.resolve([]),
     canManage ? getTeachingStaff() : Promise.resolve([]),
   ]);
-  return { course, verifiedStudents, teachingStaff, canManage };
+  return { course, teachingStaff, canManage };
 });
 
 /* -------------------------------------------------------------------------- */
@@ -904,6 +902,7 @@ export const getScheduleBoard = cache(async (user: AuthUser, level?: EducationLe
         id: true,
         dayOfWeek: true,
         startTime: true,
+        endTime: true,
         room: true,
         course: { select: { id: true, title: true, level: true, teacher: { select: { name: true } } } },
       },
@@ -911,7 +910,7 @@ export const getScheduleBoard = cache(async (user: AuthUser, level?: EducationLe
     prisma.course.findMany({
       where: { deletedAt: null, ...teacherScope },
       orderBy: { title: "asc" },
-      select: { id: true, title: true, level: true },
+      select: { id: true, title: true, level: true, classRoom: { select: { name: true } } },
     }),
   ]);
 
@@ -923,7 +922,8 @@ export const getScheduleBoard = cache(async (user: AuthUser, level?: EducationLe
       .map((s) => ({
         id: s.id,
         startTime: s.startTime.replace(".", ":"),
-        room: s.room ?? "-",
+        endTime: s.endTime.replace(".", ":"),
+        room: s.room,
         courseId: s.course.id,
         courseTitle: s.course.title,
         level: s.course.level,
@@ -952,7 +952,7 @@ export const getParentScheduleBoard = cache(async (parentId: string) => {
               id: true,
               title: true,
               teacher: { select: { name: true } },
-              scheduleSlots: { select: { id: true, dayOfWeek: true, startTime: true, room: true } },
+              scheduleSlots: { select: { id: true, dayOfWeek: true, startTime: true, endTime: true, room: true } },
             },
           },
         },
@@ -966,7 +966,8 @@ export const getParentScheduleBoard = cache(async (parentId: string) => {
         id: s.id,
         dayOfWeek: s.dayOfWeek,
         startTime: s.startTime.replace(".", ":"),
-        room: s.room ?? "-",
+        endTime: s.endTime.replace(".", ":"),
+        room: s.room,
         courseId: e.course.id,
         courseTitle: e.course.title,
         teacher: e.course.teacher?.name ?? "Belum ditugaskan",
@@ -1076,7 +1077,6 @@ export const getBkkhDailyReports = cache(async (dateKey: string) => {
     select: {
       id: true,
       teacherId: true,
-      assignment: true,
       activity03000715: true,
       activity07150900: true,
       activity09301200: true,

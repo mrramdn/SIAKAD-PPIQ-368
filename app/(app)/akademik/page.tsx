@@ -76,6 +76,12 @@ async function JadwalSection({ level, error }: { level?: string; error?: string 
     : EducationLevel.SMP;
   const { days, courses } = await getScheduleBoard(user, activeLevel);
   const filteredCourses = courses.filter((c) => c.level === activeLevel);
+  const errorMessage =
+    error === "conflict"
+      ? "Jadwal bertabrakan dengan penggunaan ruangan atau jadwal pengajar pada rentang waktu tersebut."
+      : error
+        ? "Jadwal gagal disimpan. Lengkapi mapel, hari, waktu mulai dan selesai, serta ruangan. Waktu selesai harus setelah waktu mulai."
+        : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -84,9 +90,9 @@ async function JadwalSection({ level, error }: { level?: string; error?: string 
         <p className="mt-0.5 text-[13.5px] text-ink-3">Atur slot jadwal per jenjang. Semua peran melihat jadwal ini lewat menu Jadwal.</p>
       </div>
 
-      {error ? (
+      {errorMessage ? (
         <div className="rounded-xl border border-danger-soft bg-danger-soft px-4 py-3 text-sm text-danger">
-          Jadwal gagal disimpan. Pilih mapel dan hari, lalu isi waktu mulai dengan format jam seperti 07:30.
+          {errorMessage}
         </div>
       ) : null}
 
@@ -109,13 +115,14 @@ async function JadwalSection({ level, error }: { level?: string; error?: string 
 
       <Card pad={18}>
         <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-ink-3">Tambah Slot Jadwal</h3>
-        <form action={createScheduleSlotAction} className="grid gap-4 sm:grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1.2fr_auto] items-end">
+        <form action={createScheduleSlotAction} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_1.1fr_auto] items-end">
+          <input type="hidden" name="level" value={activeLevel} />
           <Field label="Mata Pelajaran">
             <select name="courseId" required className={inputClasses}>
               <option value="">-- Pilih Mapel --</option>
               {filteredCourses.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.title}
+                  {c.title}{c.classRoom?.name ? ` · ${c.classRoom.name}` : ""}
                 </option>
               ))}
             </select>
@@ -137,8 +144,12 @@ async function JadwalSection({ level, error }: { level?: string; error?: string 
             <input name="startTime" type="time" required className={inputClasses} />
           </Field>
 
-          <Field label="Ruangan (opsional)">
-            <input name="room" type="text" placeholder="cth. Kelas 7A" className={inputClasses} />
+          <Field label="Waktu Selesai">
+            <input name="endTime" type="time" required className={inputClasses} />
+          </Field>
+
+          <Field label="Ruangan">
+            <input name="room" type="text" required maxLength={80} placeholder="cth. Kelas 7A" className={inputClasses} />
           </Field>
 
           <div className="mb-4">

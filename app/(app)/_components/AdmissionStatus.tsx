@@ -13,12 +13,15 @@ type Level = "SD" | "SMP" | "SMA";
 
 export type AdmissionStatusItem = {
   id: string;
+  registrationCode: string;
   childName: string;
   level: Level;
   status: Status;
   createdAt: string;
   reviewedAt: string | null;
   note: string | null;
+  reviewNote: string | null;
+  studentNumber: string | null;
   childId: string | null;
   documents: {
     kind: string;
@@ -58,12 +61,15 @@ type LoadedAdmission = Awaited<ReturnType<typeof getAdmissionsBySubmitter>>[numb
 export function toAdmissionStatusItems(admissions: LoadedAdmission[]): AdmissionStatusItem[] {
   return admissions.map((a) => ({
     id: a.id,
+    registrationCode: a.registrationCode,
     childName: a.childName,
     level: a.level,
     status: a.status,
     createdAt: dateFmt.format(a.createdAt),
     reviewedAt: a.reviewedAt ? dateFmt.format(a.reviewedAt) : null,
     note: a.note,
+    reviewNote: a.reviewNote,
+    studentNumber: a.studentNumber,
     childId: a.childId,
     documents: a.documents.map((doc) => ({
       kind: doc.kind,
@@ -113,7 +119,7 @@ export function AdmissionStatusRow({ item }: { item: AdmissionStatusItem }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14.5px] font-bold">{item.childName}</div>
-        <div className="mt-0.5 text-[12.5px] text-ink-3">Dikirim {item.createdAt}</div>
+        <div className="mt-0.5 text-[12.5px] text-ink-3">{item.registrationCode} · {item.createdAt}</div>
       </div>
       <Badge tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</Badge>
     </div>
@@ -179,7 +185,7 @@ export function AdmissionStatusCard({ item }: { item: AdmissionStatusItem }) {
           <div className="truncate text-[15px] font-bold">{item.childName}</div>
           <div className="mt-1 flex items-center gap-2">
             <Badge tone={LEVEL_TONE[item.level]}>{item.level}</Badge>
-            <span className="text-[12.5px] text-ink-3">Dikirim {item.createdAt}</span>
+            <span className="text-[12.5px] text-ink-3">{item.registrationCode} · Dikirim {item.createdAt}</span>
           </div>
         </div>
         <Badge tone={STATUS_TONE[item.status]}>{STATUS_LABEL[item.status]}</Badge>
@@ -189,17 +195,23 @@ export function AdmissionStatusCard({ item }: { item: AdmissionStatusItem }) {
         <p className="text-[13.5px] leading-relaxed text-ink-2 text-pretty">{STATUS_MESSAGE[item.status]}</p>
         {item.reviewedAt ? <p className="mt-1.5 text-[12.5px] text-ink-3">Ditinjau pada {item.reviewedAt}</p> : null}
 
-        {item.note ? (
+        {item.reviewNote ? (
           <div
             className={`mt-3 rounded-xl px-3.5 py-3 ${rejected ? "bg-danger-soft" : "bg-surface-2"}`}
           >
             <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-3">
-              {rejected ? "Alasan penolakan" : "Catatan"}
+              {rejected ? "Alasan penolakan" : "Catatan penerimaan"}
             </div>
             <p className={`mt-1 text-[13.5px] leading-relaxed text-pretty ${rejected ? "font-semibold text-danger" : "text-ink-2"}`}>
-              {item.note}
+              {item.reviewNote}
             </p>
           </div>
+        ) : null}
+
+        {item.studentNumber ? (
+          <p className="mt-3 text-[13px] text-ink-2">
+            NIS: <strong className="mono text-ink">{item.studentNumber}</strong>
+          </p>
         ) : null}
 
         {item.childId ? (

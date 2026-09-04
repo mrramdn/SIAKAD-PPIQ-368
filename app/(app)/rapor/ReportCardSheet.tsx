@@ -1,4 +1,6 @@
+import Image from "next/image";
 import { Badge } from "@/components/ui";
+import { INSTITUTION_ADDRESS, INSTITUTION_NAME, INSTITUTION_PHONE } from "@/lib/brand";
 import { formatPeriod } from "@/lib/lms";
 import {
   getReportSignatories,
@@ -80,7 +82,18 @@ export async function ReportCardSheet({ sheet, showStatus = true }: { sheet: Rap
   return (
     <div className={`${styles.sheet} rounded-2xl border border-line bg-surface p-5 shadow-soft sm:p-7`}>
       {/* Kop rapor */}
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-ink-1 pb-4">
+      <div className={styles.letterhead}>
+        <Image src="/icons/logo-mark.png" alt="Logo Pondok Pesantren Integritas Qur'ani 368" width={76} height={76} priority />
+        <div className="text-center">
+          <p className="text-[13px] font-bold uppercase tracking-[0.12em] text-ink-2">Pondok Pesantren</p>
+          <h1 className="mt-0.5 text-xl font-extrabold uppercase tracking-tight text-ink-1">{INSTITUTION_NAME.replace(/^Pondok Pesantren\s*/i, "")}</h1>
+          <p className="mt-1 text-[11.5px] leading-relaxed text-ink-2">{INSTITUTION_ADDRESS}</p>
+          <p className="text-[11.5px] text-ink-2">Telp. {INSTITUTION_PHONE}</p>
+        </div>
+        <span aria-hidden="true" className={styles.letterheadSpacer} />
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4 border-b border-line pb-4">
         <div>
           <h2 className="text-lg font-extrabold uppercase tracking-tight text-ink-1">Laporan Hasil Belajar Santri</h2>
           <p className="mt-1 text-sm font-semibold text-ink-2">{formatPeriod(sheet)}</p>

@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Card, Icons } from "@/components/ui";
 import { deleteScheduleSlotAction } from "../actions";
 
-type Slot = {
+export type Slot = {
   id: string;
   startTime: string;
+  endTime: string;
   room: string;
   courseId: string;
   courseTitle: string;
@@ -64,12 +65,13 @@ export function ScheduleList({ slots, canEdit }: { slots: Slot[]; canEdit: boole
     <div className="divide-y divide-line">
       {slots.map((slot) => (
         <div key={slot.id} className="flex items-center gap-3 py-2.5">
-          <span className="mono w-12 shrink-0 text-[13px] font-bold text-primary">{slot.startTime}</span>
+          <span className="mono w-[86px] shrink-0 text-[12px] font-bold text-primary">
+            {slot.startTime}–{slot.endTime}
+          </span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-ink-1">{slot.courseTitle}</div>
             <div className="truncate text-[12px] text-ink-3">
-              {slot.teacher}
-              {slot.room !== "-" ? ` • ${slot.room}` : ""}
+              {slot.teacher} • {slot.room}
             </div>
           </div>
           {canEdit && (

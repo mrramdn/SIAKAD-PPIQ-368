@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Badge, Button, Card, Icons, type Tone } from "@/components/ui";
+import { Badge, Button, Card, Icons, inputClasses, type Tone } from "@/components/ui";
 import { reviewAdmissionAction } from "../actions";
 import { Modal, Toast, useActionRunner } from "../_components/crud-ui";
 import { AdmissionForm, EMPTY_ADMISSION, type AdmissionFormValues, type DocumentSlot } from "./AdmissionForm";
@@ -27,6 +27,7 @@ type AdmissionDocument = {
 
 type Admission = {
   id: string;
+  registrationCode: string;
   childName: string;
   level: Level;
   gender: string | null;
@@ -38,6 +39,8 @@ type Admission = {
   parentEmail: string;
   address: string | null;
   note: string | null;
+  reviewNote: string | null;
+  studentNumber: string | null;
   status: Status;
   createdAt: string;
   birthDateInput: string | null;
@@ -161,6 +164,8 @@ export function AdmissionReview({
   const [open, setOpen] = useState<string | null>(null);
   const [formFor, setFormFor] = useState<{ values: AdmissionFormValues; documents: DocumentSlot[] } | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [decisionFor, setDecisionFor] = useState<{ admission: Admission; decision: "ACCEPTED" | "REJECTED" } | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
 
   const counts = useMemo(
     () => ({
@@ -176,12 +181,22 @@ export function AdmissionReview({
 
   const deleting = admissions.find((a) => a.id === deleteId) ?? null;
 
-  function review(id: string, decision: "ACCEPTED" | "REJECTED", name: string) {
+  function openDecision(admission: Admission, decision: "ACCEPTED" | "REJECTED") {
+    setDecisionFor({ admission, decision });
+    setReviewNote("");
+  }
+
+  function review() {
+    if (!decisionFor) return;
+    const { admission, decision } = decisionFor;
     run(
-      reviewAdmissionAction({ admissionId: id, decision }),
-      decision === "ACCEPTED" ? `${name} diterima, akun wali ditautkan` : `${name} ditolak`,
+      reviewAdmissionAction({ admissionId: admission.id, decision, reviewNote }),
+      decision === "ACCEPTED" ? `${admission.childName} diterima, akun wali ditautkan` : `${admission.childName} ditolak`,
       decision === "ACCEPTED" ? "ok" : "warn",
-      () => setOpen(null),
+      () => {
+        setOpen(null);
+        setDecisionFor(null);
+      },
     );
   }
 
@@ -267,7 +282,7 @@ export function AdmissionReview({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[15px] font-bold">{a.childName}</div>
                     <div className="mt-0.5 truncate text-[12.5px] text-ink-3">
-                      Wali: {a.parentName} · {a.parentPhone}
+                      {a.registrationCode} · Wali: {a.parentName}
                     </div>
                   </div>
                   <div className="hidden text-right sm:block">
@@ -281,6 +296,8 @@ export function AdmissionReview({
                 {expanded ? (
                   <div className="border-t border-line p-4">
                     <div className="grid gap-4 sm:grid-cols-3">
+                      <Detail label="Kode Daftar" value={<span className="mono">{a.registrationCode}</span>} />
+                      <Detail label="NIS" value={a.studentNumber ? <span className="mono">{a.studentNumber}</span> : null} />
                       <Detail label="Jenjang" value={a.level} />
                       <Detail label="Jenis Kelamin" value={a.gender === "L" ? "Laki-laki" : a.gender === "P" ? "Perempuan" : null} />
                       <Detail label="Tempat, Tgl Lahir" value={[a.birthPlace, a.birthDate].filter(Boolean).join(", ") || null} />
@@ -289,6 +306,7 @@ export function AdmissionReview({
                       <Detail label="Telepon" value={a.parentPhone} />
                       <Detail label="Alamat" value={a.address} />
                       <Detail label="Catatan" value={a.note} />
+                      <Detail label="Catatan Keputusan" value={a.reviewNote} />
                       <Detail label="Sumber" value={a.submittedByParent ? "Dikirim wali santri" : "Dicatat administrasi"} />
                     </div>
                     <div className="mt-5 border-t border-line pt-4">
@@ -317,10 +335,10 @@ export function AdmissionReview({
                       </Button>
                       {a.status === "PENDING" ? (
                         <>
-                          <Button variant="danger" disabled={pending} onClick={() => review(a.id, "REJECTED", a.childName)}>
+                          <Button variant="danger" disabled={pending} onClick={() => openDecision(a, "REJECTED")}>
                             Tolak
                           </Button>
-                          <Button variant="primary" disabled={pending} icon={<Icons.check2 size={16} />} onClick={() => review(a.id, "ACCEPTED", a.childName)}>
+                          <Button variant="primary" disabled={pending} icon={<Icons.check2 size={16} />} onClick={() => openDecision(a, "ACCEPTED")}>
                             Terima Santri
                           </Button>
                         </>
@@ -366,6 +384,45 @@ export function AdmissionReview({
               }}
             >
               Hapus
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {decisionFor ? (
+        <Modal
+          title={decisionFor.decision === "ACCEPTED" ? "Terima Pendaftaran" : "Tolak Pendaftaran"}
+          sub={`${decisionFor.admission.registrationCode} · ${decisionFor.admission.childName}`}
+          onClose={() => setDecisionFor(null)}
+        >
+          <label htmlFor="review-note" className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">
+            {decisionFor.decision === "ACCEPTED" ? "Catatan penerimaan (opsional)" : "Alasan penolakan (opsional)"}
+          </label>
+          <textarea
+            id="review-note"
+            value={reviewNote}
+            onChange={(event) => setReviewNote(event.target.value)}
+            maxLength={1000}
+            rows={4}
+            autoFocus
+            placeholder={
+              decisionFor.decision === "ACCEPTED"
+                ? "Contoh: Berkas lengkap. Silakan mengikuti daftar ulang."
+                : "Contoh: Dokumen wajib belum lengkap. Silakan lengkapi dan hubungi administrasi."
+            }
+            className={`${inputClasses} resize-y leading-relaxed`}
+          />
+          <p className="mt-1.5 text-[11.5px] text-ink-3">
+            Catatan dan hasil keputusan akan tampil di portal wali serta dikirim ke email jika layanan email aktif.
+          </p>
+          <div className="mt-5 flex justify-end gap-2.5">
+            <Button variant="ghost" onClick={() => setDecisionFor(null)}>Batal</Button>
+            <Button
+              variant={decisionFor.decision === "ACCEPTED" ? "primary" : "danger"}
+              disabled={pending}
+              onClick={review}
+            >
+              {decisionFor.decision === "ACCEPTED" ? "Terima dan Beri Notifikasi" : "Tolak dan Beri Notifikasi"}
             </Button>
           </div>
         </Modal>

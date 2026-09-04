@@ -62,7 +62,7 @@ export default async function AnakPage() {
         </div>
       )}
 
-      <div className="mt-8">
+      <div id="status-pendaftaran" className="mt-8 scroll-mt-24">
         <SectionTitle
           title="Status Pendaftaran"
           sub="Hasil seleksi pendaftaran santri baru yang Anda kirim melalui sistem."

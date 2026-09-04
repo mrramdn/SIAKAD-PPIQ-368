@@ -14,6 +14,7 @@ import {
   type AdmissionDocumentUpload,
 } from "@/lib/admissions";
 import { requirePermission } from "@/lib/auth";
+import { createRegistrationCode } from "@/lib/identifiers";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
@@ -92,10 +93,12 @@ export async function submitAdmissionAction(formData: FormData) {
   }
 
   const d = parsed.data;
+  const registrationCode = createRegistrationCode(d.level as EducationLevel);
   await prisma.$transaction(async (tx) => {
     const admission = await tx.admission.create({
       data: {
         childName: d.childName,
+        registrationCode,
         level: d.level as EducationLevel,
         gender: d.gender || null,
         birthPlace: d.birthPlace || null,
@@ -128,5 +131,5 @@ export async function submitAdmissionAction(formData: FormData) {
     }
   });
 
-  redirect("/pendaftaran?success=1");
+  redirect(`/pendaftaran?success=1&code=${registrationCode}`);
 }

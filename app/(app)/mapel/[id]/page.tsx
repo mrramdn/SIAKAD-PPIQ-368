@@ -3,18 +3,16 @@ import { notFound } from "next/navigation";
 import { CourseStatus } from "@/generated/prisma/client";
 import { requirePermission, userCan } from "@/lib/auth";
 import { getCourseManagement } from "@/lib/lms";
-import { Avatar, Card, Field, Icons, inputClasses, buttonClasses, courseAccent, courseCode, initialsFromName } from "@/components/ui";
-import { enrollStudentAction, updateCourseAction } from "../../actions";
+import { Avatar, Badge, Card, Field, Icons, inputClasses, buttonClasses, courseAccent, courseCode, initialsFromName } from "@/components/ui";
+import { updateCourseAction } from "../../actions";
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePermission("course.view");
   const { id } = await params;
 
-  const { course, verifiedStudents, teachingStaff, canManage } = await getCourseManagement(id, user);
+  const { course, teachingStaff, canManage } = await getCourseManagement(id, user);
   if (!course) notFound();
   const accent = courseAccent(course.id);
-  const enrolledIds = new Set(course.enrollments.map((e) => e.student.id));
-  const availableStudents = verifiedStudents.filter((s) => !enrolledIds.has(s.id));
   const canGrade = userCan(user, "grade.manage");
   const canAttend = userCan(user, "attendance.record");
 
@@ -35,6 +33,8 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
           <h1 className="my-3 text-2xl font-extrabold tracking-tight lg:text-3xl">{course.title}</h1>
           <p className="max-w-[560px] text-[14.5px] leading-relaxed opacity-90">{course.description}</p>
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-[13.5px]">
+            <span><Badge tone="neutral">{course.level}</Badge></span>
+            <span>Kelas: <strong>{course.classRoom?.name ?? "Belum ditentukan"}</strong></span>
             <span><strong>{course.enrollments.length}</strong> santri terdaftar</span>
             <span>Pengampu: <strong>{course.teacher?.name ?? "Belum ditugaskan"}</strong></span>
           </div>
@@ -92,29 +92,9 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ i
 
       <Card pad={20} className="max-w-2xl">
         <h2 className="mb-4 text-base font-bold">Peserta ({course.enrollments.length})</h2>
-        {canManage ? (
-          <form action={enrollStudentAction} className="mb-4 flex gap-2">
-            <input type="hidden" name="courseId" value={course.id} />
-            <select name="studentId" className={inputClasses} disabled={availableStudents.length === 0}>
-              {availableStudents.length === 0 ? (
-                <option>Semua santri sudah terdaftar</option>
-              ) : (
-                availableStudents.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} · {s.className}
-                  </option>
-                ))
-              )}
-            </select>
-            <button
-              type="submit"
-              disabled={availableStudents.length === 0}
-              className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50"
-            >
-              Daftarkan
-            </button>
-          </form>
-        ) : null}
+        <p className="mb-4 text-[12.5px] text-ink-3">
+          Peserta mengikuti penempatan kelas {course.classRoom?.name ?? "yang belum ditentukan"}. Perubahan peserta dikelola terpusat dari Data Akademik.
+        </p>
 
         <div className="flex flex-col gap-2">
           {course.enrollments.length === 0 ? (

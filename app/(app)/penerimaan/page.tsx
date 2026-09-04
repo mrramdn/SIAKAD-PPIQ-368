@@ -35,6 +35,7 @@ export default async function PenerimaanPage() {
 
   const rows = admissions.map((a) => ({
     id: a.id,
+    registrationCode: a.registrationCode,
     childName: a.childName,
     level: a.level,
     gender: a.gender,
@@ -48,6 +49,8 @@ export default async function PenerimaanPage() {
     parentEmail: a.parentEmail,
     address: a.address,
     note: a.note,
+    reviewNote: a.reviewNote,
+    studentNumber: a.studentNumber,
     status: a.status,
     createdAt: dateFmt.format(a.createdAt),
     // Pendaftaran tanpa submitter berarti dicatat administrasi (datang langsung).

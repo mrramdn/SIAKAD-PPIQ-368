@@ -29,7 +29,7 @@ export function useActionRunner() {
   ) {
     startTransition(async () => {
       const res = await p;
-      setToast(res.ok ? { msg: okMsg, tone } : { msg: res.message ?? "Gagal memproses.", tone: "warn" });
+      setToast(res.ok ? { msg: res.message ?? okMsg, tone } : { msg: res.message ?? "Gagal memproses.", tone: "warn" });
       if (res.ok) {
         onSuccess?.();
         router.refresh();

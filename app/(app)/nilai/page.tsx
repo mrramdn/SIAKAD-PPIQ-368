@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getGradebook } from "@/lib/lms";
 import { Avatar, Badge, Card, Field, buttonClasses, inputClasses, scoreColor, PASS_THRESHOLD } from "@/components/ui";
@@ -85,23 +84,16 @@ export default async function NilaiPage({ searchParams }: { searchParams: Promis
             </div>
           </Card>
 
-          {/* course tabs */}
-          <div className="mb-3.5 flex gap-2 overflow-x-auto pb-1">
-            {courses.map((c) => {
-              const active = c.id === activeCourseId;
-              return (
-                <Link
-                  key={c.id}
-                  href={`/nilai?course=${c.id}`}
-                  className={`whitespace-nowrap rounded-full border px-3.5 py-2 text-[13px] font-semibold transition ${
-                    active ? "border-transparent bg-primary text-white" : "border-line bg-surface text-ink-2"
-                  }`}
-                >
-                  {c.title}
-                </Link>
-              );
-            })}
-          </div>
+          {/* Daftar mapel panjang memakai dropdown, bukan scroll horizontal. */}
+          <form action="/nilai" method="GET" className="mb-3.5 grid gap-2 sm:max-w-[520px] sm:grid-cols-[1fr_auto]">
+            <div>
+              <label htmlFor="course-nilai" className="mb-1 block text-[11.5px] font-semibold text-ink-3">Mata pelajaran</label>
+              <select id="course-nilai" name="course" defaultValue={activeCourseId ?? ""} className={inputClasses}>
+                {courses.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </select>
+            </div>
+            <button type="submit" className={`${buttonClasses("ghost", "md")} self-end`}>Tampilkan</button>
+          </form>
 
           {/* add component */}
           {activeCourseId && canEdit ? (

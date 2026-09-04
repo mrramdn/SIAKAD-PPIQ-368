@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { AdmissionDocumentKind } from "@/generated/prisma/client";
+import { AdmissionDocumentKind, AdmissionStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, type Role } from "@/lib/permissions";
 
@@ -423,6 +423,7 @@ export const getAdmissionsForReview = cache(async () => {
     take: 100,
     select: {
       id: true,
+      registrationCode: true,
       childName: true,
       level: true,
       gender: true,
@@ -434,6 +435,8 @@ export const getAdmissionsForReview = cache(async () => {
       parentEmail: true,
       address: true,
       note: true,
+      reviewNote: true,
+      createdStudentId: true,
       submitterId: true,
       familyCardUrl: true,
       birthCertificateUrl: true,
@@ -448,8 +451,18 @@ export const getAdmissionsForReview = cache(async () => {
     },
   });
 
+  const studentIds = admissions.map((admission) => admission.createdStudentId).filter((id) => id !== null);
+  const students = studentIds.length
+    ? await prisma.studentProfile.findMany({
+        where: { id: { in: studentIds } },
+        select: { id: true, studentNumber: true },
+      })
+    : [];
+  const studentNumberById = new Map(students.map((student) => [student.id, student.studentNumber]));
+
   return admissions.map((admission) => ({
     ...admission,
+    studentNumber: admission.createdStudentId ? (studentNumberById.get(admission.createdStudentId) ?? null) : null,
     // Urutkan sesuai urutan formulir, bukan urutan penyimpanan.
     documents: ADMISSION_DOCUMENT_KINDS.map((kind) => admission.documents.find((doc) => doc.kind === kind)).filter(
       (doc) => doc !== undefined,
@@ -470,10 +483,12 @@ export const getAdmissionsBySubmitter = cache(async (submitterId: string) => {
     take: 50,
     select: {
       id: true,
+      registrationCode: true,
       childName: true,
       level: true,
       status: true,
       note: true,
+      reviewNote: true,
       createdAt: true,
       reviewedAt: true,
       createdStudentId: true,
@@ -494,20 +509,43 @@ export const getAdmissionsBySubmitter = cache(async (submitterId: string) => {
   const linkedChildren = createdStudentIds.length
     ? await prisma.studentProfile.findMany({
         where: { id: { in: createdStudentIds }, parentId: submitterId },
-        select: { id: true },
+        select: { id: true, studentNumber: true },
       })
     : [];
-  const linkedChildIds = new Set(linkedChildren.map((child) => child.id));
+  const linkedChildById = new Map(linkedChildren.map((child) => [child.id, child]));
 
   return admissions.map((admission) => ({
     id: admission.id,
+    registrationCode: admission.registrationCode,
     childName: admission.childName,
     level: admission.level,
     status: admission.status,
     note: admission.note,
+    reviewNote: admission.reviewNote,
     createdAt: admission.createdAt,
     reviewedAt: admission.reviewedAt,
-    childId: admission.createdStudentId && linkedChildIds.has(admission.createdStudentId) ? admission.createdStudentId : null,
+    childId: admission.createdStudentId && linkedChildById.has(admission.createdStudentId) ? admission.createdStudentId : null,
+    studentNumber: admission.createdStudentId ? (linkedChildById.get(admission.createdStudentId)?.studentNumber ?? null) : null,
     documents: toAdmissionDocumentViews(admission),
   }));
+});
+
+export const getAdmissionDecisionNotifications = cache(async (submitterId: string) => {
+  return prisma.admission.findMany({
+    where: {
+      submitterId,
+      status: { in: [AdmissionStatus.ACCEPTED, AdmissionStatus.REJECTED] },
+      reviewedAt: { not: null },
+    },
+    orderBy: { reviewedAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      childName: true,
+      registrationCode: true,
+      status: true,
+      reviewedAt: true,
+      notificationReadAt: true,
+    },
+  });
 });

@@ -474,6 +474,12 @@ const GRADE_COMPONENTS = [
 
 const SLOT_TIMES = ["07:30", "09:00", "10:30", "13:00", "15:30", "19:30"];
 
+function addMinutes(time: string, minutes: number): string {
+  const [hours, mins] = time.split(":").map(Number);
+  const total = hours * 60 + mins + minutes;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 /* --------------------------- skenario uji khusus ---------------------------- */
 
 /** Mapel tanpa ustadz pengampu. */
@@ -712,6 +718,7 @@ async function main() {
 
         const dayOfWeek = 1 + (slotIndex % 6);
         const startTime = SLOT_TIMES[Math.floor(slotIndex / 6) % SLOT_TIMES.length];
+        const endTime = addMinutes(startTime, 60);
         slotIndex += 1;
         // Buat bila belum ada; jadwal tambahan buatan pengguna tidak dihapus.
         const existingSlot = await prisma.scheduleSlot.findFirst({
@@ -719,10 +726,10 @@ async function main() {
           select: { id: true },
         });
         if (existingSlot) {
-          await prisma.scheduleSlot.update({ where: { id: existingSlot.id }, data: { room: classRoom.name } });
+          await prisma.scheduleSlot.update({ where: { id: existingSlot.id }, data: { endTime, room: classRoom.name } });
         } else {
           await prisma.scheduleSlot.create({
-            data: { courseId: course.id, dayOfWeek, startTime, room: classRoom.name },
+            data: { courseId: course.id, dayOfWeek, startTime, endTime, room: classRoom.name },
           });
         }
 
@@ -1050,6 +1057,7 @@ async function main() {
 
   const newStudent = studentByNumber.get("20262005")!;
   type AdmissionSeed = {
+    registrationCode: string;
     childName: string;
     level: EducationLevel;
     gender: string;
@@ -1075,6 +1083,7 @@ async function main() {
     {
       // Pendaftaran menunggu tinjauan, lengkap dengan berkas unggahan.
       data: {
+        registrationCode: "REG-2026-SMP-00000001",
         childName: "Zaidan Arkan Pratama",
         level: EducationLevel.SMP,
         gender: "L",
@@ -1100,6 +1109,7 @@ async function main() {
       // Pendaftaran tanpa berkas, sudah diterima dan menghasilkan santri baru
       // yang belum ditempatkan di kelas.
       data: {
+        registrationCode: "REG-2026-SMP-00000002",
         childName: "Bilal Arrahman Saputra",
         level: EducationLevel.SMP,
         gender: "L",
@@ -1122,6 +1132,7 @@ async function main() {
     },
     {
       data: {
+        registrationCode: "REG-2026-SMA-00000003",
         childName: "Hanif Ramadhan Yusuf",
         level: EducationLevel.SMA,
         gender: "L",
@@ -1177,8 +1188,6 @@ async function main() {
   }
   for (let idx = 0; idx < TEACHING_KEYS.length; idx += 1) {
     const teacherId = userIdByKey.get(TEACHING_KEYS[idx])!;
-    const isHomeroom = CLASSES.some((c) => c.homeroomKey === TEACHING_KEYS[idx]);
-
     for (let di = 0; di < staffDates.length; di += 1) {
       const date = staffDates[di];
       // Satu ustadz izin dan satu sakit pada hari tertentu agar rekap tidak seragam.
@@ -1196,7 +1205,6 @@ async function main() {
 
       if (status !== AttendanceStatus.PRESENT) continue;
       const bkkh = {
-        assignment: isHomeroom ? "Wali kelas dan pendamping asrama" : "Pengajar mata pelajaran dan pembina asrama",
         activity03000715: "Mendampingi qiyamul lail, salat Subuh berjamaah, dan halaqah tahfidz pagi.",
         activity07150900: "Persiapan pembelajaran dan pengarahan kebersihan kamar santri.",
         activity09301200: "Mengajar sesuai jadwal dan mencatat perkembangan belajar santri.",

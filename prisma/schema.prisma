@@ -244,7 +244,8 @@ model ScheduleSlot {
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   dayOfWeek Int
   startTime String
-  room      String?
+  endTime   String
+  room      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -456,6 +457,8 @@ model StudentAdministration {
 // Pendaftaran santri baru (PPDB). Saat diterima admin, dibuat akun orang tua + record santri.
 model Admission {
   id               String          @id @default(uuid())
+  // Kode pendaftaran berbeda dari NIS yang baru dibuat setelah calon diterima.
+  registrationCode String          @unique
   childName        String
   level            EducationLevel
   gender           String?
@@ -468,7 +471,9 @@ model Admission {
   address          String?
   note             String?
   status           AdmissionStatus @default(PENDING)
+  reviewNote       String?
   reviewedAt       DateTime?
+  notificationReadAt DateTime?
   reviewedById     String?
   createdStudentId String?
   createdParentId  String?
@@ -544,7 +549,6 @@ model BkkhReport {
   teacherId          String
   teacher            User     @relation("BkkhTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   date               DateTime @db.Date
-  assignment         String
   activity03000715   String?  @db.Text
   activity07150900   String?  @db.Text
   activity09301200   String?  @db.Text
