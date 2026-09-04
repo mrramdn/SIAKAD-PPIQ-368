@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { AdmissionDocumentKind, AdmissionStatus } from "@/generated/prisma/client";
+import { AdmissionDocumentKind } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, type Role } from "@/lib/permissions";
 
@@ -528,24 +528,4 @@ export const getAdmissionsBySubmitter = cache(async (submitterId: string) => {
     studentNumber: admission.createdStudentId ? (linkedChildById.get(admission.createdStudentId)?.studentNumber ?? null) : null,
     documents: toAdmissionDocumentViews(admission),
   }));
-});
-
-export const getAdmissionDecisionNotifications = cache(async (submitterId: string) => {
-  return prisma.admission.findMany({
-    where: {
-      submitterId,
-      status: { in: [AdmissionStatus.ACCEPTED, AdmissionStatus.REJECTED] },
-      reviewedAt: { not: null },
-    },
-    orderBy: { reviewedAt: "desc" },
-    take: 10,
-    select: {
-      id: true,
-      childName: true,
-      registrationCode: true,
-      status: true,
-      reviewedAt: true,
-      notificationReadAt: true,
-    },
-  });
 });

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { EducationLevel } from "@/generated/prisma/client";
+import { EducationLevel, NotificationType, UserRole } from "@/generated/prisma/client";
 import {
   ADMISSION_DOCUMENT_FIELD,
   ADMISSION_DOCUMENT_KINDS,
@@ -15,6 +15,7 @@ import {
 } from "@/lib/admissions";
 import { requirePermission } from "@/lib/auth";
 import { createRegistrationCode } from "@/lib/identifiers";
+import { notifyVerifiedRole } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
@@ -129,6 +130,13 @@ export async function submitAdmissionAction(formData: FormData) {
         })),
       });
     }
+  });
+
+  await notifyVerifiedRole(UserRole.ADMIN, {
+    type: NotificationType.ADMISSION,
+    title: "Pendaftaran baru",
+    message: `${parent.name} mengirim pendaftaran ${d.childName} (${registrationCode}) untuk jenjang ${d.level}.`,
+    href: "/penerimaan",
   });
 
   redirect(`/pendaftaran?success=1&code=${registrationCode}`);

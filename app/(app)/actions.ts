@@ -9,6 +9,7 @@ import {
   AttendanceStatus,
   CourseStatus,
   EnrollmentStatus,
+  NotificationType,
   Prisma,
   Semester,
   UserRole,
@@ -18,6 +19,7 @@ import { requireAnyPermission, requirePermission, requireVerifiedUser, userCan, 
 import { BKKH_TIME_SLOTS, type BkkhActivityField } from "@/lib/bkkh";
 import { createStudentNumber } from "@/lib/identifiers";
 import { dateKeyToDb, getCurrentPeriod, toDateKey } from "@/lib/lms";
+import { notifyUsers } from "@/lib/notifications";
 import { ROLE_PRECEDENCE, type Role } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -702,8 +704,10 @@ export async function saveGradeAction(input: {
 
 /* ----------------------- schedule (mudir) ----------------------------------- */
 
+const SCHEDULE_DAY_LABELS = ["Ahad", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"] as const;
+
 export async function createScheduleSlotAction(formData: FormData) {
-  await requirePermission("course.manage");
+  const actor = await requirePermission("course.manage");
   const courseId = String(formData.get("courseId") ?? "");
   const dayOfWeek = Number(formData.get("dayOfWeek") ?? -1);
   const startTime = String(formData.get("startTime") ?? "").trim().replace(".", ":");
@@ -731,7 +735,16 @@ export async function createScheduleSlotAction(formData: FormData) {
   // slot jadwal baru.
   const course = await prisma.course.findUnique({
     where: { id: courseId },
-    select: { id: true, deletedAt: true, teacherId: true },
+    select: {
+      id: true,
+      title: true,
+      deletedAt: true,
+      teacherId: true,
+      enrollments: {
+        where: { status: EnrollmentStatus.ACTIVE },
+        select: { student: { select: { parentId: true } } },
+      },
+    },
   });
   if (!course || course.deletedAt) {
     redirect(`${returnTo}&error=invalid`);
@@ -752,15 +765,60 @@ export async function createScheduleSlotAction(formData: FormData) {
   if (conflict) redirect(`${returnTo}&error=conflict`);
 
   await prisma.scheduleSlot.create({ data: { courseId, dayOfWeek, startTime, endTime, room } });
+  await notifyUsers(
+    [course.teacherId, ...course.enrollments.map((enrollment) => enrollment.student.parentId)].filter(
+      (id): id is string => id !== null,
+    ),
+    {
+      type: NotificationType.SCHEDULE,
+      title: "Jadwal pelajaran ditambahkan",
+      message: `${course.title} dijadwalkan pada ${SCHEDULE_DAY_LABELS[dayOfWeek]}, ${startTime}-${endTime} di ${room}.`,
+      href: "/jadwal",
+    },
+    actor.id,
+  );
   revalidatePath("/jadwal");
   revalidatePath("/akademik");
   revalidatePath("/dashboard");
 }
 
 export async function deleteScheduleSlotAction(id: string): Promise<ActionResult> {
-  await requirePermission("course.manage");
+  const actor = await requirePermission("course.manage");
   if (!id) return { ok: false, message: "Jadwal tidak ditemukan." };
+  const slot = await prisma.scheduleSlot.findUnique({
+    where: { id },
+    select: {
+      dayOfWeek: true,
+      startTime: true,
+      endTime: true,
+      room: true,
+      course: {
+        select: {
+          title: true,
+          teacherId: true,
+          enrollments: {
+            where: { status: EnrollmentStatus.ACTIVE },
+            select: { student: { select: { parentId: true } } },
+          },
+        },
+      },
+    },
+  });
+  if (!slot) return { ok: false, message: "Jadwal tidak ditemukan." };
+
   await prisma.scheduleSlot.delete({ where: { id } });
+  await notifyUsers(
+    [slot.course.teacherId, ...slot.course.enrollments.map((enrollment) => enrollment.student.parentId)].filter(
+      (recipientId): recipientId is string => recipientId !== null,
+    ),
+    {
+      type: NotificationType.SCHEDULE,
+      title: "Jadwal pelajaran dihapus",
+      message: `Jadwal ${slot.course.title} pada ${SCHEDULE_DAY_LABELS[slot.dayOfWeek]}, ${slot.startTime}-${slot.endTime} di ${slot.room} telah dihapus.`,
+      href: "/jadwal",
+    },
+    actor.id,
+  );
   revalidatePath("/jadwal");
   revalidatePath("/akademik");
   revalidatePath("/dashboard");
@@ -935,10 +993,18 @@ export async function reviewAdmissionAction(input: {
     revalidatePath("/penerimaan");
     revalidatePath("/dashboard");
     revalidatePath("/anak");
+    const notificationCreated = recipientId
+      ? await notifyUsers([recipientId], {
+          type: NotificationType.ADMISSION,
+          title: "Pendaftaran ditolak",
+          message: `Pendaftaran ${adm.childName} (${adm.registrationCode}) belum dapat diterima. Buka untuk melihat catatan administrasi.`,
+          href: "/anak#status-pendaftaran",
+        })
+      : false;
     return {
       ok: true,
-      message: recipientId
-        ? `${adm.childName} ditolak. Notifikasi tersedia di aplikasi wali.`
+      message: notificationCreated
+        ? `${adm.childName} ditolak. Notifikasi aplikasi sudah dibuat.`
         : `${adm.childName} ditolak. Pendaftaran ini belum terhubung ke akun wali.`,
     };
   }
@@ -1003,25 +1069,18 @@ export async function reviewAdmissionAction(input: {
   revalidatePath("/pengguna");
   revalidatePath("/anak");
   revalidatePath("/dashboard");
+  const notificationCreated = await notifyUsers([parent.id], {
+    type: NotificationType.ADMISSION,
+    title: "Pendaftaran diterima",
+    message: `Pendaftaran ${adm.childName} (${adm.registrationCode}) diterima dengan NIS ${student.studentNumber}.`,
+    href: "/anak#status-pendaftaran",
+  });
   return {
     ok: true,
-    message: `${adm.childName} diterima dengan NIS ${student.studentNumber}. Notifikasi tersedia di aplikasi wali.`,
+    message: notificationCreated
+      ? `${adm.childName} diterima dengan NIS ${student.studentNumber}. Notifikasi aplikasi sudah dibuat.`
+      : `${adm.childName} diterima dengan NIS ${student.studentNumber}.`,
   };
-}
-
-export async function markAdmissionNotificationsReadAction(): Promise<ActionResult> {
-  const parent = await requirePermission("child.monitor");
-
-  await prisma.admission.updateMany({
-    where: {
-      submitterId: parent.id,
-      status: { in: [AdmissionStatus.ACCEPTED, AdmissionStatus.REJECTED] },
-      notificationReadAt: null,
-    },
-    data: { notificationReadAt: new Date() },
-  });
-
-  return { ok: true };
 }
 
 export async function deleteUserAction(userId: string): Promise<ActionResult> {

@@ -9,6 +9,7 @@ import {
   CourseStatus,
   EducationLevel,
   EnrollmentStatus,
+  NotificationType,
   PrismaClient,
   ReportCardStatus,
   Semester,
@@ -1174,6 +1175,63 @@ async function main() {
         create: { admissionId: row.id, kind: doc.kind, ...shared },
       });
     }
+  }
+
+  const pendingAdmission = await prisma.admission.findFirst({
+    where: { status: AdmissionStatus.PENDING },
+    orderBy: { createdAt: "desc" },
+    select: { childName: true, registrationCode: true, parentName: true },
+  });
+  if (pendingAdmission) {
+    await prisma.notification.upsert({
+      where: { id: "seed-notification-admission-pending" },
+      update: {
+        userId: adminId,
+        type: NotificationType.ADMISSION,
+        title: "Pendaftaran baru",
+        message: `${pendingAdmission.parentName} mengirim pendaftaran ${pendingAdmission.childName} (${pendingAdmission.registrationCode}).`,
+        href: "/penerimaan",
+      },
+      create: {
+        id: "seed-notification-admission-pending",
+        userId: adminId,
+        type: NotificationType.ADMISSION,
+        title: "Pendaftaran baru",
+        message: `${pendingAdmission.parentName} mengirim pendaftaran ${pendingAdmission.childName} (${pendingAdmission.registrationCode}).`,
+        href: "/penerimaan",
+      },
+    });
+  }
+
+  const publishedReport = await prisma.reportCard.findFirst({
+    where: { status: ReportCardStatus.PUBLISHED, student: { parentId: { not: null } } },
+    orderBy: { publishedAt: "desc" },
+    select: {
+      id: true,
+      semester: true,
+      academicYear: true,
+      student: { select: { id: true, name: true, parentId: true } },
+    },
+  });
+  if (publishedReport?.student.parentId) {
+    await prisma.notification.upsert({
+      where: { id: "seed-notification-report-published" },
+      update: {
+        userId: publishedReport.student.parentId,
+        type: NotificationType.REPORT,
+        title: "Rapor telah diterbitkan",
+        message: `Rapor ${publishedReport.student.name} semester ${publishedReport.semester === Semester.GANJIL ? "Ganjil" : "Genap"} tahun ajaran ${publishedReport.academicYear} sudah dapat dilihat.`,
+        href: `/anak/${publishedReport.student.id}`,
+      },
+      create: {
+        id: "seed-notification-report-published",
+        userId: publishedReport.student.parentId,
+        type: NotificationType.REPORT,
+        title: "Rapor telah diterbitkan",
+        message: `Rapor ${publishedReport.student.name} semester ${publishedReport.semester === Semester.GANJIL ? "Ganjil" : "Genap"} tahun ajaran ${publishedReport.academicYear} sudah dapat dilihat.`,
+        href: `/anak/${publishedReport.student.id}`,
+      },
+    });
   }
 
   /* ------------------------- absensi ustadz & BKKH ------------------------ */

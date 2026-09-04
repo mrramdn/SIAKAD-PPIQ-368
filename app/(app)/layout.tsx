@@ -1,34 +1,30 @@
-import { getAdmissionDecisionNotifications } from "@/lib/admissions";
-import { requireVerifiedUser, userCan } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth";
+import { getUnreadNotificationCount, getUserNotifications } from "@/lib/notifications";
 import { Shell } from "./_components/Shell";
 import type { Role } from "./_components/nav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireVerifiedUser();
-  const admissionNotifications = userCan(user, "child.monitor")
-    ? await getAdmissionDecisionNotifications(user.id)
-    : [];
-
-  const notifications = admissionNotifications.flatMap((admission) => {
-    if (!admission.reviewedAt) return [];
-
-    const accepted = admission.status === "ACCEPTED";
-    return [{
-      id: admission.id,
-      title: accepted ? "Pendaftaran diterima" : "Pendaftaran ditolak",
-      message: accepted
-        ? `Pendaftaran ${admission.childName} diterima. Buka untuk melihat NIS dan catatan administrasi.`
-        : `Pendaftaran ${admission.childName} belum dapat diterima. Buka untuk melihat catatan administrasi.`,
-      registrationCode: admission.registrationCode,
-      tone: accepted ? "success" as const : "danger" as const,
-      createdAt: admission.reviewedAt.toISOString(),
-      read: admission.notificationReadAt !== null,
-      href: "/anak#status-pendaftaran",
-    }];
-  });
+  const [notificationRows, unreadNotificationCount] = await Promise.all([
+    getUserNotifications(user.id, 10),
+    getUnreadNotificationCount(user.id),
+  ]);
+  const notifications = notificationRows.map((notification) => ({
+    id: notification.id,
+    type: notification.type,
+    title: notification.title,
+    message: notification.message,
+    createdAt: notification.createdAt.toISOString(),
+    read: notification.readAt !== null,
+    href: notification.href ?? "/notifikasi",
+  }));
 
   return (
-    <Shell user={{ name: user.name, email: user.email, roles: user.roles as Role[] }} notifications={notifications}>
+    <Shell
+      user={{ name: user.name, email: user.email, roles: user.roles as Role[] }}
+      notifications={notifications}
+      unreadNotificationCount={unreadNotificationCount}
+    >
       {children}
     </Shell>
   );

@@ -1,20 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar, Icons, initialsFromName } from "@/components/ui";
 import { APP_NAME } from "@/lib/brand";
 import { sortRoles } from "@/lib/permissions";
-import { markAdmissionNotificationsReadAction } from "../actions";
+import { markAllNotificationsReadAction } from "../notifikasi/actions";
 import { pageTitleFor, ROLE_LABEL, type Role } from "./nav";
 
 export type AppNotification = {
   id: string;
+  type: "ADMISSION" | "REPORT" | "SCHEDULE" | "SYSTEM";
   title: string;
   message: string;
-  registrationCode: string;
-  tone: "success" | "danger";
   createdAt: string;
   read: boolean;
   href: string;
@@ -31,13 +30,17 @@ const notificationDateFmt = new Intl.DateTimeFormat("id-ID", {
 export function Topbar({
   user,
   notifications,
+  unreadNotificationCount,
   onMenu,
 }: {
   user: { name: string; email: string; roles: Role[] };
   notifications: AppNotification[];
+  unreadNotificationCount: number;
   onMenu: () => void;
 }) {
   const pathname = usePathname();
+  const [notificationItems, setNotificationItems] = useState(notifications);
+  const [unreadCount, setUnreadCount] = useState(unreadNotificationCount);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [locallyReadIds, setLocallyReadIds] = useState<string[]>([]);
@@ -47,24 +50,56 @@ export function Topbar({
   const roleLabel = sortRoles(user.roles)
     .map((r) => ROLE_LABEL[r])
     .join(" + ");
-  const canReceiveAdmissionNotifications = user.roles.includes("PARENT");
-  const unreadNotifications = notifications.filter(
+  const unreadNotifications = notificationItems.filter(
     (notification) => !notification.read && !locallyReadIds.includes(notification.id),
   );
+
+  useEffect(() => {
+    let active = true;
+
+    async function refreshNotifications() {
+      try {
+        const response = await fetch("/api/notifikasi", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { notifications?: AppNotification[]; unreadCount?: number };
+        if (active && Array.isArray(data.notifications)) {
+          setNotificationItems(data.notifications);
+          if (typeof data.unreadCount === "number") setUnreadCount(data.unreadCount);
+        }
+      } catch {
+        // Kegagalan polling tidak mengganggu navigasi; percobaan berikutnya tetap berjalan.
+      }
+    }
+
+    const interval = window.setInterval(refreshNotifications, 30_000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshNotifications();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, []);
 
   function toggleNotifications() {
     const nextOpen = !notificationOpen;
     setNotificationOpen(nextOpen);
     setMenuOpen(false);
 
-    if (!nextOpen || unreadNotifications.length === 0) return;
+    if (!nextOpen || unreadCount === 0) return;
 
     const unreadIds = unreadNotifications.map((notification) => notification.id);
+    const previousUnreadCount = unreadCount;
     setLocallyReadIds((current) => Array.from(new Set([...current, ...unreadIds])));
+    setUnreadCount(0);
     startMarkingRead(async () => {
-      const result = await markAdmissionNotificationsReadAction();
+      const result = await markAllNotificationsReadAction();
       if (!result.ok) {
         setLocallyReadIds((current) => current.filter((id) => !unreadIds.includes(id)));
+        setUnreadCount(previousUnreadCount);
       }
     });
   }
@@ -82,20 +117,19 @@ export function Topbar({
       <h1 className="truncate text-[17px] font-bold tracking-tight">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2 lg:gap-3">
-        {canReceiveAdmissionNotifications ? (
-          <div className="relative">
+        <div className="relative">
             <button
               type="button"
               onClick={toggleNotifications}
               className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-surface text-ink-2 transition hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-              aria-label={unreadNotifications.length > 0 ? `${unreadNotifications.length} notifikasi baru` : "Buka notifikasi"}
+              aria-label={unreadCount > 0 ? `${unreadCount} notifikasi baru` : "Buka notifikasi"}
               aria-expanded={notificationOpen}
               disabled={isMarkingRead && notificationOpen}
             >
               <Icons.bell size={18} />
-              {unreadNotifications.length > 0 ? (
+              {unreadCount > 0 ? (
                 <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold leading-none text-white ring-2 ring-surface">
-                  {unreadNotifications.length > 9 ? "9+" : unreadNotifications.length}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               ) : null}
             </button>
@@ -112,23 +146,25 @@ export function Topbar({
                   <div className="flex items-center justify-between border-b border-line px-4 py-3">
                     <div>
                       <div className="text-sm font-bold text-ink">Notifikasi</div>
-                      <div className="mt-0.5 text-[11.5px] text-ink-3">Hasil pendaftaran santri</div>
+                      <div className="mt-0.5 text-[11.5px] text-ink-3">Pembaruan penting untuk akun Anda</div>
                     </div>
                     <Icons.bell size={17} style={{ color: "var(--text-3)" }} />
                   </div>
 
-                  {notifications.length === 0 ? (
+                  {notificationItems.length === 0 ? (
                     <div className="px-5 py-8 text-center">
                       <div className="text-[13.5px] font-semibold text-ink-2">Belum ada notifikasi</div>
                       <p className="mt-1 text-xs leading-relaxed text-ink-3">
-                        Hasil penerimaan atau penolakan akan muncul di sini.
+                        Pendaftaran, rapor, jadwal, dan pembaruan sistem akan muncul di sini.
                       </p>
                     </div>
                   ) : (
                     <div className="max-h-[420px] overflow-y-auto">
-                      {notifications.map((notification) => {
+                      {notificationItems.map((notification) => {
                         const unread = !notification.read && !locallyReadIds.includes(notification.id);
-                        const accepted = notification.tone === "success";
+                        const reportNotification = notification.type === "REPORT";
+                        const admissionNotification = notification.type === "ADMISSION";
+                        const scheduleNotification = notification.type === "SCHEDULE";
 
                         return (
                           <Link
@@ -139,10 +175,24 @@ export function Topbar({
                           >
                             <span
                               className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full ${
-                                accepted ? "bg-success-soft text-success" : "bg-danger-soft text-danger"
+                                reportNotification
+                                  ? "bg-success-soft text-success"
+                                  : admissionNotification
+                                    ? "bg-primary-soft text-primary-700"
+                                    : scheduleNotification
+                                      ? "bg-accent-soft text-[oklch(0.42_0.1_200)]"
+                                    : "bg-surface-2 text-ink-2"
                               }`}
                             >
-                              {accepted ? <Icons.check2 size={17} /> : <Icons.x size={16} />}
+                              {reportNotification ? (
+                                <Icons.award size={17} />
+                              ) : admissionNotification ? (
+                                <Icons.doc size={16} />
+                              ) : scheduleNotification ? (
+                                <Icons.calendar size={16} />
+                              ) : (
+                                <Icons.bell size={16} />
+                              )}
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="flex items-start gap-2">
@@ -151,7 +201,7 @@ export function Topbar({
                               </span>
                               <span className="mt-0.5 block text-xs leading-relaxed text-ink-2">{notification.message}</span>
                               <span className="mt-1.5 block text-[11px] text-ink-3">
-                                {notification.registrationCode} · {notificationDateFmt.format(new Date(notification.createdAt))}
+                                {notificationDateFmt.format(new Date(notification.createdAt))}
                               </span>
                             </span>
                           </Link>
@@ -161,17 +211,16 @@ export function Topbar({
                   )}
 
                   <Link
-                    href="/anak#status-pendaftaran"
+                    href="/notifikasi"
                     onClick={() => setNotificationOpen(false)}
                     className="flex min-h-11 items-center justify-center border-t border-line px-4 text-xs font-bold text-primary-700 hover:bg-surface-2"
                   >
-                    Lihat status pendaftaran
+                    Lihat semua notifikasi
                   </Link>
                 </div>
               </>
             ) : null}
           </div>
-        ) : null}
 
         <div className="relative">
           <button

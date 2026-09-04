@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { ReportCardStatus, Semester } from "@/generated/prisma/client";
+import { NotificationType, ReportCardStatus, Semester, UserRole } from "@/generated/prisma/client";
 import { requirePermission, type AuthUser } from "@/lib/auth";
 import type { Period } from "@/lib/lms";
+import { notifyUsers, notifyVerifiedRole } from "@/lib/notifications";
 import { buildReportDraft, getStudentAdministration, outstandingAdministration } from "@/lib/rapor";
 import { prisma } from "@/lib/prisma";
 
@@ -96,7 +97,7 @@ async function loadCardForHomeroom(user: AuthUser, reportCardId: string) {
       studentId: true,
       semester: true,
       academicYear: true,
-      student: { select: { classRoom: { select: { homeroomTeacherId: true, academicYear: true } } } },
+      student: { select: { name: true, classRoom: { select: { homeroomTeacherId: true, academicYear: true } } } },
     },
   });
   if (!card) return { error: "Rapor tidak ditemukan." as const };
@@ -212,6 +213,17 @@ export async function saveHomeroomNoteAction(input: {
     data: { homeroomNote: input.note.trim() || null },
   });
 
+  await notifyVerifiedRole(
+    UserRole.ADMIN,
+    {
+      type: NotificationType.REPORT,
+      title: "Rapor menunggu pemeriksaan",
+      message: `Rapor ${loaded.card.student.name} semester ${loaded.card.semester === "GANJIL" ? "Ganjil" : "Genap"} tahun ajaran ${loaded.card.academicYear} telah dikirim oleh wali kelas.`,
+      href: `/rapor/${loaded.card.id}`,
+    },
+    user.id,
+  );
+
   revalidateRapor();
   return { ok: true };
 }
@@ -299,7 +311,21 @@ async function loadCardForReview(reportCardId: string) {
 
   const card = await prisma.reportCard.findUnique({
     where: { id: reportCardId },
-    select: { id: true, status: true, studentId: true, semester: true, academicYear: true },
+    select: {
+      id: true,
+      status: true,
+      studentId: true,
+      semester: true,
+      academicYear: true,
+      createdById: true,
+      student: {
+        select: {
+          name: true,
+          parentId: true,
+          classRoom: { select: { homeroomTeacherId: true } },
+        },
+      },
+    },
   });
   if (!card) return { error: "Rapor tidak ditemukan." as const };
   return { card };
@@ -346,6 +372,20 @@ export async function approveRaporAction(input: {
     },
   });
 
+  const homeroomId = card.createdById ?? card.student.classRoom?.homeroomTeacherId;
+  if (homeroomId) {
+    await notifyUsers(
+      [homeroomId],
+      {
+        type: NotificationType.REPORT,
+        title: "Rapor disetujui",
+        message: `Rapor ${card.student.name} sudah di-ACC administrasi dan siap diterbitkan.`,
+        href: `/rapor/${card.id}`,
+      },
+      user.id,
+    );
+  }
+
   revalidateRapor();
   return { ok: true };
 }
@@ -375,13 +415,27 @@ export async function rejectRaporAction(input: {
     },
   });
 
+  const homeroomId = loaded.card.createdById ?? loaded.card.student.classRoom?.homeroomTeacherId;
+  if (homeroomId) {
+    await notifyUsers(
+      [homeroomId],
+      {
+        type: NotificationType.REPORT,
+        title: "Rapor dikembalikan",
+        message: `Rapor ${loaded.card.student.name} perlu diperbaiki. Catatan administrasi: ${note}`,
+        href: `/rapor/${loaded.card.id}`,
+      },
+      user.id,
+    );
+  }
+
   revalidateRapor();
   return { ok: true };
 }
 
 /** APPROVED -> PUBLISHED. Setelah terbit rapor tidak bisa diubah lagi. */
 export async function publishRaporAction(reportCardId: string): Promise<ActionResult> {
-  await requirePermission("report.distribute");
+  const user = await requirePermission("report.distribute");
   const loaded = await loadCardForReview(reportCardId);
   if ("error" in loaded) return { ok: false, message: loaded.error };
 
@@ -402,6 +456,19 @@ export async function publishRaporAction(reportCardId: string): Promise<ActionRe
     where: { id: card.id },
     data: { status: ReportCardStatus.PUBLISHED, publishedAt: new Date() },
   });
+
+  if (card.student.parentId) {
+    await notifyUsers(
+      [card.student.parentId],
+      {
+        type: NotificationType.REPORT,
+        title: "Rapor telah diterbitkan",
+        message: `Rapor ${card.student.name} semester ${card.semester === "GANJIL" ? "Ganjil" : "Genap"} tahun ajaran ${card.academicYear} sudah dapat dilihat.`,
+        href: `/anak/${card.studentId}`,
+      },
+      user.id,
+    );
+  }
 
   revalidateRapor();
   return { ok: true };

@@ -8,10 +8,12 @@ import type { Role } from "./nav";
 export function Shell({
   user,
   notifications,
+  unreadNotificationCount,
   children,
 }: {
   user: { name: string; email: string; roles: Role[] };
   notifications: AppNotification[];
+  unreadNotificationCount: number;
   children: ReactNode;
 }) {
   const [navOpen, setNavOpen] = useState(false);
@@ -20,7 +22,12 @@ export function Shell({
     <div className="app-shell flex h-screen overflow-hidden bg-bg text-ink">
       <Sidebar roles={user.roles} open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="app-content flex min-w-0 flex-1 flex-col">
-        <Topbar user={user} notifications={notifications} onMenu={() => setNavOpen(true)} />
+        <Topbar
+          user={user}
+          notifications={notifications}
+          unreadNotificationCount={unreadNotificationCount}
+          onMenu={() => setNavOpen(true)}
+        />
         <main className="flex-1 overflow-y-auto px-4 pb-12 pt-5 lg:px-8 lg:pt-7">
           <div className="mx-auto max-w-[1180px]">{children}</div>
         </main>

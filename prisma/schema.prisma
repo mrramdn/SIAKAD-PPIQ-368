@@ -85,6 +85,13 @@ enum AdmissionDocumentKind {
   PAYMENT_PROOF
 }
 
+enum NotificationType {
+  ADMISSION
+  REPORT
+  SCHEDULE
+  SYSTEM
+}
+
 model User {
   id           String       @id @default(uuid())
   name         String
@@ -107,6 +114,7 @@ model User {
   bkkhReports  BkkhReport[] @relation("BkkhTeacher")
   homeroomClasses ClassRoom[] @relation("ClassRoomHomeroom")
   reviewedReportCards ReportCard[] @relation("ReportCardReviewer")
+  notifications Notification[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -454,6 +462,21 @@ model StudentAdministration {
   @@index([itemId])
 }
 
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
 // Pendaftaran santri baru (PPDB). Saat diterima admin, dibuat akun orang tua + record santri.
 model Admission {
   id               String          @id @default(uuid())
@@ -473,7 +496,6 @@ model Admission {
   status           AdmissionStatus @default(PENDING)
   reviewNote       String?
   reviewedAt       DateTime?
-  notificationReadAt DateTime?
   reviewedById     String?
   createdStudentId String?
   createdParentId  String?
