@@ -34,9 +34,21 @@ export function PesertaManager({
   const { run, toast, pending } = useActionRunner();
   const [classId, setClassId] = useState(classes[0]?.id ?? "");
   const [q, setQ] = useState("");
+  const [levelFilter, setLevelFilter] = useState<"ALL" | EducationLevel>("ALL");
   const [openCourse, setOpenCourse] = useState<string | null>(null);
 
-  const cls = classes.find((c) => c.id === classId) ?? classes[0] ?? null;
+  // Hanya jenjang yang benar-benar punya kelas yang ditawarkan, supaya memilih
+  // jenjang tidak pernah menghasilkan daftar kelas kosong yang tak bisa dibatalkan.
+  const availableLevels = useMemo(
+    () => (["SD", "SMP", "SMA"] as EducationLevel[]).filter((l) => classes.some((c) => c.level === l)),
+    [classes],
+  );
+  const classOptions = useMemo(
+    () => classes.filter((c) => levelFilter === "ALL" || c.level === levelFilter),
+    [classes, levelFilter],
+  );
+
+  const cls = classOptions.find((c) => c.id === classId) ?? classOptions[0] ?? null;
   const list = useMemo(
     () => (cls ? cls.courses.filter((c) => c.title.toLowerCase().includes(q.toLowerCase())) : []),
     [cls, q],
@@ -67,15 +79,32 @@ export function PesertaManager({
             Daftarkan santri ke mata pelajaran kelasnya. Tanpa pendaftaran ini, absensi, nilai, dan rapor tidak menemukan peserta.
           </p>
         </div>
-        {classes.length > 1 ? (
-          <select value={cls.id} aria-label="Pilih kelas" onChange={(e) => setClassId(e.target.value)} className={`${inputClasses} sm:max-w-[240px]`}>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} · {c.academicYear}
-              </option>
-            ))}
-          </select>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {availableLevels.length > 1 ? (
+            <select
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value as "ALL" | EducationLevel)}
+              aria-label="Saring kelas menurut jenjang"
+              className={`${inputClasses} sm:max-w-[150px]`}
+            >
+              <option value="ALL">Semua jenjang</option>
+              {availableLevels.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {classOptions.length > 1 ? (
+            <select value={cls.id} aria-label="Pilih kelas" onChange={(e) => setClassId(e.target.value)} className={`${inputClasses} sm:max-w-[240px]`}>
+              {classOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} · {c.academicYear}
+                </option>
+              ))}
+            </select>
+          ) : null}
+        </div>
       </div>
 
       <Card pad={0} className="overflow-hidden">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge, Button, Card, Field, Icons, inputClasses } from "@/components/ui";
 import type { EducationLevel } from "@/generated/prisma/client";
 import {
@@ -89,9 +89,21 @@ export function KelasManager({
   const [editingClass, setEditingClass] = useState<ClassRow | null>(null);
   const [deleteClassId, setDeleteClassId] = useState<string | null>(null);
   const [pickByClass, setPickByClass] = useState<Record<string, string>>({});
+  const [levelFilter, setLevelFilter] = useState<"ALL" | EducationLevel>("ALL");
+  const [q, setQ] = useState("");
 
   const totalStudents = classes.reduce((sum, c) => sum + c.students.length, 0) + unassignedStudents.length;
   const deletingClass = classes.find((c) => c.id === deleteClassId) ?? null;
+
+  const visibleClasses = useMemo(
+    () =>
+      classes.filter(
+        (c) =>
+          (levelFilter === "ALL" || c.level === levelFilter) &&
+          c.name.toLowerCase().includes(q.trim().toLowerCase()),
+      ),
+    [classes, levelFilter, q],
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -124,12 +136,47 @@ export function KelasManager({
         </div>
       </Card>
 
+      {classes.length > 0 ? (
+        <div className="flex flex-wrap gap-3">
+          <div className="flex flex-1 items-center gap-2 rounded-xl border border-line bg-surface px-3 sm:max-w-[280px]">
+            <Icons.search size={17} style={{ color: "var(--text-3)" }} />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Cari kelas"
+              placeholder="Cari kelas…"
+              className="w-full bg-transparent py-2.5 text-[13.5px] outline-none"
+            />
+          </div>
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value as "ALL" | EducationLevel)}
+            aria-label="Saring menurut jenjang"
+            className={`${inputClasses} sm:max-w-[160px]`}
+          >
+            <option value="ALL">Semua jenjang</option>
+            {LEVELS.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <p className="w-full text-[12.5px] text-ink-3">
+            Menampilkan {visibleClasses.length} dari {classes.length} kelas.
+          </p>
+        </div>
+      ) : null}
+
       {classes.length === 0 ? (
         <Card pad={40}>
           <p className="text-center text-sm text-ink-3">Belum ada kelas. Tambahkan kelas pertama untuk mulai menempatkan santri.</p>
         </Card>
+      ) : visibleClasses.length === 0 ? (
+        <Card pad={40}>
+          <p className="text-center text-sm text-ink-3">Tidak ada kelas yang cocok dengan pencarian atau jenjang yang dipilih.</p>
+        </Card>
       ) : (
-        classes.map((cls) => {
+        visibleClasses.map((cls) => {
           const pick = pickByClass[cls.id] ?? "";
           return (
             <Card key={cls.id} pad={20}>

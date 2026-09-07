@@ -188,20 +188,33 @@ export function MapelManager({
   const { run, toast } = useActionRunner();
   const [q, setQ] = useState("");
   const [groupFilter, setGroupFilter] = useState("ALL");
+  const [levelFilter, setLevelFilter] = useState<"ALL" | EducationLevel>("ALL");
+  const [classFilter, setClassFilter] = useState("ALL");
   const [addOpen, setAddOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>({ classRoomId: "", assessmentGroupId: "", teacherId: "", reportMaxScore: "" });
   const [deleteCourseId, setDeleteCourseId] = useState<string | null>(null);
   const deletingCourse = courses.find((c) => c.id === deleteCourseId) ?? null;
 
+  // Pilihan kelas mengikuti jenjang yang sedang dipilih. Kelas yang tidak lagi
+  // tersedia setelah jenjang berganti diperlakukan sebagai "semua kelas"
+  // sehingga daftar tidak pernah tampil kosong tanpa sebab yang terlihat.
+  const classOptions = useMemo(
+    () => classRooms.filter((cr) => levelFilter === "ALL" || cr.level === levelFilter),
+    [classRooms, levelFilter],
+  );
+  const activeClassFilter = classOptions.some((cr) => cr.id === classFilter) ? classFilter : "ALL";
+
   const list = useMemo(
     () =>
       courses.filter(
         (c) =>
           (groupFilter === "ALL" || c.assessmentGroupId === groupFilter) &&
+          (levelFilter === "ALL" || c.level === levelFilter) &&
+          (activeClassFilter === "ALL" || c.classRoomId === activeClassFilter) &&
           c.title.toLowerCase().includes(q.toLowerCase()),
       ),
-    [courses, q, groupFilter],
+    [courses, q, groupFilter, levelFilter, activeClassFilter],
   );
 
   function startEdit(c: Course) {
@@ -257,6 +270,32 @@ export function MapelManager({
             className="w-full bg-transparent py-2.5 text-[13.5px] outline-none"
           />
         </div>
+        <select
+          value={levelFilter}
+          onChange={(e) => setLevelFilter(e.target.value as "ALL" | EducationLevel)}
+          aria-label="Saring menurut jenjang"
+          className={`${inputClasses} sm:max-w-[160px]`}
+        >
+          <option value="ALL">Semua jenjang</option>
+          {(["SD", "SMP", "SMA"] as EducationLevel[]).map((l) => (
+            <option key={l} value={l}>
+              {l}
+            </option>
+          ))}
+        </select>
+        <select
+          value={activeClassFilter}
+          onChange={(e) => setClassFilter(e.target.value)}
+          aria-label="Saring menurut kelas"
+          className={`${inputClasses} sm:max-w-[180px]`}
+        >
+          <option value="ALL">Semua kelas</option>
+          {classOptions.map((cr) => (
+            <option key={cr.id} value={cr.id}>
+              {cr.name}
+            </option>
+          ))}
+        </select>
         <select value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)} className={`${inputClasses} sm:max-w-[260px]`}>
           <option value="ALL">Semua kelompok penilaian</option>
           {assessmentGroups.map((g) => (
@@ -266,6 +305,10 @@ export function MapelManager({
           ))}
         </select>
       </div>
+
+      <p className="text-[12.5px] text-ink-3">
+        Menampilkan {list.length} dari {courses.length} mata pelajaran.
+      </p>
 
       <Card pad={0} className="overflow-hidden">
         <div className="overflow-x-auto">
